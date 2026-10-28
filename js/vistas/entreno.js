@@ -3,6 +3,7 @@ import { sb, estado, datos } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo } from '../ui.js';
 import { hoyISO, diaCorto, numeroDia } from '../fechas.js';
 import { FOCOS, cargarRutina, textoMeta, textoDescanso } from '../rutinas.js';
+import { abrirFicha, miniatura } from '../ficha.js';
 
 export async function vistaEntreno(app) {
   const id = location.hash.split('/')[2];
@@ -60,14 +61,17 @@ async function detalle(app, rutinaId) {
     <div class="pila">
       ${items.map((it, i) => `
         <article class="tarjeta">
-          <div class="fila" style="align-items:flex-start">
-            <span class="numero-ejercicio">${i + 1}</span>
-            <div style="min-width:0;flex:1">
-              <h2 class="ejercicio__nombre">${esc(it.ejercicio.nombre)}</h2>
-              <p class="quieto" style="margin:2px 0 0">${esc(it.ejercicio.grupo_muscular)}${it.ejercicio.maquina ? ` · ${esc(it.ejercicio.maquina.nombre)}` : ''}</p>
-              ${it.ejercicio.descripcion ? `<p class="ayuda" style="margin-top:6px">${esc(it.ejercicio.descripcion)}</p>` : ''}
-            </div>
-          </div>
+          <button type="button" class="ejercicio__cabeza" data-ficha="${esc(it.id)}" aria-label="Cómo se hace ${esc(it.ejercicio.nombre)}">
+            ${miniatura(it.ejercicio, 64)}
+            <span style="min-width:0;flex:1">
+              <span class="fila" style="gap:8px;align-items:baseline">
+                <span class="numero-ejercicio">${i + 1}</span>
+                <span class="ejercicio__nombre">${esc(it.ejercicio.nombre)}</span>
+              </span>
+              <span class="quieto" style="display:block;margin:4px 0 0">${esc(it.ejercicio.grupo_muscular)}${it.ejercicio.maquina ? ` · ${esc(it.ejercicio.maquina.nombre)}` : ''}</span>
+              <span class="ejercicio__como">Cómo se hace ›</span>
+            </span>
+          </button>
           <div class="pila" style="gap:6px;margin-top:12px">
             ${personas.map((p) => {
               const m = it.metas[p.id];
@@ -79,11 +83,15 @@ async function detalle(app, rutinaId) {
                 </div>`;
             }).join('')}
           </div>
-          ${it.alternativas.length ? `<p class="ayuda" style="margin-top:10px">Si está ocupada: ${it.alternativas.map((a) => esc(a.nombre)).join(' · ')}</p>` : ''}
+          ${it.alternativas.length ? `<p class="ayuda" style="margin-top:10px">Si está ocupada: ${it.alternativas.map((a) => esc(a.nombre)).join(' · ')} (en «Cómo se hace» ves cada una)</p>` : ''}
         </article>`).join('')}
     </div>
     <p class="ayuda" style="margin-top:16px">Las metas sin peso se completan solas con lo que registren en el primer entreno. Después se ajustan según cómo les vaya.</p>`;
 
+  app.querySelectorAll('[data-ficha]').forEach((b) => b.addEventListener('click', () => {
+    const it = items.find((x) => x.id === b.dataset.ficha);
+    abrirFicha(it.ejercicio, { alternativas: it.alternativas });
+  }));
   app.querySelectorAll('[data-meta]').forEach((b) => b.addEventListener('click', () => {
     const it = items.find((x) => Object.values(x.metas).some((m) => m.id === b.dataset.meta));
     const meta = Object.values(it.metas).find((m) => m.id === b.dataset.meta);

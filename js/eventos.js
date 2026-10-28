@@ -10,6 +10,12 @@ export const TIPOS = {
   descanso: 'Descanso',
 };
 
+// Para ordenar el día: sin hora, el gym va de mañana, el derby de noche.
+const HORA_TIPICA = { gym: '07:00', clase: '12:00', derby: '19:00', descanso: '23:59' };
+export function horaEfectiva(ev) {
+  return (ev.hora_inicio ?? HORA_TIPICA[ev.tipo] ?? '12:00').slice(0, 5);
+}
+
 // "Sant y yo" (o "Victor y yo" para Sant).
 export function textoJuntos() {
   const otro = otraPersona();

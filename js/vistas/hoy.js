@@ -2,7 +2,7 @@
 import { sb, estado, datos } from '../db.js';
 import { esc, num, aviso, avisoError, grupoChips, valorChips } from '../ui.js';
 import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia, fechaCorta } from '../fechas.js';
-import { TIPOS, htmlEvento } from '../eventos.js';
+import { TIPOS, htmlEvento, horaEfectiva } from '../eventos.js';
 import { calcularSemaforo, esDescanso, textoSemaforo } from '../semaforo.js';
 import { empezarSesion } from './sesion.js';
 
@@ -43,7 +43,7 @@ export async function vistaHoy(app) {
   // Sin hora, el gym (de mañana) va antes que el derby.
   const ORDEN_TIPO = { gym: 0, clase: 1, derby: 2, descanso: 3 };
   eventos.sort((x, y) => x.fecha.localeCompare(y.fecha)
-    || (x.hora_inicio ?? '').localeCompare(y.hora_inicio ?? '')
+    || horaEfectiva(x).localeCompare(horaEfectiva(y))
     || ORDEN_TIPO[x.tipo] - ORDEN_TIPO[y.tipo]);
   const deAyer = eventos.filter((e) => e.fecha === ayer);
   const deHoy = eventos.filter((e) => e.fecha === hoy);
@@ -51,25 +51,29 @@ export async function vistaHoy(app) {
   // Rutinas del día y entrenos ya empezados.
   const conRutina = deHoy.filter((e) => e.rutina_id);
   const [rutinas, sesiones] = conRutina.length ? await Promise.all([
-    sb.from('rutinas').select('id, nombre').in('id', conRutina.map((e) => e.rutina_id)).then(datos),
+    sb.from('rutinas').select('id, nombre, foco').in('id', conRutina.map((e) => e.rutina_id)).then(datos),
     sb.from('sesiones').select('id, calendario_id, terminados, terminada_en').in('calendario_id', conRutina.map((e) => e.id)).then(datos),
   ]) : [[], []];
+  // Las rutinas de los días de derby son livianas a propósito: el semáforo lo tiene en cuenta.
+  for (const e of deHoy) e.liviana = rutinas.find((r) => r.id === e.rutina_id)?.foco === 'recuperacion';
   const proximo = eventos.find((e) => e.fecha > hoy && e.tipo !== 'descanso');
   const mia = banda(estado.yo.id);
   const contexto = { hoy, deAyer, deHoy, extrasAyer, suenoMin: mia.suenoMin, bandaAyer: mia.entrenosAyer };
 
-  // Un check-in guardado sin semáforo (por ejemplo, de antes de que existiera)
-  // se calcula al abrir la pantalla.
+  // El semáforo se recalcula al abrir Hoy: pueden haber llegado datos de la banda
+  // o cambiado el plan desde el check-in. Solo se guarda si cambió.
   const mio = estados.find((e) => e.persona_id === estado.yo.id);
-  if (mio && !mio.semaforo && (mio.cansancio != null || mio.dolor_muscular != null)) {
+  if (mio && (mio.cansancio != null || mio.dolor_muscular != null)) {
     const r = calcularSemaforo({
       cansancio: mio.cansancio, dolor: mio.dolor_muscular, ayer: deAyer, hoy: deHoy, extrasAyer, personaId: estado.yo.id,
       suenoMin: mia.suenoMin, bandaAyer: mia.entrenosAyer,
     });
-    const { error } = await sb.from('estado_diario')
-      .update({ ...r, calculado_en: new Date().toISOString() })
-      .eq('persona_id', estado.yo.id).eq('fecha', hoy);
-    if (!error) Object.assign(mio, r);
+    if (r.semaforo !== mio.semaforo || r.motivo !== mio.motivo) {
+      const { error } = await sb.from('estado_diario')
+        .update({ ...r, calculado_en: new Date().toISOString() })
+        .eq('persona_id', estado.yo.id).eq('fecha', hoy);
+      if (!error) Object.assign(mio, r);
+    }
   }
 
   app.innerHTML = `
@@ -170,7 +174,7 @@ function tarjetaPersona(p, est, med, descanso, b) {
           <span class="quieto">${sem ? esc(textoSemaforo(sem, descanso)) : 'Sin semáforo aún'}</span>
         </span>
       </div>
-      ${est?.motivo ? `<p class="quieto" style="margin:6px 0 0">${esc(est.motivo)}</p>` : ''}
+      ${est?.motivo ? `<p class="motivo"><strong>Por qué:</strong> ${esc(est.motivo)}</p>` : ''}
 
       <div class="grilla-2" style="margin-top:14px">
         <div>

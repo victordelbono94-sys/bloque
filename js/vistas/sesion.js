@@ -6,6 +6,7 @@ import { esc, num, aviso, avisoError, abrirDialogo, grupoChips, valorChips } fro
 import { hoyISO } from '../fechas.js';
 import { cargarRutina, textoMeta, redondearPeso } from '../rutinas.js';
 import { textoSemaforo } from '../semaforo.js';
+import { abrirFicha, miniatura } from '../ficha.js';
 
 const ESFUERZOS = [
   { valor: 6, texto: 'Fácil' },
@@ -158,16 +159,21 @@ function tarjetaEjercicio(it, i) {
   const cambiado = mio.id !== it.ejercicio.id;
   return `
     <article class="tarjeta" id="ej-${esc(it.id)}">
-      <div class="fila" style="align-items:flex-start">
-        <span class="numero-ejercicio">${i + 1}</span>
-        <div style="min-width:0;flex:1">
-          <h2 class="ejercicio__nombre">${esc(mio.nombre)}</h2>
-          <p class="quieto" style="margin:2px 0 0">${esc(mio.grupo_muscular)}${mio.maquina ? ` · ${esc(mio.maquina.nombre)}` : ''}${cambiado ? ` · en vez de ${esc(it.ejercicio.nombre)}` : ''}</p>
-          ${mio.descripcion ? `<p class="ayuda" style="margin-top:6px">${esc(mio.descripcion)}</p>` : ''}
-        </div>
-        ${it.alternativas.length && actual.participantes.some((p) => p.id === estado.yo.id)
-          ? `<button type="button" class="boton boton--texto boton--chico" data-cambiar="${esc(it.id)}">Cambiar</button>` : ''}
-      </div>
+      <button type="button" class="ejercicio__cabeza" data-ficha="${esc(it.id)}" aria-label="Cómo se hace ${esc(mio.nombre)}">
+        ${miniatura(mio, 64)}
+        <span style="min-width:0;flex:1">
+          <span class="fila" style="gap:8px;align-items:baseline">
+            <span class="numero-ejercicio">${i + 1}</span>
+            <span class="ejercicio__nombre">${esc(mio.nombre)}</span>
+          </span>
+          <span class="quieto" style="display:block;margin:4px 0 0">${esc(mio.grupo_muscular)}${mio.maquina ? ` · ${esc(mio.maquina.nombre)}` : ''}${cambiado ? ` · en vez de ${esc(it.ejercicio.nombre)}` : ''}</span>
+          <span class="ejercicio__como">Cómo se hace ›</span>
+        </span>
+      </button>
+      ${it.alternativas.length && actual.participantes.some((p) => p.id === estado.yo.id) ? `
+        <button type="button" class="boton boton--sec boton--chico boton--ocupada" style="margin-top:10px" data-cambiar="${esc(it.id)}">
+          ¿Máquina ocupada? Cambiar ejercicio
+        </button>` : ''}
       <div class="pila" style="gap:10px;margin-top:14px">
         ${actual.participantes.map((p) => `<div id="fila-${esc(it.id)}-${esc(p.id)}">${filaPersona(it, p)}</div>`).join('')}
       </div>
@@ -220,6 +226,9 @@ function conectar(app) {
     const it = actual.items.find((x) => x.id === b.dataset.cambiar);
     elegirAlternativa(app, it);
   }));
+  app.querySelectorAll('[data-ficha]').forEach((b) => b.addEventListener('click', () => {
+    verFicha(app, actual.items.find((x) => x.id === b.dataset.ficha));
+  }));
   app.querySelector('#terminar')?.addEventListener('click', () => terminar(app));
 }
 
@@ -232,37 +241,73 @@ function conectarFila(app, cont) {
 
 // ---------- Cambiar de ejercicio ----------
 
+// Ficha del ejercicio que estoy haciendo, con las alternativas listas para usar.
+function verFicha(app, it) {
+  const mio = ejercicioDe(it, estado.yo.id);
+  const opciones = [it.ejercicio, ...it.alternativas].filter((o) => o.id !== mio.id);
+  const participo = actual.participantes.some((p) => p.id === estado.yo.id);
+  abrirFicha(mio, {
+    alternativas: opciones,
+    actualId: mio.id,
+    alElegir: participo ? (id) => aplicarCambio(app, it, id) : null,
+  });
+}
+
 function elegirAlternativa(app, it) {
   const actualId = ejercicioDe(it, estado.yo.id).id;
   const opciones = [it.ejercicio, ...it.alternativas];
   const d = abrirDialogo(`
     <div class="dialogo">
       <h2 class="tarjeta__titulo">Cambiar ejercicio</h2>
-      <p class="quieto" style="margin:-8px 0 0">Solo para ti en este entreno. Trabaja el mismo grupo muscular.</p>
+      <p class="quieto" style="margin:-8px 0 0">Solo para ti en este entreno. Trabajan el mismo grupo muscular.</p>
       <div class="pila" style="gap:8px">
         ${opciones.map((o) => `
-          <button type="button" class="opcion" data-op="${esc(o.id)}" aria-pressed="${o.id === actualId}">
-            <strong>${esc(o.nombre)}</strong>
-            <span class="quieto">${o.id === it.ejercicio.id ? 'El de la rutina' : esc(o.maquina?.nombre ?? 'Peso libre')}</span>
-          </button>`).join('')}
+          <div class="alternativa ${o.id === actualId ? 'alternativa--actual' : ''}">
+            <button type="button" class="alternativa__ver" data-op="${esc(o.id)}" aria-pressed="${o.id === actualId}">
+              ${miniatura(o, 48)}
+              <span class="alternativa__texto">
+                <strong>${esc(o.nombre)}</strong>
+                <span class="quieto">${o.id === it.ejercicio.id ? 'El de la rutina' : esc(o.maquina?.nombre ?? 'Peso libre')}</span>
+              </span>
+            </button>
+            <button type="button" class="boton boton--texto boton--chico" data-info="${esc(o.id)}" aria-label="Cómo se hace ${esc(o.nombre)}">Ver</button>
+          </div>`).join('')}
       </div>
       <div class="dialogo__pie"><button type="button" class="boton boton--sec" data-cerrar>Cerrar</button></div>
     </div>`, 'Cambiar ejercicio');
   d.querySelectorAll('[data-op]').forEach((b) => b.addEventListener('click', () => {
-    if (seriesDe(it, estado.yo.id).length && b.dataset.op !== actualId) {
-      aviso('Ya registraste series de este ejercicio; el cambio aplica a las siguientes.');
-    }
-    if (b.dataset.op === it.ejercicio.id) delete actual.cambios[it.id];
-    else actual.cambios[it.id] = b.dataset.op;
-    guardarCambios(actual.sesion.id, actual.cambios);
     d.close();
-    const tarjeta = app.querySelector(`#ej-${CSS.escape(it.id)}`);
-    const indice = actual.items.indexOf(it);
-    tarjeta.outerHTML = tarjetaEjercicio(it, indice);
-    const nueva = app.querySelector(`#ej-${CSS.escape(it.id)}`);
-    nueva.querySelectorAll('[id^="fila-"]').forEach((cont) => conectarFila(app, cont));
-    nueva.querySelector('[data-cambiar]')?.addEventListener('click', () => elegirAlternativa(app, it));
+    aplicarCambio(app, it, b.dataset.op);
   }));
+  d.querySelectorAll('[data-info]').forEach((b) => b.addEventListener('click', () => {
+    const o = opciones.find((x) => x.id === b.dataset.info);
+    d.close();
+    setTimeout(() => abrirFicha(o, {
+      alternativas: opciones.filter((x) => x.id !== o.id),
+      actualId,
+      alElegir: (id) => aplicarCambio(app, it, id),
+      alUsarEste: o.id !== actualId ? () => aplicarCambio(app, it, o.id) : null,
+    }), 200);
+  }));
+}
+
+function aplicarCambio(app, it, opId) {
+  const actualId = ejercicioDe(it, estado.yo.id).id;
+  if (opId === actualId) return;
+  if (seriesDe(it, estado.yo.id).length) {
+    aviso('Ya registraste series de este ejercicio; el cambio aplica a las siguientes.');
+  }
+  if (opId === it.ejercicio.id) delete actual.cambios[it.id];
+  else actual.cambios[it.id] = opId;
+  guardarCambios(actual.sesion.id, actual.cambios);
+  const tarjeta = app.querySelector(`#ej-${CSS.escape(it.id)}`);
+  const indice = actual.items.indexOf(it);
+  tarjeta.outerHTML = tarjetaEjercicio(it, indice);
+  const nueva = app.querySelector(`#ej-${CSS.escape(it.id)}`);
+  nueva.querySelectorAll('[id^="fila-"]').forEach((cont) => conectarFila(app, cont));
+  nueva.querySelector('[data-cambiar]')?.addEventListener('click', () => elegirAlternativa(app, it));
+  nueva.querySelector('[data-ficha]')?.addEventListener('click', () => verFicha(app, it));
+  aviso(`Cambiado a ${ejercicioDe(it, estado.yo.id).nombre}.`);
 }
 
 // ---------- Registrar una serie ----------

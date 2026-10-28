@@ -56,9 +56,13 @@ export function calcularSemaforo({ cansancio, dolor, ayer, hoy, extrasAyer, pers
     else if (suenoMin < 360) { puntos += 1; motivos.push(`dormiste ${horas(suenoMin)}`); }
   }
 
-  const tiposHoy = new Set(hoy.filter((e) => incluyeA(e, personaId)).map((e) => e.tipo));
-  const dobleHoy = tiposHoy.has('derby') && (tiposHoy.has('gym') || tiposHoy.has('clase'));
-  if (dobleHoy) motivos.push('gym y derby el mismo día');
+  // Gym y derby el mismo día solo pesa si el gym no es la rutina liviana pensada para eso.
+  const propiosHoy = hoy.filter((e) => incluyeA(e, personaId));
+  const tiposHoy = new Set(propiosHoy.map((e) => e.tipo));
+  const gymPesadoHoy = propiosHoy.some((e) => (e.tipo === 'gym' && !e.liviana) || e.tipo === 'clase');
+  const dobleHoy = tiposHoy.has('derby') && gymPesadoHoy;
+  const livianoConDerby = tiposHoy.has('derby') && !dobleHoy && tiposHoy.has('gym');
+  if (dobleHoy) motivos.push('gym exigente y derby el mismo día');
 
   let semaforo = 'verde';
   if (cansancio === 5 || dolor === 5 || puntos >= 8) semaforo = 'rojo';
@@ -67,7 +71,8 @@ export function calcularSemaforo({ cansancio, dolor, ayer, hoy, extrasAyer, pers
   const descanso = esDescanso(hoy, personaId);
   let motivo;
   if (descanso) motivo = motivos.length ? `Hoy toca descanso · ${motivos.join(' · ')}` : 'Hoy toca descanso';
-  else motivo = motivos.length ? capitalizar(motivos.join(' · ')) : 'Buen día para entrenar';
+  else if (motivos.length) motivo = capitalizar(motivos.join(' · '));
+  else motivo = livianoConDerby ? 'Bien recuperado · gym liviano para llegar entero al derby' : 'Bien recuperado: buen día para entrenar';
   return { semaforo, motivo };
 }
 

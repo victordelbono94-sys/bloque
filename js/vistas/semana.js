@@ -3,7 +3,7 @@
 import { sb, estado, datos, otraPersona } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from '../ui.js';
 import { hoyISO, sumarDias, inicioSemana, rangoSemana, diaCorto, numeroDia, diaLargo, hora } from '../fechas.js';
-import { TIPOS, htmlEvento, textoJuntos } from '../eventos.js';
+import { TIPOS, htmlEvento, textoJuntos, horaEfectiva } from '../eventos.js';
 
 export async function vistaSemana(app) {
   const param = location.hash.split('/')[2];
@@ -20,7 +20,7 @@ export async function vistaSemana(app) {
   // Sin hora, el gym (de mañana) va antes que el derby.
   const ORDEN_TIPO = { gym: 0, clase: 1, derby: 2, descanso: 3 };
   eventos.sort((a, b) => a.fecha.localeCompare(b.fecha)
-    || (a.hora_inicio ?? '').localeCompare(b.hora_inicio ?? '')
+    || horaEfectiva(a).localeCompare(horaEfectiva(b))
     || ORDEN_TIPO[a.tipo] - ORDEN_TIPO[b.tipo]);
   const nombreRutina = (id) => rutinas.find((r) => r.id === id)?.nombre;
 

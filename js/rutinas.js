@@ -14,7 +14,7 @@ export const FOCOS = {
 export async function cargarRutina(rutinaId) {
   const rutina = datos(await sb.from('rutinas').select('*').eq('id', rutinaId).single());
   const items = datos(await sb.from('rutina_ejercicios')
-    .select('id, orden, series_base, reps_base, descanso_base, ejercicio:ejercicios(id, nombre, grupo_muscular, unidad, descripcion, maquina:maquinas(id, nombre))')
+    .select('id, orden, series_base, reps_base, descanso_base, ejercicio:ejercicios(id, nombre, grupo_muscular, unidad, descripcion, imagenes, tecnica, video_url, maquina:maquinas(id, nombre))')
     .eq('rutina_id', rutinaId).order('orden'));
   const ids = items.map((i) => i.id);
   const ejIds = items.map((i) => i.ejercicio.id);
@@ -25,7 +25,7 @@ export async function cargarRutina(rutinaId) {
   ]);
   const altIds = [...new Set(pares.map((p) => p.alternativa_id))];
   const alts = altIds.length
-    ? datos(await sb.from('ejercicios').select('id, nombre, grupo_muscular, unidad, descripcion, maquina:maquinas(id, nombre)').in('id', altIds))
+    ? datos(await sb.from('ejercicios').select('id, nombre, grupo_muscular, unidad, descripcion, imagenes, tecnica, video_url, maquina:maquinas(id, nombre)').in('id', altIds))
     : [];
 
   for (const it of items) {
