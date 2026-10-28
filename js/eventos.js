@@ -19,7 +19,7 @@ export function textoJuntos() {
 export function textoAsistencia(ev) {
   if (ev.tipo === 'descanso') return '';
   if (ev.asistencia === 'juntos') return textoJuntos();
-  return ev.persona_id === estado.yo?.id ? 'Solo tú' : `Solo ${nombrePersona(ev.persona_id)}`;
+  return ev.persona_id === estado.yo?.id ? 'Solo yo' : `Solo ${nombrePersona(ev.persona_id)}`;
 }
 
 export function htmlEvento(ev) {
