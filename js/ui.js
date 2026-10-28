@@ -34,6 +34,7 @@ export function avisoError(error) {
 
 function mensajeError(error) {
   const texto = String(error?.message || error || '');
+  if (error?.code === 'P0001') return texto; // mensajes propios de la base (ej. «Código no válido»)
   if (/row-level security/i.test(texto)) return 'No tienes permiso para cambiar eso.';
   if (/Failed to fetch|NetworkError/i.test(texto)) return 'Sin conexión. Intenta de nuevo.';
   return 'Algo salió mal. Intenta de nuevo.';

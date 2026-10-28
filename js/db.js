@@ -6,11 +6,12 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_CLAVE_PUBLICA, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
-// Estado de la sesión: quién soy, mi hogar y las personas del hogar.
+// Estado de la sesión: quién soy, mi equipo y sus personas. (En la base, el equipo es la tabla «hogares».)
 export const estado = {
   usuario: null,   // auth.users
   yo: null,        // fila de personas
-  personas: [],    // personas del hogar, yo primero
+  personas: [],    // personas del equipo, yo primero
+  equipo: null,    // fila de hogares: nombre, codigo, admin_id, personal, deporte
 };
 
 export function otraPersona() {
@@ -34,8 +35,12 @@ export async function cargarPersonas() {
 
   const yo = datos(await sb.from('personas').select('*').eq('id', user.id).maybeSingle());
   estado.yo = yo;
-  if (!yo) { estado.personas = []; return; }
+  if (!yo) { estado.personas = []; estado.equipo = null; return; }
 
-  const todas = datos(await sb.from('personas').select('*').eq('hogar_id', yo.hogar_id).order('nombre'));
+  const [todas, equipo] = await Promise.all([
+    sb.from('personas').select('*').eq('hogar_id', yo.hogar_id).order('nombre').then(datos),
+    sb.from('hogares').select('*').eq('id', yo.hogar_id).maybeSingle().then(datos),
+  ]);
+  estado.equipo = equipo;
   estado.personas = [yo, ...todas.filter((p) => p.id !== yo.id)];
 }

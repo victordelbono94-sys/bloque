@@ -1,6 +1,6 @@
-// Arranque de Bloque: sesión, acceso al hogar y navegación entre pantallas.
+// Arranque de Bloque: sesión, equipo y navegación entre pantallas.
 import { sb, estado, cargarPersonas } from './db.js';
-import { esc, avisoError } from './ui.js';
+import { aviso, avisoError } from './ui.js';
 import { vistaHoy } from './vistas/hoy.js';
 import { vistaSemana } from './vistas/semana.js';
 import { vistaCuerpo } from './vistas/cuerpo.js';
@@ -8,6 +8,8 @@ import { vistaEntreno } from './vistas/entreno.js';
 import { vistaSesion, vistaComenzar } from './vistas/sesion.js';
 import { vistaPerfil } from './vistas/perfil.js';
 import { vistaComida } from './vistas/comida.js';
+import { pantallaBienvenida, vistaUnirme } from './vistas/bienvenida.js';
+import { recordarInvitacion, invitacionPendiente } from './equipo.js';
 import { estaInstalada, puedeSeguirEnNavegador, pantallaInstalar } from './instalar.js';
 import { enApp, loginEnApp, asegurarVinculo, desvincular, alEventoNativo, sincronizarAgenda } from './nativo.js';
 
@@ -23,7 +25,11 @@ const RUTAS = {
   cuerpo: vistaCuerpo,
   perfil: vistaPerfil,
   comida: vistaComida,
+  unirme: vistaUnirme,
 };
+
+// Un link de invitación (#/unirme/CODIGO) se recuerda antes de iniciar sesión.
+recordarInvitacion();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
@@ -49,20 +55,14 @@ function pantallaIngreso() {
   });
 }
 
-function pantallaEspera() {
+function pantallaPrimeraVez() {
   nav.hidden = true;
-  const u = estado.usuario;
-  app.innerHTML = `
-    <section class="pantalla-centro">
-      <span class="wordmark" aria-label="bloque">bl<span class="wordmark__bloque" aria-hidden="true"></span>que</span>
-      <h1 class="titulo">Ya casi</h1>
-      <p class="subtitulo">Tu cuenta todavía no está unida al hogar. Pide que te agreguen con este correo:</p>
-      <p class="tarjeta" style="width:100%;word-break:break-all"><strong>${esc(u.email)}</strong></p>
-      <button class="boton boton--sec boton--bloque" id="reintentar" type="button">Ya me agregaron</button>
-      <button class="boton boton--texto" id="salir" type="button">Cerrar sesión</button>
-    </section>`;
-  document.getElementById('reintentar').addEventListener('click', iniciar);
-  document.getElementById('salir').addEventListener('click', async () => { await sb.auth.signOut(); iniciar(); });
+  pantallaBienvenida(app, async (mensaje) => {
+    history.replaceState(null, '', location.pathname + '#/hoy');
+    await cargarPersonas();
+    await mostrarRuta();
+    aviso(mensaje);
+  }, async () => { await sb.auth.signOut(); });
 }
 
 const ORDEN = ['hoy', 'semana', 'entreno', 'sesion', 'comida', 'cuerpo', 'perfil'];
@@ -157,9 +157,12 @@ async function arrancar() {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) return pantallaIngreso();
     await cargarPersonas();
-    if (!estado.yo) return pantallaEspera();
+    if (!estado.yo) return pantallaPrimeraVez();
     // Limpia los restos del inicio de sesión en la URL.
     if (location.search || /access_token/.test(location.hash)) history.replaceState(null, '', location.pathname + '#/hoy');
+    // Llegó con un link de invitación y ya tiene cuenta: confirmar el cambio de equipo.
+    const invitacion = invitacionPendiente();
+    if (invitacion && !location.hash.startsWith('#/unirme/')) history.replaceState(null, '', `${location.pathname}#/unirme/${invitacion}`);
     await mostrarRuta();
     // En la app: conectar este teléfono con la cuenta para traer los datos de la banda.
     if (enApp) {

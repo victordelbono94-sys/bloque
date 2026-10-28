@@ -1,16 +1,20 @@
-// Pantalla Perfil: mis datos, el hogar, exportar todo y cerrar sesión.
+// Pantalla Perfil: mis datos, el equipo, exportar todo y cerrar sesión.
 import { sb, estado, datos, cargarPersonas } from '../db.js';
-import { esc, aviso, avisoError } from '../ui.js';
+import { esc, aviso, avisoError, abrirDialogo } from '../ui.js';
 import { hoyISO, fechaCorta } from '../fechas.js';
 import {
   enApp, APK, estadoNativo, pedirPermisos, sincronizarAhora, alEventoNativo, abrirExterno, guardarArchivo, asegurarVinculo, buscarActualizacion,
   soportaAvisos, configurarAvisos, pedirNotificaciones, pedirUbicacion, abrirAjustesApp, ubicacionActual, sincronizarAgenda,
 } from '../nativo.js';
 import { crearMapa, buscarLugares } from '../mapa.js';
+import {
+  nombreDeporte, selectorDeporte, conectarDeporte, compartirInvitacion, copiar, soyAdmin,
+  unirmeEquipo, salirDelEquipo, quitarDelEquipo, editarEquipo, convertirEnEquipo,
+} from '../equipo.js';
 
 const NIVELES = { bajo: 'Bajo', moderado: 'Moderado', alto: 'Alto', muy_alto: 'Muy alto' };
 
-// Todo lo que se exporta. La seguridad por filas ya limita cada tabla al hogar.
+// Todo lo que se exporta. La seguridad por filas ya limita cada tabla al equipo.
 const TABLAS = [
   'hogares', 'personas', 'calendario', 'clases', 'actividades_extra', 'estado_diario', 'objetivos',
   'mediciones_corporales', 'actividad_diaria', 'sesiones_banda', 'maquinas', 'ejercicios',
@@ -70,11 +74,9 @@ export async function vistaPerfil(app) {
       <button type="submit" class="boton" id="guardar">Guardar</button>
     </form>
 
-    <section class="seccion" aria-labelledby="hogar">
-      <h2 class="seccion__titulo" id="hogar">Hogar</h2>
-      <div class="tarjeta pila" style="gap:6px">
-        ${estado.personas.map((p) => `<div class="fila fila--entre"><strong>${esc(p.nombre)}</strong>${p.id === yo.id ? '<span class="quieto">Tú</span>' : ''}</div>`).join('')}
-      </div>
+    <section class="seccion" aria-labelledby="equipo">
+      <h2 class="seccion__titulo" id="equipo">${estado.equipo?.personal ? 'Tu espacio' : 'Equipo'}</h2>
+      ${htmlEquipo()}
     </section>
 
     <section class="seccion" aria-labelledby="gimnasio">
@@ -107,7 +109,7 @@ export async function vistaPerfil(app) {
     <section class="seccion" aria-labelledby="datos">
       <h2 class="seccion__titulo" id="datos">Tus datos son tuyos</h2>
       <div class="tarjeta pila">
-        <p class="quieto" style="margin:0">Descarga una copia completa del hogar en cualquier momento.</p>
+        <p class="quieto" style="margin:0">Descarga una copia completa de los datos de tu equipo en cualquier momento.</p>
         <button type="button" class="boton boton--sec" id="exportar-json">Exportar todo (JSON)</button>
         <button type="button" class="boton boton--sec" id="exportar-csv">Exportar mediciones (CSV)</button>
       </div>
@@ -141,6 +143,7 @@ export async function vistaPerfil(app) {
     }
   });
 
+  conectarEquipo(app);
   conectarNativo(app);
   conectarGimnasio(app, gimnasio);
   conectarAvisos(app);
@@ -498,5 +501,155 @@ function conectarAvisos(app) {
     if (!document.body.contains(tarjeta)) return quitar();
     tarjeta.innerHTML = htmlAvisos(e, gimnasioActual);
     conectar();
+  });
+}
+
+// ---------- Equipo ----------
+const ICONO_COMPARTIR = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>';
+
+function htmlEquipo() {
+  const eq = estado.equipo;
+  if (!eq) return '';
+  const admin = soyAdmin();
+  if (eq.personal) {
+    return `
+      <div class="tarjeta pila">
+        <div class="fila fila--entre">
+          <div>
+            <strong>Espacio personal</strong>
+            <p class="quieto" style="margin:2px 0 0">${esc(nombreDeporte(eq.deporte))}</p>
+          </div>
+          <button type="button" class="boton boton--texto boton--chico" id="eq-deporte">Cambiar deporte</button>
+        </div>
+        <p class="ayuda" style="margin:0">¿Entrenas con alguien? Crea un equipo para compartir la semana, las rutinas y la comida, o únete al de otra persona.</p>
+        <div class="grilla-2">
+          <button type="button" class="boton" id="eq-crear">Crear equipo</button>
+          <button type="button" class="boton boton--sec" id="eq-unirme">Tengo un código</button>
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="tarjeta pila">
+      <div class="fila fila--entre">
+        <div style="min-width:0">
+          <strong class="equipo__nombre">${esc(eq.nombre)}</strong>
+          <p class="quieto" style="margin:2px 0 0">${esc(nombreDeporte(eq.deporte))} · ${estado.personas.length} ${estado.personas.length === 1 ? 'persona' : 'personas'}</p>
+        </div>
+        ${admin ? '<button type="button" class="boton boton--texto boton--chico" id="eq-editar">Editar</button>' : ''}
+      </div>
+      <ul class="miembros">
+        ${estado.personas.map((p) => `
+          <li class="miembro">
+            <span class="miembro__avatar" aria-hidden="true">${esc((p.nombre ?? '?').trim().charAt(0).toUpperCase())}</span>
+            <span class="miembro__nombre">${esc(p.nombre)}${p.id === estado.yo.id ? ' <span class="quieto">(tú)</span>' : ''}</span>
+            ${p.id === eq.admin_id ? '<span class="etiqueta etiqueta--mini">Admin</span>' : ''}
+            ${admin && p.id !== estado.yo.id ? `<button type="button" class="boton boton--texto boton--chico miembro__quitar" data-quitar-miembro="${esc(p.id)}" aria-label="Quitar a ${esc(p.nombre)} del equipo">Quitar</button>` : ''}
+          </li>`).join('')}
+      </ul>
+      <div class="invitar">
+        <p class="seccion__titulo" style="margin:0">Invitar</p>
+        <button type="button" class="codigo" id="eq-copiar" aria-label="Copiar el código ${esc(eq.codigo)}">${esc(eq.codigo)}</button>
+        <p class="ayuda" style="margin:0">Quien se une instala la app, entra con Google y usa este código.</p>
+        <div class="grilla-2">
+          <button type="button" class="boton" style="gap:8px" id="eq-compartir">${ICONO_COMPARTIR}Compartir</button>
+          ${admin ? '<button type="button" class="boton boton--sec" id="eq-codigo">Renovar</button>' : '<button type="button" class="boton boton--sec" id="eq-copiar2">Copiar código</button>'}
+        </div>
+      </div>
+      <button type="button" class="boton boton--peligro" id="eq-salir">Salir del equipo</button>
+    </div>`;
+}
+
+function confirmar(titulo, texto, accion, { boton = 'Confirmar', peligro = false } = {}) {
+  const d = abrirDialogo(`
+    <div class="dialogo">
+      <h2 class="tarjeta__titulo">${esc(titulo)}</h2>
+      <p style="margin:0">${texto}</p>
+      <div class="dialogo__pie">
+        <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
+        <button type="button" class="boton ${peligro ? 'boton--peligro' : ''}" id="ok">${esc(boton)}</button>
+      </div>
+    </div>`, titulo);
+  d.querySelector('#ok').addEventListener('click', async (e) => {
+    e.currentTarget.disabled = true;
+    try { await accion(); d.close(); } catch (err) { avisoError(err); e.currentTarget.disabled = false; }
+  });
+}
+
+// Pedir un texto (nombre del equipo, código) con un diálogo simple.
+function pedirTexto(titulo, { etiqueta, valor = '', placeholder = '', codigo = false, ayuda = '', boton = 'Guardar', conDeporte = null }, accion) {
+  const d = abrirDialogo(`
+    <form class="dialogo" novalidate>
+      <h2 class="tarjeta__titulo">${esc(titulo)}</h2>
+      ${etiqueta ? `<div class="campo">
+        <label for="t-valor">${esc(etiqueta)}</label>
+        <input id="t-valor" type="text" maxlength="${codigo ? 6 : 40}" ${codigo ? 'class="input-codigo" autocapitalize="characters" autocomplete="off" spellcheck="false"' : ''} value="${esc(valor)}" placeholder="${esc(placeholder)}">
+      </div>` : ''}
+      ${ayuda ? `<p class="ayuda" style="margin:0">${ayuda}</p>` : ''}
+      ${conDeporte !== null ? `<div class="campo"><label>Deporte</label>${selectorDeporte(conDeporte)}</div>` : ''}
+      <div class="dialogo__pie">
+        <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
+        <button type="submit" class="boton" id="ok">${esc(boton)}</button>
+      </div>
+    </form>`, titulo);
+  const input = d.querySelector('#t-valor');
+  if (codigo) input.addEventListener('input', () => { input.value = input.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+  const leerDeporte = conDeporte !== null ? conectarDeporte(d) : () => null;
+  d.querySelector('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const ok = d.querySelector('#ok');
+    ok.disabled = true;
+    try { await accion(input?.value.trim() ?? '', leerDeporte()); d.close(); } catch (err) { avisoError(err); ok.disabled = false; }
+  });
+}
+
+function conectarEquipo(app) {
+  const eq = estado.equipo;
+  if (!eq) return;
+  const recargar = async (mensaje) => { await cargarPersonas(); aviso(mensaje); vistaPerfil(app); };
+  const cambiarDeEquipo = async (mensaje) => { aviso(mensaje); setTimeout(() => { location.replace('#/hoy'); location.reload(); }, 900); };
+  const $ = (s) => app.querySelector(s);
+
+  $('#eq-deporte')?.addEventListener('click', () => pedirTexto('Tu deporte', { conDeporte: eq.deporte }, async (_, deporte) => {
+    await editarEquipo({ deporte }); await recargar('Deporte actualizado.');
+  }));
+  $('#eq-crear')?.addEventListener('click', () => pedirTexto('Crear un equipo', {
+    etiqueta: 'Nombre del equipo', placeholder: 'Ej. Quindes Volcánicos', boton: 'Crear',
+    ayuda: 'Lo que ya registraste se queda. Después te damos un código para invitar a los demás.', conDeporte: eq.deporte,
+  }, async (nombre, deporte) => {
+    await convertirEnEquipo(nombre);
+    if (deporte && deporte !== eq.deporte) await editarEquipo({ deporte });
+    await recargar('Equipo creado. Ya puedes invitar gente.');
+  }));
+  $('#eq-unirme')?.addEventListener('click', () => pedirTexto('Unirme a un equipo', {
+    etiqueta: 'Código', placeholder: 'ABC123', codigo: true, boton: 'Unirme',
+    ayuda: 'Tus mediciones, entrenos y comidas van contigo al equipo.',
+  }, async (codigo) => {
+    if (codigo.length !== 6) throw Object.assign(new Error('El código tiene 6 letras o números.'), { code: 'P0001' });
+    await unirmeEquipo(codigo); await cambiarDeEquipo('¡Listo! Ya estás en el equipo.');
+  }));
+  $('#eq-editar')?.addEventListener('click', () => pedirTexto('Editar equipo', { etiqueta: 'Nombre', valor: eq.nombre, conDeporte: eq.deporte }, async (nombre, deporte) => {
+    await editarEquipo({ nombre, deporte }); await recargar('Equipo actualizado.');
+  }));
+  const copiarCodigo = () => copiar(eq.codigo, `Código ${eq.codigo} copiado.`);
+  $('#eq-copiar')?.addEventListener('click', copiarCodigo);
+  $('#eq-copiar2')?.addEventListener('click', copiarCodigo);
+  $('#eq-compartir')?.addEventListener('click', () => compartirInvitacion(eq));
+  $('#eq-codigo')?.addEventListener('click', () => confirmar('Nuevo código', 'El código actual deja de funcionar. Quienes ya están en el equipo no se ven afectados.', async () => {
+    await editarEquipo({ nuevoCodigo: true }); await recargar('Código nuevo listo.');
+  }, { boton: 'Cambiar código' }));
+  app.querySelectorAll('[data-quitar-miembro]').forEach((b) => b.addEventListener('click', () => {
+    const p = estado.personas.find((x) => x.id === b.dataset.quitarMiembro);
+    confirmar(`¿Quitar a ${p.nombre}?`, `${esc(p.nombre)} deja de ver la semana, las rutinas y las comidas del equipo. Su cuenta sigue funcionando en un espacio personal, con sus mediciones y entrenos.`, async () => {
+      await quitarDelEquipo(p.id); await recargar(`${p.nombre} ya no está en el equipo.`);
+    }, { boton: 'Quitar', peligro: true });
+  }));
+  $('#eq-salir')?.addEventListener('click', () => {
+    const otros = estado.personas.length > 1;
+    const texto = soyAdmin() && otros
+      ? `Dejas de ver lo del equipo y pasas a un espacio personal con tus mediciones y entrenos. El rol de admin pasa a quien lleva más tiempo en el equipo.`
+      : 'Dejas de ver lo del equipo y pasas a un espacio personal con tus mediciones y entrenos.';
+    confirmar('¿Salir del equipo?', texto, async () => {
+      await salirDelEquipo(); await cambiarDeEquipo('Saliste del equipo.');
+    }, { boton: 'Salir', peligro: true });
   });
 }
