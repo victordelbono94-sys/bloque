@@ -1,7 +1,9 @@
 // Pantalla Perfil: mis datos, el hogar, exportar todo y cerrar sesión.
 import { sb, estado, datos, cargarPersonas } from '../db.js';
-import { esc, aviso, avisoError } from '../ui.js';
-import { hoyISO } from '../fechas.js';
+import { esc, aviso, avisoError, abrirDialogo } from '../ui.js';
+import { hoyISO, fechaCorta } from '../fechas.js';
+
+const APK = 'https://github.com/victordelbono94-sys/bloque/releases/download/puente/bloque-puente.apk';
 
 const NIVELES = { bajo: 'Bajo', moderado: 'Moderado', alto: 'Alto', muy_alto: 'Muy alto' };
 
@@ -10,11 +12,12 @@ const TABLAS = [
   'hogares', 'personas', 'calendario', 'clases', 'actividades_extra', 'estado_diario', 'objetivos',
   'mediciones_corporales', 'actividad_diaria', 'sesiones_banda', 'maquinas', 'ejercicios',
   'ejercicio_alternativas', 'rutinas', 'rutina_ejercicios', 'metas_ejercicio', 'sesiones', 'series',
-  'recetas', 'ingredientes', 'comidas', 'porciones', 'chat_mensajes',
+  'recetas', 'ingredientes', 'comidas', 'porciones', 'chat_mensajes', 'dispositivos',
 ];
 
 export async function vistaPerfil(app) {
   const yo = estado.yo;
+  const dispositivos = datos(await sb.from('dispositivos').select('id, nombre, creado_en, ultimo_sync').order('creado_en'));
   app.innerHTML = `
     <header class="encabezado">
       <div>
@@ -65,6 +68,22 @@ export async function vistaPerfil(app) {
       </div>
     </section>
 
+    <section class="seccion" aria-labelledby="banda">
+      <h2 class="seccion__titulo" id="banda">Banda y Health Connect</h2>
+      <div class="tarjeta pila">
+        ${dispositivos.length ? dispositivos.map((d) => `
+          <div class="fila fila--entre">
+            <div>
+              <strong>${esc(d.nombre)}</strong>
+              <p class="quieto" style="margin:2px 0 0">${d.ultimo_sync ? `Sincronizó ${esc(haceCuanto(d.ultimo_sync))}` : 'Todavía no sincronizó'}</p>
+            </div>
+            <button type="button" class="boton boton--peligro boton--chico" data-quitar="${esc(d.id)}" aria-label="Quitar ${esc(d.nombre)}">Quitar</button>
+          </div>`).join('') : '<p class="quieto" style="margin:0">Vincula tu teléfono para traer pasos, sueño, frecuencia cardiaca y entrenos de la banda.</p>'}
+        <button type="button" class="boton ${dispositivos.length ? 'boton--sec' : ''}" id="vincular">${dispositivos.length ? 'Vincular otro teléfono' : 'Vincular teléfono'}</button>
+        <a class="boton boton--texto" href="${APK}">Descargar Bloque Puente</a>
+      </div>
+    </section>
+
     <section class="seccion" aria-labelledby="datos">
       <h2 class="seccion__titulo" id="datos">Tus datos son tuyos</h2>
       <div class="tarjeta pila">
@@ -102,6 +121,16 @@ export async function vistaPerfil(app) {
     }
   });
 
+  app.querySelector('#vincular').addEventListener('click', () => vincularTelefono(() => vistaPerfil(app)));
+  app.querySelectorAll('[data-quitar]').forEach((b) => b.addEventListener('click', async () => {
+    try {
+      datos(await sb.from('dispositivos').delete().eq('id', b.dataset.quitar));
+      aviso('Teléfono desvinculado.');
+      vistaPerfil(app);
+    } catch (err) {
+      avisoError(err);
+    }
+  }));
   app.querySelector('#exportar-json').addEventListener('click', exportarJSON);
   app.querySelector('#exportar-csv').addEventListener('click', exportarCSV);
   app.querySelector('#salir').addEventListener('click', () => sb.auth.signOut());
@@ -145,4 +174,50 @@ async function exportarCSV() {
   } catch (err) {
     avisoError(err);
   }
+}
+
+function haceCuanto(fecha) {
+  const min = Math.round((Date.now() - new Date(fecha)) / 60000);
+  if (min < 2) return 'recién';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  return `el ${fechaCorta(fecha)}`;
+}
+
+// Crea un código para el teléfono, guarda solo su hash y abre la app puente con él.
+async function vincularTelefono(alTerminar) {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const codigo = btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+  const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codigo)))]
+    .map((b) => b.toString(16).padStart(2, '0')).join('');
+  const modelo = /Android[^;]*;\s*([^;)]+)/.exec(navigator.userAgent)?.[1]?.trim();
+  try {
+    datos(await sb.from('dispositivos').insert({
+      persona_id: estado.yo.id, token_hash: hash, nombre: modelo && modelo !== 'K' ? modelo : 'Mi teléfono',
+    }));
+  } catch (err) {
+    return avisoError(err);
+  }
+
+  const enlace = `intent://vincular?c=${codigo}#Intent;scheme=bloque-puente;package=ec.bloque.puente;`
+    + `S.browser_fallback_url=${encodeURIComponent(APK)};end`;
+  const d = abrirDialogo(`
+    <div class="dialogo">
+      <h2 class="tarjeta__titulo">Vincular este teléfono</h2>
+      <ol class="pasos-vincular">
+        <li>Si todavía no la tienes, <a href="${APK}">descarga Bloque Puente</a> e instálala.</li>
+        <li>Toca <strong>Abrir Bloque Puente</strong>: se abre ya vinculada a tu cuenta.</li>
+        <li>Ahí da los permisos de Health Connect, incluido el de segundo plano.</li>
+      </ol>
+      <a class="boton boton--bloque" href="${enlace}" id="abrir">Abrir Bloque Puente</a>
+      <button type="button" class="boton boton--sec boton--bloque" id="copiar">Copiar código</button>
+      <p class="ayuda">Este código conecta el teléfono con tu cuenta. No lo compartas.</p>
+      <div class="dialogo__pie"><button type="button" class="boton boton--sec" data-cerrar>Listo</button></div>
+    </div>`, 'Vincular teléfono');
+  d.querySelector('#copiar').addEventListener('click', async (e) => {
+    try { await navigator.clipboard.writeText(codigo); e.currentTarget.textContent = 'Código copiado'; }
+    catch { e.currentTarget.textContent = codigo; }
+  });
+  d.addEventListener('close', alTerminar);
 }

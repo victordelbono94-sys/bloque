@@ -641,3 +641,10 @@ span.serie--hecha { opacity: 0.85; }
 .pasos-instalar ol:has(+ .boton) { margin-bottom: 16px; }
 .icono-linea { width: 20px; height: 20px; vertical-align: -4px; fill: none; stroke: var(--volt); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .tecla { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 8px; background: var(--grafito-2); font-weight: 700; }
+.pasos-vincular { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
+
+/* Datos de la banda en Hoy */
+.banda { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--grafito-2); }
+.banda p { margin: 0 0 4px; }
+.dato-medio { font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 22px; line-height: 1; }
+.dato-medio .dato-unidad { font-size: 13px; margin-left: 2px; }

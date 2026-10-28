@@ -12,7 +12,8 @@ export async function vistaHoy(app) {
   const hogar = estado.yo.hogar_id;
   const ids = estado.personas.map((p) => p.id);
 
-  const [eventos, estados, mediciones, extrasAyer] = await Promise.all([
+  const desdeAyer = new Date(`${ayer}T00:00:00`).toISOString();
+  const [eventos, estados, mediciones, extrasAyer, actividad, entrenosBanda] = await Promise.all([
     sb.from('calendario').select('*').eq('hogar_id', hogar)
       .gte('fecha', ayer).lte('fecha', sumarDias(hoy, 7))
       .order('fecha').order('hora_inicio', { nullsFirst: true }).then(datos),
@@ -20,7 +21,24 @@ export async function vistaHoy(app) {
     sb.from('mediciones_corporales').select('persona_id, medido_en, peso_kg, grasa_pct, masa_muscular_kg')
       .in('persona_id', ids).order('medido_en', { ascending: false }).limit(40).then(datos),
     sb.from('actividades_extra').select('*').eq('persona_id', estado.yo.id).eq('fecha', ayer).then(datos),
+    sb.from('actividad_diaria').select('*').in('persona_id', ids).in('fecha', [ayer, hoy]).then(datos),
+    sb.from('sesiones_banda').select('persona_id, inicio, fin, tipo, calorias, fc_promedio')
+      .in('persona_id', ids).gte('inicio', desdeAyer).order('inicio').then(datos),
   ]);
+  // Datos de la banda por persona: hoy (pasos, calorías), anoche (sueño) y entrenos de ayer.
+  const banda = (personaId) => {
+    const deHoyB = actividad.find((a) => a.persona_id === personaId && a.fecha === hoy);
+    const deAyerB = actividad.find((a) => a.persona_id === personaId && a.fecha === ayer);
+    const entrenos = entrenosBanda.filter((s) => s.persona_id === personaId);
+    const inicioHoy = new Date(`${hoy}T00:00:00`).getTime();
+    return {
+      hoy: deHoyB,
+      ayer: deAyerB,
+      suenoMin: deHoyB?.sueno_min ?? null,
+      entrenosHoy: entrenos.filter((s) => new Date(s.inicio).getTime() >= inicioHoy),
+      entrenosAyer: entrenos.filter((s) => new Date(s.inicio).getTime() < inicioHoy),
+    };
+  };
 
   // Sin hora, el gym (de mañana) va antes que el derby.
   const ORDEN_TIPO = { gym: 0, clase: 1, derby: 2, descanso: 3 };
@@ -37,7 +55,8 @@ export async function vistaHoy(app) {
     sb.from('sesiones').select('id, calendario_id, terminados, terminada_en').in('calendario_id', conRutina.map((e) => e.id)).then(datos),
   ]) : [[], []];
   const proximo = eventos.find((e) => e.fecha > hoy && e.tipo !== 'descanso');
-  const contexto = { hoy, deAyer, deHoy, extrasAyer };
+  const mia = banda(estado.yo.id);
+  const contexto = { hoy, deAyer, deHoy, extrasAyer, suenoMin: mia.suenoMin, bandaAyer: mia.entrenosAyer };
 
   // Un check-in guardado sin semáforo (por ejemplo, de antes de que existiera)
   // se calcula al abrir la pantalla.
@@ -45,6 +64,7 @@ export async function vistaHoy(app) {
   if (mio && !mio.semaforo && (mio.cansancio != null || mio.dolor_muscular != null)) {
     const r = calcularSemaforo({
       cansancio: mio.cansancio, dolor: mio.dolor_muscular, ayer: deAyer, hoy: deHoy, extrasAyer, personaId: estado.yo.id,
+      suenoMin: mia.suenoMin, bandaAyer: mia.entrenosAyer,
     });
     const { error } = await sb.from('estado_diario')
       .update({ ...r, calculado_en: new Date().toISOString() })
@@ -76,7 +96,7 @@ export async function vistaHoy(app) {
     ${estado.personas.map((p, i) => `
       <section class="seccion" aria-labelledby="como-${i}">
         <h2 class="seccion__titulo" id="como-${i}">${p.id === estado.yo.id ? 'Cómo estoy' : `Cómo está ${esc(p.nombre)}`}</h2>
-        ${tarjetaPersona(p, estados.find((e) => e.persona_id === p.id), mediciones.find((m) => m.persona_id === p.id), esDescanso(deHoy, p.id))}
+        ${tarjetaPersona(p, estados.find((e) => e.persona_id === p.id), mediciones.find((m) => m.persona_id === p.id), esDescanso(deHoy, p.id), banda(p.id))}
       </section>`).join('')}`;
 
   conectarCheckIn(app, contexto, estados.find((e) => e.persona_id === estado.yo.id));
@@ -138,7 +158,7 @@ function htmlTextoPlano(ev) {
   return div.textContent.replace(/\s+/g, ' ').trim();
 }
 
-function tarjetaPersona(p, est, med, descanso) {
+function tarjetaPersona(p, est, med, descanso, b) {
   const soyYo = p.id === estado.yo.id;
   const sem = est?.semaforo;
   return `
@@ -163,6 +183,7 @@ function tarjetaPersona(p, est, med, descanso) {
         </div>
       </div>
       ${med ? `<p class="quieto" style="margin:8px 0 0">Última medición: ${esc(fechaCorta(med.medido_en))}</p>` : ''}
+      ${htmlBanda(b)}
 
       ${soyYo ? formularioCheckIn(est) : resumenCheckIn(est)}
     </article>`;
@@ -186,7 +207,7 @@ function formularioCheckIn(est) {
         <div class="chips" id="dolor">${chips('Dolor muscular', est?.dolor_muscular ?? null)}</div>
       </fieldset>
       <button type="button" class="boton boton--chico" id="guardar-checkin">${est ? 'Actualizar' : 'Calcular mi semáforo'}</button>
-      <p class="ayuda">El semáforo usa cómo te sientes y lo que hicieron ayer y hoy. Con los datos de la banda será más preciso.</p>
+      <p class="ayuda">El semáforo usa cómo te sientes, lo que hicieron ayer y hoy, y el sueño y los entrenos de la banda.</p>
     </div>`;
 }
 
@@ -197,7 +218,7 @@ function resumenCheckIn(est) {
   return `<p class="quieto" style="margin:14px 0 0">Cansancio ${est.cansancio ?? '—'}/5 · Dolor muscular ${est.dolor_muscular ?? '—'}/5</p>`;
 }
 
-function conectarCheckIn(app, { hoy, deAyer, deHoy, extrasAyer }, est) {
+function conectarCheckIn(app, { hoy, deAyer, deHoy, extrasAyer, suenoMin, bandaAyer }, est) {
   const cont = app.querySelector('#checkin');
   if (!cont) return;
   const cansancio = cont.querySelector('#cansancio');
@@ -213,6 +234,7 @@ function conectarCheckIn(app, { hoy, deAyer, deHoy, extrasAyer }, est) {
     const dolorN = d ? Number(d) : est?.dolor_muscular ?? null;
     const { semaforo, motivo } = calcularSemaforo({
       cansancio: cansancioN, dolor: dolorN, ayer: deAyer, hoy: deHoy, extrasAyer, personaId: estado.yo.id,
+      suenoMin, bandaAyer,
     });
     try {
       datos(await sb.from('estado_diario').upsert({
@@ -231,4 +253,25 @@ function conectarCheckIn(app, { hoy, deAyer, deHoy, extrasAyer }, est) {
       boton.disabled = false;
     }
   });
+}
+
+// Pasos, sueño, calorías y entrenos del día según la banda.
+function htmlBanda(b) {
+  if (!b.hoy && !b.ayer && !b.entrenosHoy.length) return '';
+  const h = b.hoy ?? {};
+  const sueno = b.suenoMin != null
+    ? `${Math.floor(b.suenoMin / 60)}<span class="dato-unidad">h</span> ${String(b.suenoMin % 60).padStart(2, '0')}<span class="dato-unidad">min</span>`
+    : '—';
+  const pasos = h.pasos != null ? Number(h.pasos).toLocaleString('es-EC') : '—';
+  const kcal = h.calorias_activas != null ? `${Number(h.calorias_activas).toLocaleString('es-EC')}<span class="dato-unidad">kcal</span>` : '—';
+  return `
+    <div class="banda">
+      <div><p class="quieto">Sueño</p><span class="dato-medio">${sueno}</span></div>
+      <div><p class="quieto">Pasos</p><span class="dato-medio">${pasos}</span></div>
+      <div><p class="quieto">Activas</p><span class="dato-medio">${kcal}</span></div>
+    </div>
+    ${b.entrenosHoy.map((s) => {
+      const min = Math.round((new Date(s.fin) - new Date(s.inicio)) / 60000);
+      return `<p class="quieto" style="margin:6px 0 0">Banda: ${esc(s.tipo)} · ${min} min${s.calorias != null ? ` · ${s.calorias} kcal` : ''}${s.fc_promedio ? ` · ${s.fc_promedio} ppm` : ''}</p>`;
+    }).join('')}`;
 }
