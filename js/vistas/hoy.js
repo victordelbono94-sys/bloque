@@ -101,7 +101,7 @@ export async function vistaHoy(app) {
     <section class="tarjeta" aria-labelledby="plan-hoy">
       <div class="fila fila--entre" style="margin-bottom:6px">
         <h2 class="seccion__titulo" id="plan-hoy" style="margin:0">Plan de hoy</h2>
-        <a class="enlace-chico" href="#/semana">Semana ›</a>
+        <a class="enlace-chico" href="#/semana">Ver semana ›</a>
       </div>
       ${deHoy.length || mia.entrenosHoy.length
         ? `<ol class="plan">${lineaDeTiempo(deHoy, mia.entrenosHoy, rutinas, sesiones, resumen)}</ol>`
@@ -132,10 +132,10 @@ export async function vistaHoy(app) {
   }));
 }
 
-const ICONO_RELOJ = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6" width="11" height="12" rx="3.5"/><path d="M9 6l.6-3h4.8l.6 3M9 18l.6 3h4.8l.6-3M12 9.5V12l1.6 1.2"/></svg>';
-const horaLocal = (iso) => new Date(iso).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit', hour12: false });
+export const ICONO_RELOJ = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6" width="11" height="12" rx="3.5"/><path d="M9 6l.6-3h4.8l.6 3M9 18l.6 3h4.8l.6-3M12 9.5V12l1.6 1.2"/></svg>';
+export const horaLocal = (iso) => new Date(iso).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-function datosSesion(s) {
+export function datosSesion(s) {
   const min = minutos(s);
   return [min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`,
     s.calorias != null ? `${s.calorias} kcal` : null, s.fc_promedio ? `${s.fc_promedio} ppm` : null].filter(Boolean).join(' · ');

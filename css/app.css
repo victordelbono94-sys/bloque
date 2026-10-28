@@ -303,7 +303,7 @@ dialog::backdrop { background: rgba(10, 11, 14, 0.7); }
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   background: rgba(21, 23, 28, 0.96);
   border-top: 1px solid var(--grafito-2);
   padding-bottom: env(safe-area-inset-bottom);
@@ -1010,3 +1010,45 @@ input[type="range"] { accent-color: var(--volt); width: 100%; min-height: 32px; 
 .cuando legend { font-size: 15px; font-weight: 600; padding: 0; margin-bottom: 8px; }
 .cuando legend .quieto { font-weight: 400; font-size: 13px; }
 .rapido { margin-top: 0; margin-bottom: 12px; }
+
+/* Entrenos: la semana día por día */
+.semana { display: flex; flex-direction: column; gap: 10px; }
+.sdia { background: var(--grafito); border-radius: 16px; padding: 12px 16px 8px; }
+.sdia--hoy { box-shadow: inset 0 0 0 1.5px var(--volt); background: linear-gradient(135deg, rgba(198, 244, 50, 0.1), rgba(198, 244, 50, 0) 55%), var(--grafito); }
+.sdia--pasado { background: transparent; box-shadow: inset 0 0 0 1px var(--grafito-2); }
+.sdia--pasado .sdia__num, .sdia--pasado .sdia__nombre { color: var(--gris); }
+.sdia--pasado .plan__item { padding: 6px 0; }
+.sdia--pasado .plan__icono { width: 32px; height: 32px; border-radius: 10px; opacity: 0.75; }
+.sdia--pasado .plan__icono .icono { width: 18px; height: 18px; }
+.sdia--pasado .plan__item { grid-template-columns: 32px minmax(0, 1fr); }
+.sdia--pasado .plan__item:not(:last-child)::before { left: 15px; top: 42px; }
+.sdia--pasado .plan__titulo strong { font-size: 16px; }
+.sdia__cab { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.sdia__num { font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; min-width: 32px; }
+.sdia--hoy .sdia__num { color: var(--volt); }
+.sdia__nombre { font-weight: 600; font-size: 15px; }
+.sdia__cab .sello-hoy { margin: 0; }
+.sdia__agregar {
+  margin-left: auto; border: 0; background: none; color: var(--volt); font: inherit; font-size: 14px; font-weight: 600;
+  padding: 10px 0 10px 12px; min-height: 40px; cursor: pointer;
+}
+.sdia--pasado .sdia__agregar { color: var(--gris); }
+.sdia__libre { margin: 0 0 8px 42px; font-size: 14px; color: var(--gris); }
+.plan__editable {
+  display: flex; flex-direction: column; gap: 8px; width: 100%; text-align: left;
+  border: 0; background: none; color: inherit; font: inherit; padding: 0; cursor: pointer;
+}
+.plan__editable:active { opacity: 0.7; }
+.plan__hora { display: inline-flex; align-items: center; gap: 8px; }
+.plan__lapiz { display: inline-flex; color: var(--gris); }
+.plan__lapiz .icono { width: 16px; height: 16px; }
+.plan__rutina--chica { padding: 6px 8px 6px 12px; }
+.plan__rutina--chica strong { font-size: 14px; }
+.hecho { color: var(--volt); font-weight: 700; }
+.biblioteca { display: flex; flex-direction: column; gap: 8px; }
+.rutina-mini { display: flex; align-items: center; gap: 14px; padding: 12px 14px; }
+.rutina-mini__texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rutina-mini__texto strong { font-size: 15px; line-height: 1.25; }
+.rutina-mini__texto .quieto { font-size: 13px; }
+.rutina-mini__cuando { font-size: 12px; font-weight: 600; color: var(--volt); margin-top: 2px; }
+.sdia--pasado .plan__rutina { background: var(--grafito); }

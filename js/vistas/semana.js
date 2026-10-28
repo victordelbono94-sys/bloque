@@ -1,70 +1,92 @@
-// Pantalla Semana: calendario compartido de gym, derby, otros entrenos y descanso.
-// Cada evento va para los dos por defecto ("Sant y yo"); "Solo" indica quién va.
+// Pantalla Entrenos: la semana en orden, día por día. Cada entreno muestra su rutina
+// (con el mapa del cuerpo), lo que registró el reloj y si ya se hizo; desde acá se agrega,
+// se edita y se empieza. Abajo, todas las rutinas.
 import { sincronizarAgenda } from '../nativo.js';
 import { sb, estado, datos, otraPersona } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from '../ui.js';
-import { hoyISO, sumarDias, inicioSemana, rangoSemana, diaCorto, numeroDia, diaLargo, hora } from '../fechas.js';
-import { TIPOS, htmlEvento, textoJuntos, horaEfectiva, nombreEvento } from '../eventos.js';
-import { OTROS } from '../actividades.js';
+import { hoyISO, sumarDias, inicioSemana, rangoSemana, numeroDia, diaLargo, hora } from '../fechas.js';
+import { TIPOS, textoJuntos, horaEfectiva, nombreEvento, iconoEvento, textoAsistencia } from '../eventos.js';
+import { OTROS, emparejar, actividad, minutos } from '../actividades.js';
+import { FOCOS, resumenRutinas } from '../rutinas.js';
+import { mapaCuerpo, chipsZonas } from '../iconos.js';
+import { ICONO_RELOJ, horaLocal, datosSesion } from './hoy.js';
+import { empezarSesion } from './sesion.js';
+
+const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const LAPIZ = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>';
+// Sin hora, el gym (de mañana) va antes que el derby.
+const ORDEN_TIPO = { gym: 0, clase: 1, otro: 1, derby: 2, descanso: 3 };
 
 export async function vistaSemana(app) {
   const param = location.hash.split('/')[2];
   const lunes = inicioSemana(/^\d{4}-\d{2}-\d{2}$/.test(param ?? '') ? param : hoyISO());
   const domingo = sumarDias(lunes, 6);
   const hoy = hoyISO();
+  const hogar = estado.yo.hogar_id;
 
-  const [eventos, rutinas] = await Promise.all([
-    sb.from('calendario').select('*')
-      .eq('hogar_id', estado.yo.hogar_id).gte('fecha', lunes).lte('fecha', domingo)
+  const [eventos, rutinas, banda] = await Promise.all([
+    sb.from('calendario').select('*').eq('hogar_id', hogar).gte('fecha', lunes).lte('fecha', domingo)
       .order('fecha').order('hora_inicio', { nullsFirst: true }).then(datos),
-    sb.from('rutinas').select('id, nombre').eq('hogar_id', estado.yo.hogar_id).order('creada_en').then(datos),
+    sb.from('rutinas').select('id, nombre, foco').eq('hogar_id', hogar).order('creada_en').then(datos),
+    sb.from('sesiones_banda').select('inicio, fin, tipo, calorias, fc_promedio').eq('persona_id', estado.yo.id)
+      .gte('inicio', new Date(`${lunes}T00:00:00`).toISOString())
+      .lt('inicio', new Date(`${sumarDias(domingo, 1)}T00:00:00`).toISOString()).order('inicio').then(datos),
   ]);
-  // Sin hora, el gym (de mañana) va antes que el derby.
-  const ORDEN_TIPO = { gym: 0, clase: 1, otro: 1, derby: 2, descanso: 3 };
   eventos.sort((a, b) => a.fecha.localeCompare(b.fecha)
     || horaEfectiva(a).localeCompare(horaEfectiva(b))
     || ORDEN_TIPO[a.tipo] - ORDEN_TIPO[b.tipo]);
-  const nombreRutina = (id) => rutinas.find((r) => r.id === id)?.nombre;
+  const conRutina = eventos.filter((e) => e.rutina_id);
+  const [sesiones, resumen] = await Promise.all([
+    conRutina.length
+      ? sb.from('sesiones').select('id, calendario_id, terminados, terminada_en').in('calendario_id', conRutina.map((e) => e.id)).then(datos)
+      : [],
+    resumenRutinas(rutinas.map((r) => r.id)),
+  ]);
 
+  const ctx = { hoy, rutinas, sesiones, resumen };
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
+  const esEstaSemana = lunes === inicioSemana(hoy);
 
   app.innerHTML = `
     <header class="encabezado">
       <div>
-        <h1 class="titulo">Semana</h1>
+        <h1 class="titulo">Entrenos</h1>
         <p class="subtitulo">${esc(rangoSemana(lunes))}</p>
       </div>
       <div class="fila" style="gap:4px">
         <a class="boton boton--sec boton--chico" href="#/semana/${sumarDias(lunes, -7)}" aria-label="Semana anterior">‹</a>
-        ${lunes !== inicioSemana(hoy) ? `<a class="boton boton--sec boton--chico" href="#/semana">Hoy</a>` : ''}
+        ${esEstaSemana ? '' : '<a class="boton boton--sec boton--chico" href="#/semana">Hoy</a>'}
         <a class="boton boton--sec boton--chico" href="#/semana/${sumarDias(lunes, 7)}" aria-label="Semana siguiente">›</a>
       </div>
     </header>
 
-    <section class="tarjeta" aria-label="Días de la semana">
-      ${dias.map((d) => {
-        const delDia = eventos.filter((e) => e.fecha === d);
-        return `
-          <div class="dia ${d === hoy ? 'dia--hoy' : ''}">
-            <div class="dia__fecha">
-              <span class="dia__nombre">${esc(diaCorto(d))}</span>
-              <span class="dia__numero">${numeroDia(d)}</span>
-            </div>
-            <div class="pila" style="gap:4px">
-              ${delDia.map((e) => `
-                <button type="button" class="evento evento--boton" data-editar="${esc(e.id)}" aria-label="Editar ${esc(nombreEvento(e))}">
-                  ${htmlEvento(e)}
-                  ${nombreRutina(e.rutina_id) ? `<span class="evento__rutina">${esc(nombreRutina(e.rutina_id))}</span>` : ''}
-                </button>`).join('')}
-              <button type="button" class="boton boton--texto" style="justify-content:flex-start" data-agregar="${d}">+ Agregar</button>
-            </div>
-          </div>`;
-      }).join('')}
-    </section>
+    <div class="semana">
+      ${dias.map((d) => htmlDia(d, eventos.filter((e) => e.fecha === d), banda.filter((s) => fechaLocal(s.inicio) === d), ctx)).join('')}
+    </div>
 
     <button type="button" class="boton boton--sec boton--bloque" style="margin-top:16px" id="copiar" ${eventos.length ? '' : 'disabled'}>
       Repetir esta semana en la siguiente
-    </button>`;
+    </button>
+
+    <section class="seccion" aria-labelledby="t-rutinas">
+      <h2 class="seccion__titulo" id="t-rutinas">Rutinas</h2>
+      <div class="biblioteca">
+        ${rutinas.map((r) => {
+          const { cuantos = 0, zonas = [] } = resumen[r.id] ?? {};
+          const enLaSemana = [...new Set(eventos.filter((e) => e.rutina_id === r.id).map((e) => DIAS[new Date(`${e.fecha}T12:00`).getDay()].toLowerCase()))];
+          return `
+            <a class="tarjeta tarjeta--enlace rutina-mini" href="#/entreno/${esc(r.id)}">
+              ${zonas.length ? mapaCuerpo(zonas, { alto: 52 }) : ''}
+              <span class="rutina-mini__texto">
+                <strong>${esc(r.nombre)}</strong>
+                <span class="quieto">${esc(FOCOS[r.foco] ?? '')} · ${cuantos} ejercicios</span>
+                ${enLaSemana.length ? `<span class="rutina-mini__cuando">${esEstaSemana ? 'Esta semana' : 'Esa semana'}: ${esc(enLaSemana.join(', '))}</span>` : ''}
+              </span>
+              <span class="plan__flecha" aria-hidden="true">›</span>
+            </a>`;
+        }).join('') || '<p class="vacio">Todavía no hay rutinas.</p>'}
+      </div>
+    </section>`;
 
   const recargar = () => vistaSemana(app);
   sincronizarAgenda().catch(() => {}); // los avisos de la app siguen al plan
@@ -73,7 +95,112 @@ export async function vistaSemana(app) {
     b.addEventListener('click', () => dialogoEvento({ fecha: b.dataset.agregar }, rutinas, recargar)));
   app.querySelectorAll('[data-editar]').forEach((b) =>
     b.addEventListener('click', () => dialogoEvento(eventos.find((e) => e.id === b.dataset.editar), rutinas, recargar)));
+  app.querySelectorAll('[data-empezar]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      await empezarSesion(eventos.find((e) => e.id === b.dataset.empezar));
+    } catch (err) {
+      avisoError(err);
+      b.disabled = false;
+    }
+  }));
   app.querySelector('#copiar').addEventListener('click', () => copiarSemana(eventos, lunes));
+}
+
+const fechaLocal = (iso) => {
+  const f = new Date(iso);
+  return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}`;
+};
+
+// Un día: su encabezado, lo agendado y lo que registró el reloj, en orden de hora.
+function htmlDia(d, delDia, bandaDia, ctx) {
+  const pasado = d < ctx.hoy, esHoy = d === ctx.hoy;
+  const mios = delDia.filter((e) => e.asistencia === 'juntos' || e.persona_id === estado.yo.id);
+  const { pares, sueltas } = emparejar(mios, bandaDia);
+  const pasos = delDia.map((e) => ({ orden: horaEfectiva(e), html: htmlEntreno(e, ctx, pares.get(e), { pasado, esHoy }) }));
+  const caminatas = sueltas.filter((s) => s.tipo === 'caminar');
+  for (const s of sueltas.filter((x) => x.tipo !== 'caminar')) {
+    pasos.push({ orden: horaLocal(s.inicio), html: htmlReloj(actividad(s.tipo).nombre, actividad(s.tipo).icono, horaLocal(s.inicio), datosSesion(s)) });
+  }
+  if (caminatas.length) {
+    const a = actividad('caminar');
+    const min = caminatas.reduce((t, s) => t + minutos(s), 0);
+    const kcal = caminatas.reduce((t, s) => t + (s.calorias ?? 0), 0);
+    pasos.push({ orden: horaLocal(caminatas[0].inicio), html: htmlReloj(caminatas.length > 1 ? a.plural : a.nombre, a.icono, '', [`${min} min`, kcal ? `${kcal} kcal` : null].filter(Boolean).join(' · ')) });
+  }
+  pasos.sort((x, y) => x.orden.localeCompare(y.orden));
+  const f = new Date(`${d}T12:00`);
+  return `
+    <section class="sdia ${esHoy ? 'sdia--hoy' : ''} ${pasado ? 'sdia--pasado' : ''}" aria-label="${esc(diaLargo(d))}">
+      <header class="sdia__cab">
+        <span class="sdia__num">${numeroDia(d)}</span>
+        <span class="sdia__nombre">${esc(DIAS[f.getDay()])}</span>
+        ${esHoy ? '<span class="sello-hoy"><span class="sello-hoy__punto" aria-hidden="true"></span>Hoy</span>' : ''}
+        <button type="button" class="sdia__agregar" data-agregar="${d}" aria-label="Agregar entreno el ${esc(diaLargo(d))}">+ Agregar</button>
+      </header>
+      ${pasos.length ? `<ol class="plan">${pasos.map((p) => p.html).join('')}</ol>` : `<p class="sdia__libre">${pasado ? 'Nada registrado' : 'Libre'}</p>`}
+    </section>`;
+}
+
+// Un entreno agendado. Tocar el título edita; la rutina abre sus ejercicios.
+// En días pasados se ve compacto: qué fue y si se hizo.
+function htmlEntreno(ev, { hoy, rutinas, sesiones, resumen }, reloj, { pasado, esHoy }) {
+  const rutina = rutinas.find((r) => r.id === ev.rutina_id);
+  const sesion = rutina ? (sesiones.find((s) => s.calendario_id === ev.id && !s.terminada_en) ?? sesiones.find((s) => s.calendario_id === ev.id)) : null;
+  const hecho = sesion?.terminados?.includes(estado.yo.id);
+  const voy = ev.asistencia === 'juntos' || ev.persona_id === estado.yo.id;
+  const detalle = [textoAsistencia(ev), ev.notas].filter(Boolean).join(' · ');
+  let estadoTxt = '';
+  if (hecho) estadoTxt = '<span class="hecho">✓ Hecho</span>';
+  else if (pasado && ev.tipo !== 'descanso' && voy && !reloj) estadoTxt = '<span class="quieto">Sin registro</span>';
+
+  let extra = '';
+  if (rutina) {
+    const zonas = resumen[rutina.id]?.zonas ?? [];
+    let accion = '';
+    if (sesion) accion = `<a class="boton ${hecho ? 'boton--sec' : ''} boton--chico boton--bloque" href="#/sesion/${esc(sesion.id)}">${hecho ? 'Ver entreno' : voy ? 'Continuar entreno' : 'Ver entreno'}</a>`;
+    else if (esHoy && voy) accion = `<button type="button" class="boton boton--chico boton--bloque" data-empezar="${esc(ev.id)}">Empezar entreno</button>`;
+    extra = `
+      <a class="plan__rutina ${pasado ? 'plan__rutina--chica' : ''}" href="#/entreno/${esc(rutina.id)}" aria-label="Ver rutina ${esc(rutina.nombre)}">
+        <span class="plan__rutina-texto">
+          <strong>${esc(rutina.nombre)}</strong>
+          ${zonas.length && !pasado ? chipsZonas(zonas) : ''}
+        </span>
+        ${zonas.length ? mapaCuerpo(zonas, { alto: pasado ? 40 : 64 }) : ''}
+        <span class="plan__flecha" aria-hidden="true">›</span>
+      </a>
+      ${accion}`;
+  }
+  return `
+    <li class="plan__item">
+      <span class="plan__icono plan__icono--${esc(ev.tipo)}">${iconoEvento(ev)}</span>
+      <div class="plan__cuerpo">
+        <button type="button" class="plan__editable" data-editar="${esc(ev.id)}" aria-label="Editar ${esc(nombreEvento(ev))}">
+          <span class="plan__titulo">
+            <strong>${esc(nombreEvento(ev))}</strong>
+            <span class="plan__hora">${ev.hora_inicio ? esc(hora(ev.hora_inicio)) : ''}<span class="plan__lapiz">${LAPIZ}</span></span>
+          </span>
+          ${detalle || estadoTxt ? `<span class="plan__detalle">${[detalle ? esc(detalle) : '', estadoTxt].filter(Boolean).join(' · ')}</span>` : ''}
+        </button>
+        ${reloj ? `<span class="plan__reloj">${ICONO_RELOJ}<span>Registrado · ${esc(datosSesion(reloj))}</span></span>` : ''}
+        ${extra}
+      </div>
+    </li>`;
+}
+
+// Algo que registró el reloj sin estar agendado.
+function htmlReloj(nombre, icono, horaTxt, detalle) {
+  return `
+    <li class="plan__item plan__item--reloj">
+      <span class="plan__icono plan__icono--reloj">${icono}</span>
+      <div class="plan__cuerpo">
+        <div class="plan__titulo">
+          <strong>${esc(nombre)}</strong>
+          ${horaTxt ? `<span class="plan__hora">${esc(horaTxt)}</span>` : ''}
+        </div>
+        <span class="plan__reloj">${ICONO_RELOJ}<span>Del reloj · ${esc(detalle)}</span></span>
+      </div>
+    </li>`;
 }
 
 function dialogoEvento(ev, rutinas, alGuardar) {

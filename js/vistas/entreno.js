@@ -1,55 +1,16 @@
-// Pantalla Entreno: las rutinas del hogar y las metas de cada uno.
+// Detalle de una rutina: ejercicios, mapa del cuerpo y metas de cada uno.
+// La lista (semana + rutinas) vive en Entrenos (semana.js).
 import { sb, estado, datos } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo } from '../ui.js';
-import { hoyISO, diaCorto, numeroDia } from '../fechas.js';
-import { FOCOS, cargarRutina, textoMeta, textoDescanso, resumenRutinas } from '../rutinas.js';
+import { FOCOS, cargarRutina, textoMeta, textoDescanso } from '../rutinas.js';
 import { mapaCuerpo, chipsZonas, zonasDe } from '../iconos.js';
 import { abrirFicha, miniatura } from '../ficha.js';
+import { vistaSemana } from './semana.js';
 
 export async function vistaEntreno(app) {
   const id = location.hash.split('/')[2];
   if (id) return detalle(app, id);
-  return lista(app);
-}
-
-async function lista(app) {
-  const hogar = estado.yo.hogar_id;
-  const hoy = hoyISO();
-  const [rutinas, proximos] = await Promise.all([
-    sb.from('rutinas').select('*').eq('hogar_id', hogar).order('creada_en').then(datos),
-    sb.from('calendario').select('fecha, rutina_id, asistencia, persona_id').eq('hogar_id', hogar)
-      .gte('fecha', hoy).not('rutina_id', 'is', null).order('fecha').then(datos),
-  ]);
-  const resumen = await resumenRutinas(rutinas.map((r) => r.id));
-  // La de hoy va primero y resaltada.
-  const deHoy = new Set(proximos.filter((p) => p.fecha === hoy).map((p) => p.rutina_id));
-  rutinas.sort((a, b) => deHoy.has(b.id) - deHoy.has(a.id));
-
-  app.innerHTML = `
-    <header class="encabezado">
-      <div>
-        <h1 class="titulo">Entreno</h1>
-        <p class="subtitulo">Rutinas de la semana</p>
-      </div>
-    </header>
-    <div class="pila">
-      ${rutinas.map((r) => {
-        const { cuantos = 0, zonas = [] } = resumen[r.id] ?? {};
-        const esHoy = deHoy.has(r.id);
-        const prox = proximos.find((p) => p.rutina_id === r.id && p.fecha > hoy);
-        return `
-          <a class="tarjeta tarjeta--enlace rutina-tarjeta ${esHoy ? 'rutina-tarjeta--hoy' : ''}" href="#/entreno/${esc(r.id)}">
-            <div class="rutina-tarjeta__texto">
-              ${esHoy ? '<span class="sello-hoy"><span class="sello-hoy__punto" aria-hidden="true"></span>Hoy toca</span>' : ''}
-              <h2 class="tarjeta__titulo">${esc(r.nombre)}</h2>
-              <p class="quieto" style="margin:4px 0 0">${esc(FOCOS[r.foco] ?? '')} · ${cuantos} ejercicios</p>
-              ${zonas.length ? chipsZonas(zonas) : ''}
-              ${!esHoy && prox ? `<p class="quieto rutina-tarjeta__prox">Próxima: ${esc(diaCorto(prox.fecha))} ${numeroDia(prox.fecha)}</p>` : ''}
-            </div>
-            ${zonas.length ? mapaCuerpo(zonas, { alto: esHoy ? 96 : 76 }) : ''}
-          </a>`;
-      }).join('') || '<p class="vacio">Todavía no hay rutinas.</p>'}
-    </div>`;
+  return vistaSemana(app);
 }
 
 async function detalle(app, rutinaId) {
@@ -60,7 +21,7 @@ async function detalle(app, rutinaId) {
   app.innerHTML = `
     <header class="encabezado">
       <div>
-        <a href="#/entreno" class="boton boton--texto" style="padding:0;min-height:32px">‹ Rutinas</a>
+        <a href="#/semana" class="boton boton--texto" style="padding:0;min-height:32px">‹ Entrenos</a>
         <h1 class="titulo">${esc(rutina.nombre)}</h1>
         <p class="subtitulo">${esc(FOCOS[rutina.foco] ?? '')}${rutina.notas ? ` · ${esc(rutina.notas)}` : ''}</p>
       </div>
