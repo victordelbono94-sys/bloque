@@ -8,6 +8,7 @@ import { vistaEntreno } from './vistas/entreno.js';
 import { vistaSesion } from './vistas/sesion.js';
 import { vistaPerfil } from './vistas/perfil.js';
 import { estaInstalada, puedeSeguirEnNavegador, pantallaInstalar } from './instalar.js';
+import { enApp, loginEnApp, asegurarVinculo, desvincular, alEventoNativo } from './nativo.js';
 
 const app = document.getElementById('app');
 const nav = document.getElementById('nav');
@@ -34,9 +35,14 @@ function pantallaIngreso() {
       <button class="boton boton--bloque" id="entrar" type="button">Entrar con Google</button>
     </section>`;
   document.getElementById('entrar').addEventListener('click', async () => {
-    const vuelta = location.origin + location.pathname;
-    const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: vuelta } });
-    if (error) avisoError(error);
+    try {
+      if (enApp) return await loginEnApp(); // en la app, Google se abre en Chrome y vuelve
+      const vuelta = location.origin + location.pathname;
+      const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: vuelta } });
+      if (error) throw error;
+    } catch (e) {
+      avisoError(e);
+    }
   });
 }
 
@@ -147,6 +153,8 @@ async function arrancar() {
     // Limpia los restos del inicio de sesión en la URL.
     if (location.search || /access_token/.test(location.hash)) history.replaceState(null, '', location.pathname + '#/hoy');
     await mostrarRuta();
+    // En la app: conectar este teléfono con la cuenta para traer los datos de la banda.
+    if (enApp) asegurarVinculo().catch((e) => console.error('vínculo con la app', e));
   } catch (e) {
     avisoError(e);
     pantallaIngreso();
@@ -156,7 +164,13 @@ async function arrancar() {
 window.addEventListener('hashchange', mostrarRuta);
 sb.auth.onAuthStateChange((evento) => {
   if (evento === 'SIGNED_IN' && !estado.yo) iniciar();
-  if (evento === 'SIGNED_OUT') { estado.yo = null; estado.personas = []; pantallaIngreso(); }
+  if (evento === 'SIGNED_OUT') { estado.yo = null; estado.personas = []; desvincular(); pantallaIngreso(); }
+});
+
+// Cuando la app termina de sincronizar con Health Connect, se refrescan las pantallas que lo muestran.
+alEventoNativo('sync', (r) => {
+  const ruta = location.hash.replace(/^#\/?/, '').split('/')[0] || 'hoy';
+  if (r?.ok && estado.yo && ['hoy', 'cuerpo'].includes(ruta) && !document.querySelector('dialog[open]')) mostrarRuta();
 });
 
 iniciar();

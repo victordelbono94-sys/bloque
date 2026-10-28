@@ -1,16 +1,17 @@
 // Bloque se usa instalada, como app, con su ícono y a pantalla completa.
 // Abierta en el navegador del teléfono, solo muestra cómo instalarla.
 import { esc } from './ui.js';
+import { APK } from './nativo.js';
 
 const ua = navigator.userAgent;
 const ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const android = /Android/.test(ua);
 const movil = ios || android;
 const iosSafari = ios && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
-const androidChrome = android && /Chrome\//.test(ua) && !/EdgA|OPR|SamsungBrowser|Firefox/.test(ua);
 const CLAVE_NAVEGADOR = 'bloque-usar-en-navegador';
 
 export function estaInstalada() {
+  if (/BloqueApp\//.test(ua)) return true; // dentro de la app Android de Bloque
   return matchMedia('(display-mode: standalone)').matches
     || matchMedia('(display-mode: fullscreen)').matches
     || matchMedia('(display-mode: minimal-ui)').matches
@@ -26,7 +27,6 @@ export function puedeSeguirEnNavegador() {
 
 const ICONO = '<img src="icons/icon-192.png" width="96" height="96" alt="" class="icono-app">';
 const COMPARTIR = '<svg class="icono-linea" viewBox="0 0 24 24" aria-label="Compartir"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11v9h12v-9"/></svg>';
-const MENU = '<span class="tecla" aria-label="menú">⋮</span>';
 
 function pasos() {
   if (iosSafari) {
@@ -42,17 +42,11 @@ function pasos() {
       copiar: true,
     };
   }
-  if (androidChrome) {
-    return {
-      titulo: 'Instálala desde Chrome',
-      lista: [`Toca ${MENU} arriba a la derecha.`, 'Elige <strong>Instalar app</strong> (o <strong>Agregar a la pantalla principal</strong> → <strong>Instalar</strong>).', 'Abre <strong>Bloque</strong> desde el ícono nuevo.'],
-    };
-  }
   if (android) {
     return {
-      titulo: 'Ábrela en Chrome',
-      lista: ['Este navegador no instala Bloque con su ícono.', 'Copia el enlace y ábrelo en <strong>Chrome</strong>.', `Ahí toca ${MENU} → <strong>Instalar app</strong>.`],
-      copiar: true,
+      titulo: 'Instala la app Bloque',
+      lista: ['Toca <strong>Descargar Bloque</strong> y abre el archivo.', 'Si Android lo pide, permite instalar apps desde el navegador y toca <strong>Instalar</strong>.', 'Abre <strong>Bloque</strong> desde el ícono nuevo y entra con Google.'],
+      apk: true,
     };
   }
   return {
@@ -64,7 +58,7 @@ function pasos() {
 export function pantallaInstalar(app, alContinuar) {
   const pintar = (instalada = false) => {
     const p = pasos();
-    const boton = !instalada && window.__instalar;
+    const boton = !instalada && !android && window.__instalar;
     app.innerHTML = `
       <section class="pantalla-centro instalar">
         ${ICONO}
@@ -81,8 +75,9 @@ export function pantallaInstalar(app, alContinuar) {
               <h2 class="seccion__titulo" style="margin:0 0 10px">${esc(p.titulo)}</h2>
               <ol>${p.lista.map((x) => `<li>${x}</li>`).join('')}</ol>
               ${p.copiar ? '<button type="button" class="boton boton--sec boton--bloque" id="copiar-enlace">Copiar enlace</button>' : ''}
+              ${p.apk ? `<a class="boton boton--bloque" href="${APK}">Descargar Bloque</a>` : ''}
             </div>
-            <p class="ayuda">Si ya la instalaste, ábrela desde el ícono de Bloque.</p>
+            <p class="ayuda">${p.apk ? 'Si ya instalaste Bloque desde el navegador antes, puedes quitar ese acceso: la app lo reemplaza.' : 'Si ya la instalaste, ábrela desde el ícono de Bloque.'}</p>
           `}
           ${!movil ? '<button type="button" class="boton boton--texto" id="seguir">Seguir en el navegador</button>' : ''}
         `}

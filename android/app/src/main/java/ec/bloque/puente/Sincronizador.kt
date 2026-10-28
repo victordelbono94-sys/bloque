@@ -63,11 +63,12 @@ object Sincronizador {
         ajustes.primeraHecha = true
         ajustes.ultimaSync = System.currentTimeMillis()
         val r = respuesta.optJSONObject("resumen") ?: JSONObject()
+        fun cuenta(n: Int, uno: String, varios: String) = "$n ${if (n == 1) uno else varios}"
         val texto = buildList {
-            add("${r.optInt("dias")} días")
-            add("${r.optInt("sesiones")} entrenos")
-            if (r.optInt("mediciones") > 0) add("${r.optInt("mediciones")} mediciones")
-            if (escritas.length() > 0) add("${escritas.length()} escritas en Health Connect")
+            add(cuenta(r.optInt("dias"), "día", "días"))
+            add(cuenta(r.optInt("sesiones"), "entreno", "entrenos"))
+            if (r.optInt("mediciones") > 0) add(cuenta(r.optInt("mediciones"), "medición", "mediciones"))
+            if (escritas.length() > 0) add("${cuenta(escritas.length(), "medición", "mediciones")} a Health Connect")
         }.joinToString(" · ")
         ajustes.ultimoResultado = texto
         texto
