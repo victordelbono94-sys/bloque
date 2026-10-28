@@ -73,8 +73,7 @@ function dialogoEvento(ev, alGuardar) {
     <form class="dialogo" method="dialog">
       <h2 class="tarjeta__titulo">${nuevo ? 'Agregar' : 'Editar'} · ${esc(diaLargo(ev.fecha))}</h2>
 
-      <fieldset class="campo">
-        <legend>Qué</legend>
+      <fieldset class="campo" aria-label="Tipo de actividad">
         <div class="chips" id="tipo">
           ${Object.entries(TIPOS).map(([v, t]) => `<button type="button" class="chip" data-valor="${v}" aria-pressed="${v === tipoActual}">${t}</button>`).join('')}
         </div>

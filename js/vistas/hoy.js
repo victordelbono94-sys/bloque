@@ -45,10 +45,11 @@ export async function vistaHoy(app) {
       <a class="boton boton--sec boton--chico" style="margin-top:14px" href="#/semana">Ver la semana</a>
     </section>
 
-    <section class="seccion" aria-labelledby="como-estan">
-      <h2 class="seccion__titulo" id="como-estan">Cómo están</h2>
-      ${estado.personas.map((p) => tarjetaPersona(p, estados.find((e) => e.persona_id === p.id), mediciones.find((m) => m.persona_id === p.id))).join('')}
-    </section>`;
+    ${estado.personas.map((p, i) => `
+      <section class="seccion" aria-labelledby="como-${i}">
+        <h2 class="seccion__titulo" id="como-${i}">${p.id === estado.yo.id ? 'Cómo estoy' : `Cómo está ${esc(p.nombre)}`}</h2>
+        ${tarjetaPersona(p, estados.find((e) => e.persona_id === p.id), mediciones.find((m) => m.persona_id === p.id))}
+      </section>`).join('')}`;
 
   conectarCheckIn(app, hoy, estados.find((e) => e.persona_id === estado.yo.id));
 }
