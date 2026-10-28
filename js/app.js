@@ -51,23 +51,59 @@ function pantallaEspera() {
   document.getElementById('salir').addEventListener('click', async () => { await sb.auth.signOut(); iniciar(); });
 }
 
+const ORDEN = ['hoy', 'semana', 'cuerpo', 'perfil'];
+let rutaAnterior = null;
+let quitarAnimacion;
+
+// Hacia dónde entra la pantalla nueva: desde la derecha si avanzas en el menú
+// (o a una semana posterior), desde la izquierda si retrocedes.
+function direccion(nombre, param) {
+  if (!rutaAnterior) return 'fade';
+  if (rutaAnterior.nombre === nombre) {
+    if (nombre === 'semana' && param && rutaAnterior.param) return param > rutaAnterior.param ? 'der' : 'izq';
+    if (nombre === 'semana' && param !== rutaAnterior.param) return param ? 'der' : 'izq';
+    return 'fade';
+  }
+  return ORDEN.indexOf(nombre) > ORDEN.indexOf(rutaAnterior.nombre) ? 'der' : 'izq';
+}
+
+const ESQUELETO = `
+  <div class="esqueleto" style="height:34px;width:45%;margin:8px 0 6px"></div>
+  <div class="esqueleto" style="height:16px;width:30%;margin-bottom:24px"></div>
+  <div class="esqueleto" style="height:150px;border-radius:16px;margin-bottom:12px"></div>
+  <div class="esqueleto" style="height:220px;border-radius:16px"></div>`;
+
 async function mostrarRuta() {
   if (!estado.yo) return;
-  const nombre = (location.hash.replace(/^#\/?/, '').split('/')[0]) || 'hoy';
-  const vista = RUTAS[nombre] ?? vistaHoy;
+  const [nombreRuta, param] = location.hash.replace(/^#\/?/, '').split('/');
+  const nombre = RUTAS[nombreRuta] ? nombreRuta : 'hoy';
+  const vista = RUTAS[nombre];
   nav.hidden = false;
   nav.querySelectorAll('.nav__item').forEach((a) => {
     if (a.dataset.ruta === nombre) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
-  app.innerHTML = '<p class="cargando">Cargando…</p>';
+
+  const dir = direccion(nombre, param);
+  rutaAnterior = { nombre, param };
+  clearTimeout(quitarAnimacion);
+
+  // El esqueleto solo aparece si los datos tardan; si llegan rápido, la pantalla entra directo.
+  const esperar = setTimeout(() => { delete app.dataset.anim; app.innerHTML = ESQUELETO; }, 250);
+  app.dataset.anim = dir;
   try {
     await vista(app);
   } catch (e) {
     avisoError(e);
     app.innerHTML = '<p class="vacio">No se pudo cargar. Revisa tu conexión e intenta de nuevo.</p>';
   }
-  window.scrollTo(0, 0);
+  clearTimeout(esperar);
+  // Vuelve a disparar la entrada aunque el esqueleto haya ocupado su lugar.
+  delete app.dataset.anim;
+  void app.offsetWidth;
+  app.dataset.anim = dir;
+  quitarAnimacion = setTimeout(() => { delete app.dataset.anim; }, 700);
+  window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 let iniciando = null;

@@ -21,6 +21,8 @@
   --titulo: 'Archivo', system-ui, sans-serif;
   --texto: 'Inter', system-ui, -apple-system, sans-serif;
   --nav-alto: 64px;
+  --suave: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --resorte: cubic-bezier(0.34, 1.4, 0.64, 1);
   color-scheme: dark;
 }
 
@@ -328,11 +330,158 @@ dialog::backdrop { background: rgba(10, 11, 14, 0.7); }
   font-size: 15px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
   z-index: 20;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 16px) scale(0.96);
+  transition: opacity 0.22s ease, transform 0.28s var(--resorte);
 }
+.aviso--visible { opacity: 1; transform: translate(-50%, 0) scale(1); }
 .aviso--error { background: var(--error); }
 
 .cargando { color: var(--gris); padding: 24px 0; }
 
 @media (min-width: 720px) {
   .nav { left: 50%; right: auto; width: 640px; transform: translateX(-50%); border: 1px solid var(--grafito-2); border-bottom: 0; border-radius: 18px 18px 0 0; }
+}
+
+/* =====================================================================
+   Movimiento
+   Cada cosa que se toca responde, y cada pantalla entra en vez de aparecer.
+   ===================================================================== */
+
+/* Entrada de pantallas: los bloques suben y se desvanecen en cascada.
+   La dirección acompaña al menú (derecha si avanzas, izquierda si vuelves). */
+@keyframes entrar {
+  from { opacity: 0; transform: translate3d(var(--dx, 0), 14px, 0); }
+  to { opacity: 1; transform: none; }
+}
+#app[data-anim="der"] { --dx: 28px; }
+#app[data-anim="izq"] { --dx: -28px; }
+#app[data-anim] > * { animation: entrar 0.38s var(--suave) both; }
+#app[data-anim] > *:nth-child(2) { animation-delay: 0.04s; }
+#app[data-anim] > *:nth-child(3) { animation-delay: 0.08s; }
+#app[data-anim] > *:nth-child(4) { animation-delay: 0.12s; }
+#app[data-anim] > *:nth-child(5) { animation-delay: 0.16s; }
+#app[data-anim] > *:nth-child(n+6) { animation-delay: 0.2s; }
+/* Las tarjetas dentro de una sección también entran una tras otra. */
+#app[data-anim] .seccion > .tarjeta { animation: entrar 0.38s var(--suave) both; }
+#app[data-anim] .seccion > .tarjeta:nth-of-type(2) { animation-delay: 0.14s; }
+#app[data-anim] .seccion > .tarjeta:nth-of-type(n+3) { animation-delay: 0.2s; }
+
+/* Pantalla de ingreso: el logo se arma. */
+.pantalla-centro > * { animation: entrar 0.5s var(--suave) both; }
+.pantalla-centro > *:nth-child(2) { animation-delay: 0.08s; }
+.pantalla-centro > *:nth-child(3) { animation-delay: 0.16s; }
+.pantalla-centro > *:nth-child(n+4) { animation-delay: 0.22s; }
+@keyframes caer {
+  0% { transform: translateY(-120%) rotate(-12deg); opacity: 0; }
+  60% { transform: translateY(8%) rotate(3deg); opacity: 1; }
+  80% { transform: translateY(-3%) rotate(-1deg); }
+  100% { transform: none; }
+}
+.pantalla-centro .wordmark__bloque { animation: caer 0.7s var(--suave) 0.25s both; }
+
+/* Esqueletos mientras cargan los datos. */
+@keyframes brillo { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.esqueleto {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--grafito) 0%, var(--grafito-2) 50%, var(--grafito) 100%);
+  background-size: 200% 100%;
+  animation: brillo 1.3s ease-in-out infinite;
+}
+
+/* Respuesta al tacto. */
+.boton, .chip, .nav__item, .evento--boton {
+  transition: transform 0.14s var(--suave), background-color 0.2s ease, color 0.2s ease,
+    border-color 0.2s ease, opacity 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.boton:active:not(:disabled), .chip:active, .evento--boton:active { transform: scale(0.96); }
+.evento--boton:hover { background: rgba(255, 255, 255, 0.03); }
+
+@keyframes pop {
+  0% { transform: scale(0.9); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.chip.pop { animation: pop 0.28s var(--resorte); }
+
+/* Menú inferior: el ícono activo sube y aparece una marca volt. */
+.nav__item { position: relative; }
+.nav__item svg { transition: transform 0.25s var(--resorte); }
+.nav__item[aria-current="page"] svg { transform: translateY(-2px) scale(1.08); }
+.nav__item::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--volt);
+  opacity: 0;
+  transform: scale(0);
+  transition: opacity 0.2s ease, transform 0.3s var(--resorte);
+}
+.nav__item[aria-current="page"]::after { opacity: 1; transform: scale(1); }
+.nav:not([hidden]) { animation: subir-nav 0.4s var(--suave) both; }
+@keyframes subir-nav { from { transform: translateY(100%); } to { transform: none; } }
+@media (min-width: 720px) {
+  @keyframes subir-nav { from { transform: translate(-50%, 100%); } to { transform: translateX(-50%); } }
+}
+
+/* Diálogos: en el teléfono suben desde abajo como una hoja; en pantallas
+   grandes aparecen al centro. */
+@keyframes dialogo-entra { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes dialogo-sale { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(12px) scale(0.98); } }
+@keyframes fondo-entra { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fondo-sale { from { opacity: 1; } to { opacity: 0; } }
+dialog[open] { animation: dialogo-entra 0.26s var(--suave); }
+dialog[open]::backdrop { animation: fondo-entra 0.26s ease; }
+dialog.saliendo { animation: dialogo-sale 0.18s ease forwards; }
+dialog.saliendo::backdrop { animation: fondo-sale 0.18s ease forwards; }
+
+@media (max-width: 600px) {
+  @keyframes hoja-entra { from { transform: translateY(100%); } to { transform: none; } }
+  @keyframes hoja-sale { from { transform: none; } to { transform: translateY(100%); } }
+  dialog {
+    width: 100%;
+    max-width: 100%;
+    margin: auto 0 0;
+    border-radius: 22px 22px 0 0;
+    max-height: 92dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  dialog::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--linea);
+    margin: 10px auto 0;
+  }
+  dialog[open] { animation: hoja-entra 0.34s var(--suave); }
+  dialog.saliendo { animation: hoja-sale 0.2s ease-in forwards; }
+}
+
+/* Gráficas: la línea se dibuja y los puntos aparecen a su paso. */
+@keyframes dibujar { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes aparecer-punto { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+.grafica .linea { stroke-dasharray: 1; animation: dibujar 0.9s var(--suave) 0.1s both; }
+.grafica circle { transform-box: fill-box; transform-origin: center; animation: aparecer-punto 0.3s var(--resorte) both; }
+
+/* Semáforo: el punto late suave cuando hay estado. */
+@keyframes latido { 0%, 100% { box-shadow: 0 0 0 0 currentColor; } 50% { box-shadow: 0 0 0 5px transparent; } }
+.punto--verde { color: rgba(46, 158, 91, 0.5); animation: latido 2.4s ease-in-out infinite; }
+.punto--ambar { color: rgba(232, 163, 23, 0.5); animation: latido 2.4s ease-in-out infinite; }
+.punto--rojo { color: rgba(214, 69, 69, 0.5); animation: latido 2.4s ease-in-out infinite; }
+
+/* Si el teléfono pide menos movimiento, se respeta. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+  }
 }

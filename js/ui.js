@@ -18,10 +18,13 @@ let temporizadorAviso;
 export function aviso(texto, tipo = 'ok') {
   const el = document.getElementById('aviso');
   el.textContent = texto;
-  el.className = tipo === 'error' ? 'aviso aviso--error' : 'aviso';
   el.hidden = false;
+  el.classList.toggle('aviso--error', tipo === 'error');
+  el.classList.remove('aviso--visible');
+  void el.offsetWidth; // reinicia la animación si ya estaba visible
+  el.classList.add('aviso--visible');
   clearTimeout(temporizadorAviso);
-  temporizadorAviso = setTimeout(() => { el.hidden = true; }, 3200);
+  temporizadorAviso = setTimeout(() => el.classList.remove('aviso--visible'), 3200);
 }
 
 export function avisoError(error) {
@@ -36,14 +39,32 @@ function mensajeError(error) {
   return 'Algo salió mal. Intenta de nuevo.';
 }
 
+const sinMovimiento = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 // Abre un <dialog> con el HTML dado y devuelve el elemento. Se elimina al cerrarse.
+// close() anima la salida antes de cerrar de verdad.
 export function abrirDialogo(html, etiqueta) {
   const d = document.createElement('dialog');
   d.setAttribute('aria-label', etiqueta);
   d.innerHTML = html;
   document.body.appendChild(d);
+
+  const cerrarDeVerdad = d.close.bind(d);
+  let cerrando = false;
+  d.close = () => {
+    if (cerrando || !d.open) return;
+    if (sinMovimiento()) return cerrarDeVerdad();
+    cerrando = true;
+    d.classList.add('saliendo');
+    setTimeout(cerrarDeVerdad, 180);
+  };
+  d.addEventListener('cancel', (e) => { e.preventDefault(); d.close(); }); // tecla Esc
+  d.addEventListener('click', (e) => { if (e.target === d) d.close(); }); // toque fuera
   d.addEventListener('close', () => d.remove());
   d.querySelectorAll('[data-cerrar]').forEach((b) => b.addEventListener('click', () => d.close()));
+  // El foco va al título, no al primer campo, para no abrir el teclado de golpe.
+  const titulo = d.querySelector('h2');
+  if (titulo) { titulo.tabIndex = -1; titulo.autofocus = true; titulo.style.outline = 'none'; }
   d.showModal();
   return d;
 }
@@ -54,6 +75,9 @@ export function grupoChips(contenedor, alCambiar) {
     chip.addEventListener('click', () => {
       contenedor.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', 'false'));
       chip.setAttribute('aria-pressed', 'true');
+      chip.classList.remove('pop');
+      void chip.offsetWidth;
+      chip.classList.add('pop');
       alCambiar?.(chip.dataset.valor);
     });
   });
@@ -85,8 +109,8 @@ export function graficaLinea(puntos, { unidad = '', decimales = 1 } = {}) {
     <svg class="grafica" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(etiqueta)}">
       ${ticks.map((t) => `<line class="eje" x1="${izq}" x2="${W - der}" y1="${Y(t)}" y2="${Y(t)}" stroke-dasharray="2 4"/>
         <text x="${izq - 6}" y="${Y(t) + 4}" text-anchor="end">${num(t, decimales)}</text>`).join('')}
-      <path class="linea" d="${d}"/>
-      ${puntos.map((p) => `<circle class="${p.referencia ? 'punto-ref' : 'punto-g'}" cx="${X(p.fecha.getTime())}" cy="${Y(p.valor)}" r="${p.referencia ? 5 : 3.5}"/>`).join('')}
+      <path class="linea" d="${d}" pathLength="1"/>
+      ${puntos.map((p, i) => `<circle class="${p.referencia ? 'punto-ref' : 'punto-g'}" style="animation-delay:${(0.15 + 0.6 * i / (puntos.length - 1)).toFixed(2)}s" cx="${X(p.fecha.getTime())}" cy="${Y(p.valor)}" r="${p.referencia ? 5 : 3.5}"/>`).join('')}
       <text x="${izq}" y="${H - 6}">${fmt(puntos[0].fecha)}</text>
       <text x="${W - der}" y="${H - 6}" text-anchor="end">${fmt(puntos.at(-1).fecha)}</text>
     </svg>`;
