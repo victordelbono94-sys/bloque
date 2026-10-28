@@ -1,10 +1,11 @@
-// Pantalla Semana: calendario compartido de gym, derby, clases y descanso.
+// Pantalla Semana: calendario compartido de gym, derby, otros entrenos y descanso.
 // Cada evento va para los dos por defecto ("Sant y yo"); "Solo" indica quién va.
 import { sincronizarAgenda } from '../nativo.js';
 import { sb, estado, datos, otraPersona } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from '../ui.js';
 import { hoyISO, sumarDias, inicioSemana, rangoSemana, diaCorto, numeroDia, diaLargo, hora } from '../fechas.js';
-import { TIPOS, htmlEvento, textoJuntos, horaEfectiva } from '../eventos.js';
+import { TIPOS, htmlEvento, textoJuntos, horaEfectiva, nombreEvento } from '../eventos.js';
+import { OTROS } from '../actividades.js';
 
 export async function vistaSemana(app) {
   const param = location.hash.split('/')[2];
@@ -19,7 +20,7 @@ export async function vistaSemana(app) {
     sb.from('rutinas').select('id, nombre').eq('hogar_id', estado.yo.hogar_id).order('creada_en').then(datos),
   ]);
   // Sin hora, el gym (de mañana) va antes que el derby.
-  const ORDEN_TIPO = { gym: 0, clase: 1, derby: 2, descanso: 3 };
+  const ORDEN_TIPO = { gym: 0, clase: 1, otro: 1, derby: 2, descanso: 3 };
   eventos.sort((a, b) => a.fecha.localeCompare(b.fecha)
     || horaEfectiva(a).localeCompare(horaEfectiva(b))
     || ORDEN_TIPO[a.tipo] - ORDEN_TIPO[b.tipo]);
@@ -51,7 +52,7 @@ export async function vistaSemana(app) {
             </div>
             <div class="pila" style="gap:4px">
               ${delDia.map((e) => `
-                <button type="button" class="evento evento--boton" data-editar="${esc(e.id)}" aria-label="Editar ${esc(TIPOS[e.tipo])}">
+                <button type="button" class="evento evento--boton" data-editar="${esc(e.id)}" aria-label="Editar ${esc(nombreEvento(e))}">
                   ${htmlEvento(e)}
                   ${nombreRutina(e.rutina_id) ? `<span class="evento__rutina">${esc(nombreRutina(e.rutina_id))}</span>` : ''}
                 </button>`).join('')}
@@ -79,7 +80,8 @@ function dialogoEvento(ev, rutinas, alGuardar) {
   const nuevo = !ev.id;
   const otro = otraPersona();
   const asistenciaActual = ev.asistencia === 'solo' ? ev.persona_id : 'juntos';
-  const tipoActual = ev.tipo ?? 'gym';
+  const tipoActual = ev.tipo === 'clase' ? 'otro' : ev.tipo ?? 'gym';
+  const actividadActual = ev.actividad ?? (ev.tipo === 'clase' ? 'clase' : null);
 
   const d = abrirDialogo(`
     <form class="dialogo" method="dialog">
@@ -88,6 +90,12 @@ function dialogoEvento(ev, rutinas, alGuardar) {
       <fieldset class="campo" aria-label="Tipo de actividad">
         <div class="chips" id="tipo">
           ${Object.entries(TIPOS).map(([v, t]) => `<button type="button" class="chip" data-valor="${v}" aria-pressed="${v === tipoActual}">${t}</button>`).join('')}
+        </div>
+      </fieldset>
+
+      <fieldset class="campo" id="campo-actividad" aria-label="Qué entreno">
+        <div class="chips" id="actividad">
+          ${OTROS.map((o) => `<button type="button" class="chip chip--icono" data-valor="${o.clave}" aria-pressed="${o.clave === actividadActual}">${o.icono}${esc(o.nombre)}</button>`).join('')}
         </div>
       </fieldset>
 
@@ -104,8 +112,7 @@ function dialogoEvento(ev, rutinas, alGuardar) {
         <input id="hora" type="time" value="${esc(hora(ev.hora_inicio))}">
       </div>
 
-      <fieldset class="campo" id="campo-asistencia">
-        <legend>Quién va</legend>
+      <fieldset class="campo" id="campo-asistencia" aria-label="Quién va">
         <div class="chips" id="asistencia">
           <button type="button" class="chip" data-valor="juntos" aria-pressed="${asistenciaActual === 'juntos'}">${esc(textoJuntos())}</button>
           <button type="button" class="chip" data-valor="${esc(estado.yo.id)}" aria-pressed="${asistenciaActual === estado.yo.id}">Solo yo</button>
@@ -129,14 +136,23 @@ function dialogoEvento(ev, rutinas, alGuardar) {
   const asistencia = d.querySelector('#asistencia');
   const campoAsistencia = d.querySelector('#campo-asistencia');
   const campoRutina = d.querySelector('#campo-rutina');
-  const mostrarAsistencia = (t) => { campoAsistencia.hidden = t === 'descanso'; campoRutina.hidden = t !== 'gym'; };
+  const actividadEl = d.querySelector('#actividad');
+  const campoActividad = d.querySelector('#campo-actividad');
+  const mostrarAsistencia = (t) => {
+    campoAsistencia.hidden = t === 'descanso';
+    campoRutina.hidden = t !== 'gym';
+    campoActividad.hidden = t !== 'otro';
+  };
   grupoChips(tipo, mostrarAsistencia);
   grupoChips(asistencia);
+  grupoChips(actividadEl);
   mostrarAsistencia(tipoActual);
 
   d.querySelector('form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const t = valorChips(tipo);
+    const act = t === 'otro' ? valorChips(actividadEl) : null;
+    if (t === 'otro' && !act) return aviso('Elige qué entreno es.', 'error');
     const a = t === 'descanso' ? 'juntos' : valorChips(asistencia);
     const fila = {
       hogar_id: estado.yo.hogar_id,
@@ -147,6 +163,7 @@ function dialogoEvento(ev, rutinas, alGuardar) {
       persona_id: a === 'juntos' ? null : a,
       notas: d.querySelector('#notas').value.trim() || null,
       rutina_id: t === 'gym' ? d.querySelector('#rutina').value || null : null,
+      actividad: act,
     };
     const boton = d.querySelector('#guardar');
     boton.disabled = true;

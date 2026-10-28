@@ -2,7 +2,7 @@
 import { sb, estado, datos } from '../db.js';
 import { esc, num, aviso, avisoError, grupoChips, valorChips } from '../ui.js';
 import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia, fechaCorta, hora } from '../fechas.js';
-import { TIPOS, horaEfectiva, textoAsistencia } from '../eventos.js';
+import { TIPOS, horaEfectiva, textoAsistencia, nombreEvento, iconoEvento } from '../eventos.js';
 import { iconoTipo, mapaCuerpo, chipsZonas } from '../iconos.js';
 import { resumenRutinas } from '../rutinas.js';
 import { actividad, emparejar, minutos } from '../actividades.js';
@@ -44,7 +44,7 @@ export async function vistaHoy(app) {
   };
 
   // Sin hora, el gym (de mañana) va antes que el derby.
-  const ORDEN_TIPO = { gym: 0, clase: 1, derby: 2, descanso: 3 };
+  const ORDEN_TIPO = { gym: 0, clase: 1, otro: 1, derby: 2, descanso: 3 };
   eventos.sort((x, y) => x.fecha.localeCompare(y.fecha)
     || horaEfectiva(x).localeCompare(horaEfectiva(y))
     || ORDEN_TIPO[x.tipo] - ORDEN_TIPO[y.tipo]);
@@ -52,15 +52,17 @@ export async function vistaHoy(app) {
   const deHoy = eventos.filter((e) => e.fecha === hoy);
 
   // Rutinas del día y entrenos ya empezados.
+  const proximo = eventos.find((e) => e.fecha > hoy && e.tipo !== 'descanso');
   const conRutina = deHoy.filter((e) => e.rutina_id);
-  const [rutinas, sesiones] = conRutina.length ? await Promise.all([
-    sb.from('rutinas').select('id, nombre, foco').in('id', conRutina.map((e) => e.rutina_id)).then(datos),
+  const idsRutinas = [...new Set([...conRutina.map((e) => e.rutina_id), proximo?.rutina_id].filter(Boolean))];
+  const [rutinas, sesiones] = idsRutinas.length ? await Promise.all([
+    sb.from('rutinas').select('id, nombre, foco').in('id', idsRutinas).then(datos),
     sb.from('sesiones').select('id, calendario_id, terminados, terminada_en').in('calendario_id', conRutina.map((e) => e.id)).then(datos),
   ]) : [[], []];
-  const resumen = await resumenRutinas(rutinas.map((r) => r.id));
+  const resumen = await resumenRutinas(conRutina.map((e) => e.rutina_id));
   // Las rutinas de los días de derby son livianas a propósito: el semáforo lo tiene en cuenta.
   for (const e of deHoy) e.liviana = rutinas.find((r) => r.id === e.rutina_id)?.foco === 'recuperacion';
-  const proximo = eventos.find((e) => e.fecha > hoy && e.tipo !== 'descanso');
+  const rutinaProxima = rutinas.find((r) => r.id === proximo?.rutina_id);
   const mia = banda(estado.yo.id);
   const extrasAyer = extrasTodos.filter((x) => x.persona_id === estado.yo.id);
   const contexto = { hoy, deAyer, deHoy, extrasAyer, suenoMin: mia.suenoMin, bandaAyer: mia.entrenosAyer, bandaHoy: mia.entrenosHoy };
@@ -105,9 +107,10 @@ export async function vistaHoy(app) {
         ? `<ol class="plan">${lineaDeTiempo(deHoy, mia.entrenosHoy, rutinas, sesiones, resumen)}</ol>`
         : `<p class="vacio" style="padding-top:4px">No hay nada agendado. ¿Qué hacen hoy?</p>
            <div class="chips" id="rapido">
-             ${Object.entries(TIPOS).map(([v, t]) => `<button type="button" class="chip chip--icono" data-valor="${v}">${iconoTipo(v)}${t}</button>`).join('')}
+             ${Object.entries(TIPOS).filter(([v]) => v !== 'otro').map(([v, t]) => `<button type="button" class="chip chip--icono" data-valor="${v}">${iconoTipo(v)}${t}</button>`).join('')}
+             <a class="chip chip--icono" href="#/semana" style="text-decoration:none;display:inline-flex;align-items:center">${iconoTipo('otro')}Otro…</a>
            </div>`}
-      ${proximo ? `<p class="plan__proximo"><span class="quieto">Después</span> ${iconoTipo(proximo.tipo)} <strong>${esc(TIPOS[proximo.tipo])}</strong> <span class="quieto">${esc(diaCorto(proximo.fecha))} ${numeroDia(proximo.fecha)}${proximo.hora_inicio ? ` · ${esc(hora(proximo.hora_inicio))}` : ''}</span></p>` : ''}
+      ${proximo ? `<p class="plan__proximo"><span class="quieto">Después</span> ${iconoEvento(proximo)} <strong>${esc(rutinaProxima?.nombre ?? nombreEvento(proximo))}</strong> <span class="quieto">${esc(diaCorto(proximo.fecha))} ${numeroDia(proximo.fecha)}${proximo.hora_inicio ? ` · ${esc(hora(proximo.hora_inicio))}` : ''}</span></p>` : ''}
     </section>
 
     ${estado.personas.map((p, i) => `
@@ -202,10 +205,10 @@ function htmlPlan(ev, rutinas, sesiones, resumen, reloj) {
   }
   return `
     <li class="plan__item">
-      <span class="plan__icono plan__icono--${esc(ev.tipo)}">${iconoTipo(ev.tipo)}</span>
+      <span class="plan__icono plan__icono--${esc(ev.tipo)}">${iconoEvento(ev)}</span>
       <div class="plan__cuerpo">
         <div class="plan__titulo">
-          <strong>${esc(TIPOS[ev.tipo] ?? ev.tipo)}</strong>
+          <strong>${esc(nombreEvento(ev))}</strong>
           ${ev.hora_inicio ? `<span class="plan__hora">${esc(hora(ev.hora_inicio))}</span>` : ''}
         </div>
         ${detalle ? `<span class="plan__detalle">${esc(detalle)}</span>` : ''}
@@ -250,7 +253,7 @@ function tarjetaPersona(p, est, med, descanso, b, semaforoDe) {
 // El semáforo como protagonista: las tres luces, el estado grande y el porqué.
 function heroSemaforo(est, descanso, soyYo) {
   const sem = est?.semaforo;
-  const pista = est?.estimado ? `<span class="semaforo__estimado">Estimado · ${soyYo ? 'marca cómo te sientes para afinarlo' : 'falta que marque cómo se siente'}</span>` : '';
+  const pista = est?.estimado ? `<span class="semaforo__estimado">${soyYo ? 'Estimado · marca cómo te sientes para afinarlo' : 'Estimado · todavía no marcó cómo se siente'}</span>` : '';
   const luces = ['rojo', 'ambar', 'verde'].map((c) => `<i class="luz luz--${c} ${sem === c ? 'luz--on' : ''}"></i>`).join('');
   if (!sem) {
     return `
@@ -267,7 +270,7 @@ function heroSemaforo(est, descanso, soyYo) {
       <span class="semaforo__luces" aria-hidden="true">${luces}</span>
       <div>
         <span class="semaforo__estado">${esc(textoSemaforo(sem, descanso))}</span>
-        ${est.motivo ? `<p class="semaforo__motivo"><strong>Por qué:</strong> ${esc(est.motivo)}</p>` : ''}
+        ${est.motivo ? `<p class="semaforo__motivo">${esc(est.motivo)}</p>` : ''}
         ${pista}
       </div>
     </div>`;

@@ -21,7 +21,32 @@ const ACTIVIDADES = {
   fuerza: { nombre: 'Fuerza', icono: ICONO_TIPO.gym, porHora: 1 },
   pesas: { nombre: 'Pesas', icono: ICONO_TIPO.gym, porHora: 1 },
   patinaje: { nombre: 'Patinaje', icono: ICONO_TIPO.derby, porHora: 1.4 },
+  natacion: { nombre: 'Natación', icono: PULSO, porHora: 1.2 },
+  baile: { nombre: 'Baile', icono: PULSO, porHora: 0.9 },
+  futbol: { nombre: 'Fútbol', icono: PULSO, porHora: 1.3 },
+  clase: { nombre: 'Clase', icono: ICONO_TIPO.clase, porHora: 1 },
+  otro: { nombre: 'Otro', icono: PULSO, porHora: 1 },
 };
+
+// Lo que se puede elegir al agendar «Otro», con los tipos del reloj que le corresponden.
+export const OTROS = [
+  ['caminar', ['caminar', 'trekking']],
+  ['correr', ['correr', 'tipo_57']],
+  ['bicicleta', ['bicicleta', 'tipo_9']],
+  ['escalada', ['escalada']],
+  ['trekking', ['trekking', 'caminar']],
+  ['natacion', ['tipo_73', 'tipo_74']],
+  ['patinaje', ['patinaje', 'tipo_52', 'tipo_60', 'tipo_0']],
+  ['yoga', ['yoga', 'tipo_48', 'tipo_71']],
+  ['hiit', ['hiit', 'tipo_36', 'tipo_0']],
+  ['baile', ['tipo_16']],
+  ['futbol', ['tipo_64']],
+  ['clase', null],
+  ['otro', null],
+].map(([clave, reloj]) => ({ clave, reloj, ...ACTIVIDADES[clave] }));
+
+/** Carga estimada de un evento «Otro» de una hora (si el reloj no lo registró). */
+export const cargaOtro = (ev) => ACTIVIDADES[ev.actividad]?.porHora ?? 1;
 // Lo que el reloj manda con un número (tipos de Health Connect que la app aún no nombra).
 const POR_CODIGO = {
   0: { nombre: 'Otro entreno', icono: PULSO, porHora: 1 },
@@ -70,7 +95,10 @@ const COMPATIBLES = {
 };
 const compatible = (ev, s) => {
   if (ev.tipo === 'descanso' || !s.tipo) return false;
-  const lista = COMPATIBLES[ev.tipo];
+  // «Otro»: lo que corresponde a su actividad; si es una clase u otra cosa, cualquiera menos caminar.
+  const lista = ev.tipo === 'otro'
+    ? (OTROS.find((o) => o.clave === ev.actividad)?.reloj ?? null)
+    : COMPATIBLES[ev.tipo];
   return lista === null ? s.tipo !== 'caminar' : (lista ?? []).includes(s.tipo);
 };
 
@@ -83,7 +111,7 @@ export function emparejar(eventos, sesiones) {
   const libres = [...sesiones];
   const pares = new Map();
   // Primero los más exigentes: si el reloj registró un solo entreno largo, es el derby.
-  const PESO = { derby: 3, clase: 2, gym: 1 };
+  const PESO = { derby: 3, otro: 2, clase: 2, gym: 1 };
   for (const ev of [...eventos].sort((a, b) => (PESO[b.tipo] ?? 0) - (PESO[a.tipo] ?? 0))) {
     const candidatas = libres.filter((s) => compatible(ev, s));
     if (!candidatas.length) continue;

@@ -3,7 +3,7 @@
 // con un evento (el gym, el derby) se cuenta una vez; lo demás (caminar, correr,
 // escalar…) se suma aparte.
 import { incluyeA } from './eventos.js';
-import { emparejar, cargaSesion, nombresSesiones } from './actividades.js';
+import { emparejar, cargaSesion, nombresSesiones, cargaOtro, actividad } from './actividades.js';
 
 const CARGA = { derby: 2.5, gym: 1.5, clase: 1, descanso: 0 };
 
@@ -47,13 +47,15 @@ export function calcularSemaforo({ cansancio, dolor, ayer, hoy, extrasAyer, pers
   let cargaAyer = 0;
   for (const e of propiosAyer) {
     const s = pares.get(e);
-    cargaAyer += Math.max(CARGA[e.tipo] ?? 0, s ? cargaSesion(s) : 0);
+    const estimada = e.tipo === 'otro' ? cargaOtro(e) : CARGA[e.tipo] ?? 0;
+    cargaAyer += Math.max(estimada, s ? cargaSesion(s) : 0);
   }
   for (const s of sueltas) cargaAyer += cargaSesion(s);
   for (const x of extrasAyer) cargaAyer += x.intensidad >= 4 ? 2 : x.intensidad >= 3 ? 1 : 0.5;
   puntos += cargaAyer;
   const kcalAyer = bandaAyer.reduce((a, s) => a + (s.calorias ?? 0), 0);
-  const nombresAyer = [...new Set([...propiosAyer.map((e) => e.tipo), ...nombresSesiones(sueltas), ...extrasAyer.map((x) => x.tipo)])];
+  const nombreDe = (e) => (e.tipo === 'otro' ? actividad(e.actividad).nombre.toLowerCase() : e.tipo);
+  const nombresAyer = [...new Set([...propiosAyer.map(nombreDe), ...nombresSesiones(sueltas), ...extrasAyer.map((x) => x.tipo)])];
   if (nombresAyer.length) motivos.push(`${unir(nombresAyer)} ayer${kcalAyer ? ` (${miles(kcalAyer)} kcal)` : ''}`);
 
   // Lo que ya hiciste hoy también cansa (un trote de mañana antes del gym de la tarde).
@@ -64,7 +66,7 @@ export function calcularSemaforo({ cansancio, dolor, ayer, hoy, extrasAyer, pers
     // Lo que coincide con lo agendado se nombra como el evento (gym, derby).
     const agendadosHoy = hoy.filter((e) => incluyeA(e, personaId) && e.tipo !== 'descanso');
     const { pares: paresHoy, sueltas: sueltasHoy } = emparejar(agendadosHoy, bandaHoy);
-    const nombres = [...new Set([...[...paresHoy.keys()].map((e) => e.tipo), ...nombresSesiones(sueltasHoy)])];
+    const nombres = [...new Set([...[...paresHoy.keys()].map(nombreDe), ...nombresSesiones(sueltasHoy)])];
     motivos.push(`hoy ya: ${unir(nombres)}${kcalHoy ? ` (${miles(kcalHoy)} kcal)` : ''}`);
   }
 
@@ -77,10 +79,10 @@ export function calcularSemaforo({ cansancio, dolor, ayer, hoy, extrasAyer, pers
   // Gym y derby el mismo día solo pesa si el gym no es la rutina liviana pensada para eso.
   const propiosHoy = hoy.filter((e) => incluyeA(e, personaId));
   const tiposHoy = new Set(propiosHoy.map((e) => e.tipo));
-  const gymPesadoHoy = propiosHoy.some((e) => (e.tipo === 'gym' && !e.liviana) || e.tipo === 'clase');
+  const gymPesadoHoy = propiosHoy.some((e) => (e.tipo === 'gym' && !e.liviana) || e.tipo === 'clase' || (e.tipo === 'otro' && cargaOtro(e) >= 1));
   const dobleHoy = tiposHoy.has('derby') && gymPesadoHoy;
   const livianoConDerby = tiposHoy.has('derby') && !dobleHoy && tiposHoy.has('gym');
-  if (dobleHoy) motivos.push('gym exigente y derby el mismo día');
+  if (dobleHoy) motivos.push(propiosHoy.some((e) => e.tipo === 'gym' && !e.liviana) ? 'gym exigente y derby el mismo día' : 'otro entreno exigente y derby el mismo día');
 
   let semaforo = 'verde';
   if (cansancio === 5 || dolor === 5 || puntos >= 8) semaforo = 'rojo';
@@ -97,7 +99,7 @@ export function calcularSemaforo({ cansancio, dolor, ayer, hoy, extrasAyer, pers
 // Día de descanso: está marcado y no hay ningún entreno para esa persona.
 export function esDescanso(hoy, personaId) {
   const tipos = new Set(hoy.filter((e) => incluyeA(e, personaId)).map((e) => e.tipo));
-  return tipos.has('descanso') && !tipos.has('gym') && !tipos.has('derby') && !tipos.has('clase');
+  return tipos.has('descanso') && !tipos.has('gym') && !tipos.has('derby') && !tipos.has('clase') && !tipos.has('otro');
 }
 
 // Cómo se lee el semáforo según el día.

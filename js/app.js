@@ -91,7 +91,12 @@ async function mostrarRuta() {
   const [nombreRuta, param] = location.hash.replace(/^#\/?/, '').split('/');
   const nombre = RUTAS[nombreRuta] ? nombreRuta : 'hoy';
   const vista = RUTAS[nombre];
-  nav.hidden = false;
+  if (nav.hidden) {
+    // Solo la primera vez que aparece sube desde abajo; al cambiar de sección no se mueve.
+    nav.hidden = false;
+    nav.classList.add('nav--entra');
+    setTimeout(() => nav.classList.remove('nav--entra'), 450);
+  }
   nav.querySelectorAll('.nav__item').forEach((a) => {
     if (a.dataset.ruta === (nombre === 'sesion' || nombre === 'comenzar' ? 'entreno' : nombre)) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
@@ -128,7 +133,7 @@ async function mostrarRuta() {
   // El contenido nuevo entra una sola vez, ya completo.
   app.classList.remove('vista-saliendo');
   app.replaceChildren(lienzo);
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  app.scrollTop = 0; // #app es lo único que se desplaza: el menú no se mueve nunca
   app.dataset.anim = dir;
   quitarAnimacion = setTimeout(() => { delete app.dataset.anim; }, 700);
 }

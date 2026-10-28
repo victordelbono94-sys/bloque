@@ -93,6 +93,8 @@ class MainActivity : ComponentActivity() {
 
         web = WebView(this).apply {
             setBackgroundColor(asfalto)
+            // Sin el "estirón" de Android al tirar desde arriba o abajo: el menú no se mueve.
+            overScrollMode = android.view.View.OVER_SCROLL_NEVER
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = true

@@ -27,6 +27,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html, body { margin: 0; background: var(--asfalto); color: var(--tiza); }
 
@@ -63,10 +64,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .wordmark--grande { font-size: 64px; }
 
 /* ---------- Estructura ---------- */
+/* La página no se desplaza: solo #app. Así el menú queda fijo y no rebota al
+   tirar desde arriba o desde abajo. El contenido sigue centrado en 640 px. */
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 #app {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 16px 16px calc(var(--nav-alto) + 32px + env(safe-area-inset-bottom));
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px max(16px, calc((100% - 608px) / 2)) calc(var(--nav-alto) + 32px + env(safe-area-inset-bottom));
 }
 
 .pantalla-centro {
@@ -205,7 +212,7 @@ h1, h2, h3 { margin: 0; }
 }
 .etiqueta--gym { background: var(--volt); color: var(--asfalto); }
 .etiqueta--derby { background: var(--tiza); color: var(--asfalto); }
-.etiqueta--clase { background: #4A5066; }
+.etiqueta--clase, .etiqueta--otro { background: #4A5066; }
 .etiqueta--descanso { background: transparent; border: 1px solid var(--linea); color: var(--gris); }
 .etiqueta--referencia { background: transparent; border: 1px solid var(--volt); color: var(--volt); }
 
@@ -416,7 +423,8 @@ dialog::backdrop { background: rgba(10, 11, 14, 0.7); }
 /* Menú inferior: el ícono activo sube un poco. */
 .nav__item svg { transition: transform 0.25s var(--resorte); }
 .nav__item[aria-current="page"] svg { transform: translateY(-2px) scale(1.08); }
-.nav:not([hidden]) { animation: subir-nav 0.4s var(--suave) both; }
+.nav.nav--entra { animation: subir-nav 0.4s var(--suave) both; }
+.nav { z-index: 10; will-change: transform; }
 @keyframes subir-nav { from { transform: translateY(100%); } to { transform: none; } }
 @media (min-width: 720px) {
   @keyframes subir-nav { from { transform: translate(-50%, 100%); } to { transform: translateX(-50%); } }
@@ -731,7 +739,7 @@ span.serie--hecha { opacity: 0.85; }
 .plan__icono .icono { width: 22px; height: 22px; }
 .plan__icono--gym { background: var(--volt); color: var(--asfalto); }
 .plan__icono--derby { background: var(--tiza); color: var(--asfalto); }
-.plan__icono--clase { background: #4A5066; }
+.plan__icono--clase, .plan__icono--otro { background: #4A5066; }
 .plan__icono--descanso { background: transparent; box-shadow: inset 0 0 0 1px var(--linea); color: var(--gris); }
 .plan__cuerpo { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-top: 2px; }
 .plan__titulo { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
@@ -802,7 +810,7 @@ span.serie--hecha { opacity: 0.85; }
 .plan__reloj { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--tiza-2); margin-top: -4px; }
 .plan__reloj .icono { width: 14px; height: 14px; color: var(--volt); }
 .plan__icono--reloj { background: transparent; box-shadow: inset 0 0 0 1.5px var(--volt); color: var(--volt); }
-.semaforo__estimado { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--tiza); background: rgba(21, 23, 28, 0.45); padding: 3px 9px; border-radius: 999px; }
+.semaforo__estimado { display: inline-block; margin-top: 12px; padding: 6px 12px; border-radius: 10px; font-size: 12px; font-weight: 600; line-height: 1.4; color: var(--tiza); background: rgba(21, 23, 28, 0.5); }
 /* Gimnasio y avisos */
 .lugar { display: flex; align-items: center; gap: 12px; }
 .lugar__icono { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: var(--volt); color: var(--asfalto); flex-shrink: 0; }
@@ -819,3 +827,21 @@ span.serie--hecha { opacity: 0.85; }
 .sesion-reloj { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; padding: 12px 14px; border-radius: var(--radio); background: rgba(198, 244, 50, 0.1); font-size: 14px; color: var(--tiza-2); }
 .sesion-reloj .icono { width: 20px; height: 20px; color: var(--volt); }
 .sesion-reloj strong { color: var(--tiza); }
+/* Mapa y buscador del gimnasio */
+.mapa-caja { height: 240px; border-radius: 14px; overflow: hidden; background: var(--grafito-2); position: relative; z-index: 0; }
+.mapa-caja--chica { height: 150px; }
+.mapa-caja .leaflet-control-attribution { font-size: 10px; background: rgba(21, 23, 28, 0.7); color: var(--gris); }
+.mapa-caja .leaflet-control-attribution a { color: var(--tiza-2); }
+.mapa-caja .leaflet-bar a { background: var(--grafito); color: var(--tiza); border-color: var(--linea); }
+.mapa-pin { background: none; border: 0; }
+.buscador { position: relative; }
+.buscador__lista {
+  position: absolute; left: 0; right: 0; top: 100%; margin-top: 6px; z-index: 5;
+  background: var(--asfalto); border: 1px solid var(--linea); border-radius: 12px; overflow: hidden;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); max-height: 280px; overflow-y: auto;
+}
+.buscador__item { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 12px 14px; border: 0; border-top: 1px solid var(--grafito-2); background: none; color: var(--tiza); text-align: left; cursor: pointer; font-size: 15px; }
+.buscador__item:first-child { border-top: 0; }
+.buscador__item:active { background: var(--grafito); }
+.buscador__item .quieto { font-size: 13px; }
+.buscador__vacio { margin: 0; padding: 12px 14px; font-size: 14px; }

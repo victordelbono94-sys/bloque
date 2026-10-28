@@ -6,6 +6,7 @@ import {
   enApp, APK, estadoNativo, pedirPermisos, sincronizarAhora, alEventoNativo, abrirExterno, guardarArchivo, asegurarVinculo, buscarActualizacion,
   soportaAvisos, configurarAvisos, pedirNotificaciones, pedirUbicacion, abrirAjustesApp, ubicacionActual, sincronizarAgenda,
 } from '../nativo.js';
+import { crearMapa, buscarLugares } from '../mapa.js';
 
 const NIVELES = { bajo: 'Bajo', moderado: 'Moderado', alto: 'Alto', muy_alto: 'Muy alto' };
 
@@ -16,7 +17,6 @@ const TABLAS = [
   'ejercicio_alternativas', 'rutinas', 'rutina_ejercicios', 'metas_ejercicio', 'sesiones', 'series',
   'recetas', 'ingredientes', 'comidas', 'porciones', 'chat_mensajes', 'dispositivos', 'lugares',
 ];
-const RADIOS = [100, 150, 250, 400];
 let gimnasioActual = null; // el que ve la tarjeta de avisos
 
 export async function vistaPerfil(app) {
@@ -279,128 +279,135 @@ function htmlGimnasio(g, editando = !g, borrador = null) {
         <span class="lugar__icono" aria-hidden="true"><svg class="icono" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg></span>
         <div style="flex:1;min-width:0">
           <strong>${esc(g.nombre)}</strong>
-          <p class="quieto" style="margin:2px 0 0">Aviso a ${g.radio_m} m a la redonda</p>
+          <p class="quieto" style="margin:2px 0 0">Te avisa al llegar acá</p>
         </div>
-      </div>
-      <div class="fila" style="gap:8px;flex-wrap:wrap">
-        <a class="boton boton--sec boton--chico" href="${esc(urlMapa(g))}" data-externo>Ver en el mapa</a>
         <button type="button" class="boton boton--texto boton--chico" id="lugar-editar">Cambiar</button>
-      </div>`;
+      </div>
+      <div class="mapa-caja mapa-caja--chica" id="lugar-mapa" aria-label="Mapa del gimnasio"></div>`;
   }
-  const b = borrador ?? { nombre: g?.nombre ?? 'Smart Fit Plataforma Financiera', radio_m: g?.radio_m ?? 150, lat: g?.lat ?? null, lng: g?.lng ?? null };
+  const b = borrador ?? { nombre: g?.nombre ?? '', lat: g?.lat ?? null, lng: g?.lng ?? null };
   return `
-    <p class="quieto" style="margin:0">Guarda dónde entrenan para que la app les avise al llegar.</p>
+    <p class="quieto" style="margin:0">Busca el gimnasio y revisa que el pin quede encima. Si no está justo, toca el punto exacto en el mapa.</p>
+    <div class="campo buscador">
+      <label for="lugar-buscar">Buscar</label>
+      <input id="lugar-buscar" type="search" autocomplete="off" placeholder="Ej.: Smart Fit Plataforma Financiera" value="">
+      <div class="buscador__lista" id="lugar-resultados" role="listbox" hidden></div>
+    </div>
+    <div class="mapa-caja" id="lugar-mapa" aria-label="Mapa: toca para poner el pin"></div>
+    <button type="button" class="boton boton--texto boton--chico" id="lugar-aqui" style="align-self:flex-start;padding:0">Usar mi ubicación actual</button>
     <div class="campo">
       <label for="lugar-nombre">Nombre</label>
-      <input id="lugar-nombre" type="text" maxlength="80" value="${esc(b.nombre)}">
+      <input id="lugar-nombre" type="text" maxlength="80" placeholder="Smart Fit Plataforma Financiera" value="${esc(b.nombre)}">
     </div>
-    <div class="pila" style="gap:8px">
-      <button type="button" class="boton boton--sec" id="lugar-aqui">
-        <svg class="icono" viewBox="0 0 24 24" aria-hidden="true" style="width:20px;height:20px"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg>
-        Estoy en el gym: usar mi ubicación
-      </button>
-      <div class="campo">
-        <label for="lugar-enlace">O pega un enlace de Google Maps</label>
-        <input id="lugar-enlace" type="url" inputmode="url" placeholder="https://www.google.com/maps/…">
-      </div>
-      <p class="ayuda" id="lugar-coords">${b.lat != null ? `Ubicación lista${b.precision ? ` (precisión ±${b.precision} m)` : ''} · <a href="${esc(urlMapa(b))}" data-externo>revisar en el mapa</a>` : 'Todavía sin ubicación.'}</p>
-    </div>
-    <fieldset class="campo">
-      <legend>Avisar a</legend>
-      <div class="chips" id="lugar-radio">${RADIOS.map((r) => `<button type="button" class="chip" data-valor="${r}" aria-pressed="${b.radio_m === r}">${r} m</button>`).join('')}</div>
-    </fieldset>
     <div class="fila" style="gap:8px;justify-content:flex-end">
       ${g ? '<button type="button" class="boton boton--sec boton--chico" id="lugar-cancelar">Cancelar</button>' : ''}
       <button type="button" class="boton boton--chico" id="lugar-guardar" ${b.lat == null ? 'disabled' : ''}>Guardar gimnasio</button>
     </div>`;
 }
 
-// Coordenadas de un enlace de Google Maps (o «-0.18, -78.48» escrito a mano).
-export function coordsDeEnlace(texto) {
-  const t = decodeURIComponent(texto || '');
-  const patrones = [/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/, /@(-?\d+\.\d+),\s*(-?\d+\.\d+)/,
-    /[?&](?:q|query|ll|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/, /^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$/];
-  for (const p of patrones) {
-    const m = p.exec(t);
-    if (m) {
-      const lat = Number(m[1]), lng = Number(m[2]);
-      if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) return { lat, lng };
-    }
-  }
-  return null;
-}
-
 function conectarGimnasio(app, gimnasio) {
   const tarjeta = app.querySelector('#gimnasio-tarjeta');
   let borrador = null;
+  let mapa = null;
   const pintar = (editando) => {
+    mapa?.destruir(); mapa = null;
     tarjeta.innerHTML = htmlGimnasio(gimnasio, editando, borrador);
     conectar(editando);
   };
   const conectar = (editando) => {
-    tarjeta.querySelectorAll('[data-externo]').forEach((a) => a.addEventListener('click', (e) => {
-      if (enApp) { e.preventDefault(); abrirExterno(a.href); }
-    }));
-    tarjeta.querySelector('#lugar-editar')?.addEventListener('click', () => { borrador = null; pintar(true); });
-    if (!editando && gimnasio) return;
-    const leer = () => {
-      borrador = {
-        ...(borrador ?? { lat: gimnasio?.lat ?? null, lng: gimnasio?.lng ?? null }),
-        nombre: tarjeta.querySelector('#lugar-nombre').value,
-        radio_m: Number(tarjeta.querySelector('#lugar-radio [aria-pressed="true"]')?.dataset.valor ?? 150),
-      };
-    };
-    tarjeta.querySelectorAll('#lugar-radio .chip').forEach((c) => c.addEventListener('click', () => {
-      tarjeta.querySelectorAll('#lugar-radio .chip').forEach((x) => x.setAttribute('aria-pressed', String(x === c)));
-    }));
-    tarjeta.querySelector('#lugar-cancelar')?.addEventListener('click', () => { borrador = null; pintar(false); });
-    const boton = tarjeta.querySelector('#lugar-aqui');
-    boton.addEventListener('click', async () => {
-      leer();
-      boton.disabled = true;
-      boton.lastChild.textContent = ' Buscando tu ubicación…';
-      try {
-        const u = await ubicacionActual();
-        borrador = { ...borrador, lat: u.lat, lng: u.lng, precision: u.precision };
-        pintar(true);
-      } catch (err) {
-        aviso(err.message, 'error');
-        boton.disabled = false;
-        boton.lastChild.textContent = ' Estoy en el gym: usar mi ubicación';
-      }
-    });
-    tarjeta.querySelector('#lugar-enlace').addEventListener('change', (e) => {
-      const c = coordsDeEnlace(e.target.value);
-      if (!c) {
-        aviso(/goo\.gl|maps\.app/.test(e.target.value)
-          ? 'Ese enlace corto no trae la ubicación. Ábrelo en el navegador y copia el enlace largo.'
-          : 'No encontré coordenadas en ese enlace.', 'error');
-        return;
-      }
-      leer();
-      borrador = { ...borrador, ...c, precision: null };
+    const caja = tarjeta.querySelector('#lugar-mapa');
+    tarjeta.querySelector('#lugar-editar')?.addEventListener('click', () => {
+      borrador = { nombre: gimnasio.nombre, lat: gimnasio.lat, lng: gimnasio.lng };
       pintar(true);
     });
-    tarjeta.querySelector('#lugar-guardar').addEventListener('click', async (e) => {
-      leer();
-      const nombre = borrador.nombre.trim();
-      if (!nombre) return aviso('Ponle un nombre.', 'error');
-      e.target.disabled = true;
-      const fila = { nombre, lat: borrador.lat, lng: borrador.lng, radio_m: borrador.radio_m };
+    if (!editando && gimnasio) {
+      crearMapa(caja, { lat: gimnasio.lat, lng: gimnasio.lng }, { zoom: 16 }).then((m) => { mapa = m; })
+        .catch(() => { caja.innerHTML = `<a class="boton boton--sec boton--chico" href="${esc(urlMapa(gimnasio))}">Ver en el mapa</a>`; });
+      return;
+    }
+    borrador ??= { nombre: gimnasio?.nombre ?? '', lat: gimnasio?.lat ?? null, lng: gimnasio?.lng ?? null };
+    const guardar = tarjeta.querySelector('#lugar-guardar');
+    const nombre = tarjeta.querySelector('#lugar-nombre');
+    const ubicar = (lat, lng, nuevoNombre) => {
+      borrador.lat = lat; borrador.lng = lng;
+      if (nuevoNombre && !nombre.value.trim()) nombre.value = nuevoNombre;
+      guardar.disabled = false;
+      mapa?.mover(lat, lng);
+    };
+    crearMapa(caja, borrador.lat != null ? { lat: borrador.lat, lng: borrador.lng } : null, {
+      alMover: ({ lat, lng }) => { borrador.lat = lat; borrador.lng = lng; guardar.disabled = false; },
+    }).then((m) => { mapa = m; })
+      .catch(() => { caja.innerHTML = '<p class="quieto" style="padding:16px">No se pudo cargar el mapa. Revisa la conexión.</p>'; });
+
+    // Buscador: resultados mientras escribes.
+    const buscar = tarjeta.querySelector('#lugar-buscar');
+    const lista = tarjeta.querySelector('#lugar-resultados');
+    let espera = null, pedido = 0, resultados = [];
+    buscar.addEventListener('input', () => {
+      clearTimeout(espera);
+      const texto = buscar.value;
+      if (texto.trim().length < 3) { lista.hidden = true; return; }
+      espera = setTimeout(async () => {
+        const turno = ++pedido;
+        lista.hidden = false;
+        lista.innerHTML = '<p class="quieto buscador__vacio">Buscando…</p>';
+        try {
+          resultados = await buscarLugares(texto, borrador.lat != null ? { lat: borrador.lat, lng: borrador.lng } : undefined);
+          if (turno !== pedido) return;
+          lista.innerHTML = resultados.length
+            ? resultados.map((r, i) => `
+                <button type="button" class="buscador__item" role="option" data-i="${i}">
+                  <strong>${esc(r.nombre)}</strong>${r.detalle ? `<span class="quieto">${esc(r.detalle)}</span>` : ''}
+                </button>`).join('')
+            : '<p class="quieto buscador__vacio">No encontré nada. Prueba con la calle o el edificio, y después toca el punto en el mapa.</p>';
+        } catch (err) {
+          if (turno === pedido) lista.innerHTML = `<p class="quieto buscador__vacio">${esc(err.message)}</p>`;
+        }
+      }, 400);
+    });
+    lista.addEventListener('click', (e) => {
+      const item = e.target.closest('[data-i]');
+      if (!item) return;
+      const r = resultados[Number(item.dataset.i)];
+      lista.hidden = true;
+      buscar.value = r.nombre;
+      ubicar(r.lat, r.lng, r.nombre);
+    });
+
+    const aqui = tarjeta.querySelector('#lugar-aqui');
+    aqui.addEventListener('click', async () => {
+      aqui.disabled = true;
+      aqui.textContent = 'Buscando tu ubicación…';
+      try {
+        const u = await ubicacionActual();
+        ubicar(u.lat, u.lng);
+      } catch (err) {
+        aviso(err.message, 'error');
+      }
+      aqui.disabled = false;
+      aqui.textContent = 'Usar mi ubicación actual';
+    });
+    tarjeta.querySelector('#lugar-cancelar')?.addEventListener('click', () => { borrador = null; pintar(false); });
+    guardar.addEventListener('click', async () => {
+      const n = nombre.value.trim() || buscar.value.trim();
+      if (!n) { nombre.focus(); return aviso('Ponle un nombre.', 'error'); }
+      if (borrador.lat == null) return aviso('Elige el lugar en el mapa.', 'error');
+      guardar.disabled = true;
+      const fila = { nombre: n, lat: borrador.lat, lng: borrador.lng };
       try {
         const guardado = gimnasio
           ? datos(await sb.from('lugares').update(fila).eq('id', gimnasio.id).select().single())
-          : datos(await sb.from('lugares').insert({ ...fila, hogar_id: estado.yo.hogar_id, tipo: 'gimnasio' }).select().single());
+          : datos(await sb.from('lugares').insert({ ...fila, radio_m: 150, hogar_id: estado.yo.hogar_id, tipo: 'gimnasio' }).select().single());
         gimnasio = guardado;
+        gimnasioActual = guardado;
         borrador = null;
         aviso('Gimnasio guardado.');
         pintar(false);
         sincronizarAgenda().catch(() => {});
-        gimnasioActual = guardado;
         if (enApp) window.bloqueNativoEvento('estado', estadoNativo()); // repinta los avisos
       } catch (err) {
         avisoError(err);
-        e.target.disabled = false;
+        guardar.disabled = false;
       }
     });
   };

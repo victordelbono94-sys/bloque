@@ -10,6 +10,7 @@ export const ICONO_TIPO = {
   derby: svg('<path d="M6 3.5h5v7.5h5.5a3.5 3.5 0 0 1 3.5 3.5v1H4.5V5a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M8 6.5h3M8 9h3"/><circle cx="7" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="17" cy="19" r="1.8"/>'),
   clase: svg('<circle cx="9" cy="8" r="3"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.3A4.5 4.5 0 0 1 21 18.6"/>'),
   descanso: svg('<path d="M19.5 14.5A8 8 0 1 1 9.5 4.5a6.3 6.3 0 0 0 10 10z"/>'),
+  otro: svg('<path d="M3 12h4l2.5-6 4 12 2.5-6H21"/>'),
 };
 
 export const iconoTipo = (tipo) => ICONO_TIPO[tipo] ?? ICONO_TIPO.gym;
