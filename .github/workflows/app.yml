@@ -7,7 +7,7 @@ on:
     branches: [main]
     paths:
       - 'android/**'
-      - '.github/workflows/puente.yml'
+      - '.github/workflows/app.yml'
   workflow_dispatch:
 
 permissions:
@@ -60,8 +60,9 @@ jobs:
           set -o pipefail
           if ! gradle assembleRelease --no-daemon 2>&1 | tee "$RUNNER_TEMP/gradle.log"; then
             # Errores de Kotlin y el bloque "What went wrong" completo.
-            { grep -E "^e: " "$RUNNER_TEMP/gradle.log" | head -25
+            { grep -E "^e: |[Ee]rror:|ERROR:|^w: .*error" "$RUNNER_TEMP/gradle.log" | grep -v "^> Task" | head -30
               awk '/^\* What went wrong/{f=1; next} /^\* Try:/{f=0} f && NF' "$RUNNER_TEMP/gradle.log" | head -25
+              grep -qE "^e: |[Ee]rror:|What went wrong" "$RUNNER_TEMP/gradle.log" || tail -40 "$RUNNER_TEMP/gradle.log"
             } | sed -E 's/file:\/\/[^ ]*\/android\///' | cut -c1-900 \
               | while IFS= read -r linea; do echo "::error::${linea}"; done
             exit 1
