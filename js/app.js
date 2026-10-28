@@ -4,6 +4,8 @@ import { esc, avisoError } from './ui.js';
 import { vistaHoy } from './vistas/hoy.js';
 import { vistaSemana } from './vistas/semana.js';
 import { vistaCuerpo } from './vistas/cuerpo.js';
+import { vistaEntreno } from './vistas/entreno.js';
+import { vistaSesion } from './vistas/sesion.js';
 import { vistaPerfil } from './vistas/perfil.js';
 
 const app = document.getElementById('app');
@@ -12,6 +14,8 @@ const nav = document.getElementById('nav');
 const RUTAS = {
   hoy: vistaHoy,
   semana: vistaSemana,
+  entreno: vistaEntreno,
+  sesion: vistaSesion,
   cuerpo: vistaCuerpo,
   perfil: vistaPerfil,
 };
@@ -51,7 +55,7 @@ function pantallaEspera() {
   document.getElementById('salir').addEventListener('click', async () => { await sb.auth.signOut(); iniciar(); });
 }
 
-const ORDEN = ['hoy', 'semana', 'cuerpo', 'perfil'];
+const ORDEN = ['hoy', 'semana', 'entreno', 'sesion', 'cuerpo', 'perfil'];
 let rutaAnterior = null;
 let navegacion = 0;
 let quitarAnimacion;
@@ -81,7 +85,7 @@ async function mostrarRuta() {
   const vista = RUTAS[nombre];
   nav.hidden = false;
   nav.querySelectorAll('.nav__item').forEach((a) => {
-    if (a.dataset.ruta === nombre) a.setAttribute('aria-current', 'page');
+    if (a.dataset.ruta === (nombre === 'sesion' ? 'entreno' : nombre)) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
 

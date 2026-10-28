@@ -4,6 +4,7 @@ import { esc, num, aviso, avisoError, grupoChips, valorChips } from '../ui.js';
 import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia, fechaCorta } from '../fechas.js';
 import { TIPOS, htmlEvento } from '../eventos.js';
 import { calcularSemaforo, esDescanso, textoSemaforo } from '../semaforo.js';
+import { empezarSesion } from './sesion.js';
 
 export async function vistaHoy(app) {
   const hoy = hoyISO();
@@ -21,8 +22,20 @@ export async function vistaHoy(app) {
     sb.from('actividades_extra').select('*').eq('persona_id', estado.yo.id).eq('fecha', ayer).then(datos),
   ]);
 
+  // Sin hora, el gym (de mañana) va antes que el derby.
+  const ORDEN_TIPO = { gym: 0, clase: 1, derby: 2, descanso: 3 };
+  eventos.sort((x, y) => x.fecha.localeCompare(y.fecha)
+    || (x.hora_inicio ?? '').localeCompare(y.hora_inicio ?? '')
+    || ORDEN_TIPO[x.tipo] - ORDEN_TIPO[y.tipo]);
   const deAyer = eventos.filter((e) => e.fecha === ayer);
   const deHoy = eventos.filter((e) => e.fecha === hoy);
+
+  // Rutinas del día y entrenos ya empezados.
+  const conRutina = deHoy.filter((e) => e.rutina_id);
+  const [rutinas, sesiones] = conRutina.length ? await Promise.all([
+    sb.from('rutinas').select('id, nombre').in('id', conRutina.map((e) => e.rutina_id)).then(datos),
+    sb.from('sesiones').select('id, calendario_id, terminados, terminada_en').in('calendario_id', conRutina.map((e) => e.id)).then(datos),
+  ]) : [[], []];
   const proximo = eventos.find((e) => e.fecha > hoy && e.tipo !== 'descanso');
   const contexto = { hoy, deAyer, deHoy, extrasAyer };
 
@@ -51,7 +64,7 @@ export async function vistaHoy(app) {
     <section class="tarjeta" aria-labelledby="plan-hoy">
       <h2 class="seccion__titulo" id="plan-hoy">Plan de hoy</h2>
       ${deHoy.length
-        ? `<div class="pila">${deHoy.map((e) => `<div class="evento">${htmlEvento(e)}</div>`).join('')}</div>`
+        ? `<div class="pila">${deHoy.map((e) => htmlPlan(e, rutinas, sesiones)).join('')}</div>`
         : `<p class="vacio" style="padding-top:0">No hay nada agendado. ¿Qué hacen hoy?</p>
            <div class="chips" id="rapido">
              ${Object.entries(TIPOS).map(([v, t]) => `<button type="button" class="chip" data-valor="${v}">${t}</button>`).join('')}
@@ -68,6 +81,37 @@ export async function vistaHoy(app) {
 
   conectarCheckIn(app, contexto, estados.find((e) => e.persona_id === estado.yo.id));
   conectarRapido(app, hoy);
+  app.querySelectorAll('[data-empezar]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      await empezarSesion(deHoy.find((e) => e.id === b.dataset.empezar));
+    } catch (err) {
+      avisoError(err);
+      b.disabled = false;
+    }
+  }));
+}
+
+// Un evento del plan; si es gym con rutina, con su botón para entrenar.
+function htmlPlan(ev, rutinas, sesiones) {
+  const rutina = rutinas.find((r) => r.id === ev.rutina_id);
+  if (!rutina) return `<div class="evento">${htmlEvento(ev)}</div>`;
+  const sesion = sesiones.find((s) => s.calendario_id === ev.id && !s.terminada_en) ?? sesiones.find((s) => s.calendario_id === ev.id);
+  const voy = ev.asistencia === 'juntos' || ev.persona_id === estado.yo.id;
+  let accion = '';
+  if (sesion?.terminados.includes(estado.yo.id)) {
+    accion = `<a class="boton boton--sec boton--chico" href="#/sesion/${esc(sesion.id)}">Ver entreno de hoy</a>`;
+  } else if (sesion) {
+    accion = `<a class="boton boton--chico" href="#/sesion/${esc(sesion.id)}">${voy ? 'Continuar entreno' : 'Ver entreno'}</a>`;
+  } else if (voy) {
+    accion = `<button type="button" class="boton boton--chico" data-empezar="${esc(ev.id)}">Empezar entreno</button>`;
+  }
+  return `
+    <div class="evento-gym">
+      <div class="evento">${htmlEvento(ev)}</div>
+      <span class="evento-gym__rutina"><strong>${esc(rutina.nombre)}</strong> · <a href="#/entreno/${esc(rutina.id)}">ver rutina</a></span>
+      ${accion ? `<div>${accion}</div>` : ''}
+    </div>`;
 }
 
 // Botones para marcar el día sin ir a Semana. Va "Juntos", sin hora.

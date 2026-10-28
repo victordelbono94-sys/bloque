@@ -200,6 +200,8 @@ h1, h2, h3 { margin: 0; }
   font-weight: 600;
   background: var(--grafito-2);
   color: var(--tiza);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .etiqueta--gym { background: var(--volt); color: var(--asfalto); }
 .etiqueta--derby { background: var(--tiza); color: var(--asfalto); }
@@ -258,6 +260,7 @@ dialog::backdrop { background: rgba(10, 11, 14, 0.7); }
   min-height: 44px;
 }
 .evento__detalle { font-size: 15px; color: var(--tiza-2); }
+.evento__rutina { flex-basis: 100%; font-size: 14px; color: var(--gris); margin-top: -2px; }
 .evento--boton {
   width: 100%;
   border: 0;
@@ -293,7 +296,7 @@ dialog::backdrop { background: rgba(10, 11, 14, 0.7); }
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   background: rgba(21, 23, 28, 0.96);
   border-top: 1px solid var(--grafito-2);
   padding-bottom: env(safe-area-inset-bottom);
@@ -475,3 +478,157 @@ dialog.saliendo::backdrop { animation: fondo-sale 0.18s ease forwards; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* =====================================================================
+   Entreno y sesión
+   ===================================================================== */
+
+.tarjeta--enlace { display: block; color: inherit; text-decoration: none; transition: transform 0.14s var(--suave), background-color 0.2s ease; }
+.tarjeta--enlace:active { transform: scale(0.98); }
+.tarjeta--enlace:hover { background: var(--grafito-2); }
+
+.numero-ejercicio {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--grafito-2);
+  font-family: var(--titulo);
+  font-stretch: 112%;
+  font-weight: 800;
+  font-size: 15px;
+}
+.ejercicio__nombre { font-size: 18px; font-weight: 600; line-height: 1.25; }
+
+.meta-fila { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.meta-fila__nombre { font-weight: 600; font-size: 15px; min-width: 44px; }
+.meta-fila__valor { flex: 1; font-size: 15px; color: var(--tiza-2); }
+
+/* Series: un círculo por serie; lleno cuando está hecha. */
+.series { display: flex; flex-wrap: wrap; gap: 8px; }
+.serie {
+  min-width: 48px;
+  height: 48px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1.5px dashed var(--linea);
+  background: transparent;
+  color: var(--gris);
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.14s var(--suave), background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+button.serie { cursor: pointer; }
+button.serie:active { transform: scale(0.92); }
+.serie--hecha {
+  border: 1.5px solid var(--volt);
+  background: var(--volt);
+  color: var(--asfalto);
+  animation: pop 0.3s var(--resorte);
+}
+.serie--limite { border-color: var(--ambar); background: var(--ambar); }
+.serie--extra { border-style: solid; color: var(--tiza); }
+span.serie--hecha { opacity: 0.85; }
+
+.sugerencia {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(198, 244, 50, 0.1);
+  color: var(--tiza);
+  font-size: 14px;
+  animation: entrar 0.3s var(--suave) both;
+}
+
+.aviso-fijo {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: var(--radio);
+  margin-bottom: 16px;
+  font-size: 15px;
+}
+.aviso-fijo .punto { margin-top: 5px; }
+.aviso-fijo--ambar { background: rgba(232, 163, 23, 0.14); }
+.aviso-fijo--rojo { background: rgba(214, 69, 69, 0.16); }
+
+/* Opciones de alternativas */
+.opcion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--linea);
+  background: transparent;
+  color: var(--tiza);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.14s var(--suave), border-color 0.2s ease, background-color 0.2s ease;
+}
+.opcion:active { transform: scale(0.98); }
+.opcion[aria-pressed="true"] { border-color: var(--volt); background: rgba(198, 244, 50, 0.08); }
+
+/* Campo con − y + */
+.paso { display: grid; grid-template-columns: 56px minmax(0, 1fr) 56px; gap: 8px; }
+.paso input { text-align: center; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.paso__boton {
+  min-height: 48px;
+  border-radius: var(--radio-chico);
+  border: 1px solid var(--linea);
+  background: var(--grafito-2);
+  color: var(--tiza);
+  font-size: 22px;
+  cursor: pointer;
+  transition: transform 0.12s var(--suave);
+}
+.paso__boton:active { transform: scale(0.92); }
+
+/* Temporizador de descanso: barra fija sobre el menú. */
+.descanso {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--nav-alto) + 12px + env(safe-area-inset-bottom));
+  max-width: 616px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 12px 16px;
+  border-radius: 16px;
+  background: var(--tiza);
+  color: var(--asfalto);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  z-index: 15;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.22s ease, transform 0.3s var(--resorte);
+}
+.descanso--visible { opacity: 1; transform: none; }
+.descanso__texto { flex: 1; font-size: 15px; }
+.descanso__texto strong { font-family: var(--titulo); font-stretch: 112%; font-size: 22px; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.descanso__barra { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(21, 23, 28, 0.12); }
+.descanso__barra span { display: block; height: 100%; background: var(--asfalto); transform-origin: left; transition: transform 0.25s linear; }
+.descanso .boton--sec { background: rgba(21, 23, 28, 0.1); color: var(--asfalto); }
+.descanso .boton:not(.boton--sec) { background: var(--asfalto); color: var(--tiza); }
+
+.grilla-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.lista-ajustes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lista-ajustes li { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+.lista-ajustes li span { color: var(--volt); white-space: nowrap; }
+
+.evento-gym { display: flex; flex-direction: column; gap: 10px; }
+.evento-gym__rutina { font-size: 15px; color: var(--tiza-2); }
