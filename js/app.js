@@ -53,6 +53,7 @@ function pantallaEspera() {
 
 const ORDEN = ['hoy', 'semana', 'cuerpo', 'perfil'];
 let rutaAnterior = null;
+let navegacion = 0;
 let quitarAnimacion;
 
 // Hacia dónde entra la pantalla nueva: desde la derecha si avanzas en el menú
@@ -86,24 +87,38 @@ async function mostrarRuta() {
 
   const dir = direccion(nombre, param);
   rutaAnterior = { nombre, param };
-  clearTimeout(quitarAnimacion);
+  const turno = ++navegacion;
 
-  // El esqueleto solo aparece si los datos tardan; si llegan rápido, la pantalla entra directo.
-  const esperar = setTimeout(() => { delete app.dataset.anim; app.innerHTML = ESQUELETO; }, 250);
-  app.dataset.anim = dir;
+  // Mientras llegan los datos, la pantalla actual se queda quieta y se atenúa.
+  // Si tardan, la reemplaza un esqueleto. No se anima nada todavía.
+  clearTimeout(quitarAnimacion);
+  delete app.dataset.anim;
+  app.classList.add('vista-saliendo');
+  const esperar = setTimeout(() => {
+    if (turno !== navegacion) return;
+    app.innerHTML = ESQUELETO;
+    app.classList.remove('vista-saliendo');
+  }, 250);
+
+  // Cada pantalla se arma en su propio contenedor y solo se muestra si
+  // sigue siendo la elegida (si tocaste otra sección, se descarta).
+  const lienzo = document.createElement('div');
+  lienzo.className = 'vista';
   try {
-    await vista(app);
+    await vista(lienzo);
   } catch (e) {
-    avisoError(e);
-    app.innerHTML = '<p class="vacio">No se pudo cargar. Revisa tu conexión e intenta de nuevo.</p>';
+    if (turno === navegacion) avisoError(e);
+    lienzo.innerHTML = '<p class="vacio">No se pudo cargar. Revisa tu conexión e intenta de nuevo.</p>';
   }
   clearTimeout(esperar);
-  // Vuelve a disparar la entrada aunque el esqueleto haya ocupado su lugar.
-  delete app.dataset.anim;
-  void app.offsetWidth;
+  if (turno !== navegacion) return;
+
+  // El contenido nuevo entra una sola vez, ya completo.
+  app.classList.remove('vista-saliendo');
+  app.replaceChildren(lienzo);
+  window.scrollTo({ top: 0, behavior: 'instant' });
   app.dataset.anim = dir;
   quitarAnimacion = setTimeout(() => { delete app.dataset.anim; }, 700);
-  window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 let iniciando = null;

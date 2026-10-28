@@ -357,12 +357,16 @@ dialog::backdrop { background: rgba(10, 11, 14, 0.7); }
 }
 #app[data-anim="der"] { --dx: 28px; }
 #app[data-anim="izq"] { --dx: -28px; }
-#app[data-anim] > * { animation: entrar 0.38s var(--suave) both; }
-#app[data-anim] > *:nth-child(2) { animation-delay: 0.04s; }
-#app[data-anim] > *:nth-child(3) { animation-delay: 0.08s; }
-#app[data-anim] > *:nth-child(4) { animation-delay: 0.12s; }
-#app[data-anim] > *:nth-child(5) { animation-delay: 0.16s; }
-#app[data-anim] > *:nth-child(n+6) { animation-delay: 0.2s; }
+#app[data-anim] > .vista > * { animation: entrar 0.38s var(--suave) both; }
+#app[data-anim] > .vista > *:nth-child(2) { animation-delay: 0.04s; }
+#app[data-anim] > .vista > *:nth-child(3) { animation-delay: 0.08s; }
+#app[data-anim] > .vista > *:nth-child(4) { animation-delay: 0.12s; }
+#app[data-anim] > .vista > *:nth-child(5) { animation-delay: 0.16s; }
+#app[data-anim] > .vista > *:nth-child(n+6) { animation-delay: 0.2s; }
+
+/* Mientras carga la siguiente, la pantalla actual se atenúa sin moverse. */
+#app { transition: opacity 0.18s ease; }
+#app.vista-saliendo { opacity: 0.45; pointer-events: none; }
 /* Las tarjetas dentro de una sección también entran una tras otra. */
 #app[data-anim] .seccion > .tarjeta { animation: entrar 0.38s var(--suave) both; }
 #app[data-anim] .seccion > .tarjeta:nth-of-type(2) { animation-delay: 0.14s; }
