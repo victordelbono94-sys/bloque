@@ -1,6 +1,6 @@
 // Service worker de Bloque: guarda la estructura de la app para que abra rápido
 // y sin conexión. Los datos siempre vienen de Supabase, nunca de la caché.
-const VERSION = 'bloque-v28';
+const VERSION = 'bloque-v29';
 const ARCHIVOS = [
   './',
   './index.html',
@@ -58,7 +58,8 @@ self.addEventListener('fetch', (e) => {
 
   // Red primero: si hay conexión, siempre la versión más nueva; si no, la guardada.
   e.respondWith(
-    fetch(e.request)
+    // no-cache: el navegador revalida cada archivo y nunca entrega un módulo viejo de su caché HTTP.
+    fetch(e.request.mode === 'navigate' ? e.request : new Request(e.request, { cache: 'no-cache' }))
       .then((resp) => {
         const copia = resp.clone();
         caches.open(VERSION).then((c) => c.put(e.request, copia));

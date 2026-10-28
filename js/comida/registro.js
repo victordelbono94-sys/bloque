@@ -209,6 +209,11 @@ export function abrirRegistro(ctx, op = {}) {
       const r = await gemini('texto', { texto, personas: { yo: estado.yo.nombre, otro: otro?.nombre ?? null } });
       const lista = r.alimentos ?? [];
       if (!lista.length) { mensaje('No entendí comida en eso. Prueba con otras palabras o búscalo.'); return; }
+      // Si el texto dice el momento («desayunamos», «antes del derby»), se marca ese.
+      if (r.momento) {
+        for (const b of d.querySelectorAll('#r-momento [data-valor]')) b.setAttribute('aria-pressed', String(b.dataset.valor === r.momento));
+        d.querySelector('.cuando .quieto')?.remove();
+      }
       // ¿De quién habla? Si menciona a los dos, la comida pasa a «los dos» y cada cosa va a su dueño.
       const deYo = lista.some((x) => x.gramos_yo > 0), deOtro = otro && lista.some((x) => x.gramos_otro > 0);
       if (deYo && deOtro) elegirQuien('juntos');

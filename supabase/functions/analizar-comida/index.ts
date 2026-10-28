@@ -7,7 +7,7 @@
 // privado.secretos) y solo responde a usuarios con sesión.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-const MODELOS = (Deno.env.get("GEMINI_MODELO") ?? "gemini-3-flash-preview,gemini-flash-latest,gemini-3.1-flash-lite")
+const MODELOS = (Deno.env.get("GEMINI_MODELO") ?? "gemini-3.1-flash-lite,gemini-3-flash-preview,gemini-flash-latest")
   .split(",").map((m) => m.trim()).filter(Boolean);
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -56,6 +56,7 @@ const ESQ_TEXTO = {
         required: ["nombre", "gramos_yo", "gramos_otro", ...REQ_NUT],
       },
     },
+    momento: { type: "STRING" },
   },
   required: ["alimentos"],
 };
@@ -116,6 +117,8 @@ pon 0 si esa persona no lo comió. "Yo", "mi", "me" = quien escribe. "Él", "ell
 en partes iguales salvo que digan otra cosa. Si solo habla de una persona, la otra va en 0.
 Si dice "en tortilla" o "revuelto", agrega aceite aparte (5-10 g por persona). "Café con leche" = café y leche por separado.
 En cantidad_yo / cantidad_otro pon lo que corresponde en palabras ("3 huevos", "1 taza"). Valores por 100 g tal como se comió.
+En "momento" pon desayuno, almuerzo, merienda, cena, snack, pre_entreno o post_entreno si el texto lo dice
+("desayunamos", "de almuerzo", "en la cena", "antes del gym", "después del derby"); si no lo dice, déjalo vacío.
 ${PORCIONES}`,
   despensa: `Eres asistente de cocina en Ecuador. Del texto o la foto (compras, alacena, refrigeradora o ticket),
 lista los productos de comida. Para cada uno: nombre genérico en español (ej. "Fideos secos (pasta)",
@@ -192,7 +195,9 @@ function limpiar(modo: string, d: Record<string, unknown>) {
     };
   }
   if (modo === "texto") {
+    const momentos = ["desayuno", "almuerzo", "merienda", "cena", "snack", "pre_entreno", "post_entreno"];
     return {
+      momento: momentos.includes(String(d.momento)) ? d.momento : null,
       alimentos: lista(d.alimentos, 16).map((a) => ({
         nombre: texto(a.nombre, 120) || "Alimento",
         gramos_yo: num(a.gramos_yo, 0, 2000), gramos_otro: num(a.gramos_otro, 0, 2000),
@@ -244,13 +249,22 @@ Deno.serve(async (req) => {
   };
 
   let ultimoError = "";
-  for (const modelo of MODELOS) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+  const limite = Date.now() + 55000;
+  const llamar = (modelo: string, cuerpo: unknown) => {
+    const resta = Math.max(3000, Math.min(modo === "foto" ? 30000 : 22000, limite - Date.now()));
+    return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": clave },
-      body: JSON.stringify(pedido),
-      signal: AbortSignal.timeout(45000),
+      body: JSON.stringify(cuerpo),
+      signal: AbortSignal.timeout(resta),
     }).catch((e) => new Response(String(e), { status: 599 }));
+  };
+  for (const modelo of MODELOS) {
+    if (Date.now() > limite - 3000) break;
+    // Poco "pensar": para leer una comida no hace falta, y responde mucho más rápido.
+    const conPensar = { ...pedido, generationConfig: { ...pedido.generationConfig, thinkingConfig: { thinkingLevel: "low" } } };
+    let r = await llamar(modelo, conPensar);
+    if (r.status === 400 && (await r.clone().text()).toLowerCase().includes("thinking")) r = await llamar(modelo, pedido);
     if (r.status === 429) return json({ error: "limite" }, 429);
     if (!r.ok) {
       // Modelo saturado o que ya no existe: se prueba con el siguiente.

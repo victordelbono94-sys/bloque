@@ -65,7 +65,9 @@ export function cantidadTexto(a, gramos) {
 
 // ---------- Gemini (función analizar-comida en el servidor) ----------
 export async function gemini(modo, cuerpo) {
-  const { data, error } = await sb.functions.invoke('analizar-comida', { body: { modo, ...cuerpo } });
+  // Tope de espera: si Gemini no contesta en 70 s, se avisa en vez de quedarse trabado.
+  const espera = new Promise((_, no) => setTimeout(() => no(new Error('Gemini tardó demasiado. Prueba de nuevo o búscalo a mano.')), 70000));
+  const { data, error } = await Promise.race([sb.functions.invoke('analizar-comida', { body: { modo, ...cuerpo } }), espera]);
   if (error) {
     let codigo = null;
     try { codigo = (await error.context?.json?.())?.error; } catch { /* sin detalle */ }
