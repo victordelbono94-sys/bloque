@@ -1,9 +1,9 @@
 // Analiza la foto de una comida con Gemini (capa gratis) y devuelve qué hay en el
 // plato, cuántos gramos aproximados y sus valores por 100 g. La clave de Gemini vive
-// solo aquí (secreto GEMINI_API_KEY), nunca en la app.
+// solo en el servidor (secreto GEMINI_API_KEY o la tabla privado.secretos), nunca en la app.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-const MODELOS = (Deno.env.get("GEMINI_MODELO") ?? "gemini-flash-latest,gemini-3-flash-preview,gemini-3.1-flash-lite")
+const MODELOS = (Deno.env.get("GEMINI_MODELO") ?? "gemini-3-flash-preview,gemini-flash-latest,gemini-3.1-flash-lite")
   .split(",").map((m) => m.trim()).filter(Boolean);
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -42,6 +42,51 @@ const ESQUEMA = {
   required: ["alimentos"],
 };
 
+// La clave: primero el secreto de la función; si no está, la tabla privada (solo service role).
+async function leerClave(): Promise<string | null> {
+  const env = Deno.env.get("GEMINI_API_KEY");
+  if (env) return env;
+  const url = Deno.env.get("SUPABASE_URL"), servicio = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !servicio) return null;
+  const r = await fetch(`${url}/rest/v1/rpc/secreto_servidor`, {
+    method: "POST",
+    signal: AbortSignal.timeout(8000),
+    headers: { "Content-Type": "application/json", apikey: servicio, Authorization: `Bearer ${servicio}` },
+    body: JSON.stringify({ p_nombre: "GEMINI_API_KEY" }),
+  });
+  if (!r.ok) return null;
+  const v = await r.json();
+  return typeof v === "string" && v ? v : null;
+}
+
+// Prueba sin foto: qué modelo responde con esta clave.
+async function probarClave(clave: string) {
+  const resultados: Record<string, string> = {};
+  for (const modelo of MODELOS) {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": clave },
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Responde solo: ok" }] }] }),
+      signal: AbortSignal.timeout(20000),
+    }).catch((e) => new Response(String(e), { status: 599 }));
+    console.log("prueba", modelo, r.status);
+    resultados[modelo] = r.ok ? "ok" : `${r.status} ${(await r.text()).slice(0, 200)}`;
+    if (r.ok) break;
+  }
+  return { resultados };
+}
+
+// La firma del token ya la verificó Supabase (verify_jwt); acá se mira que sea un usuario.
+function esUsuario(req: Request): boolean {
+  try {
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const datos = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return datos.role === "authenticated" && typeof datos.sub === "string";
+  } catch {
+    return false;
+  }
+}
+
 const limitar = (v: unknown, min: number, max: number) => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.round(Math.min(max, Math.max(min, n)) * 10) / 10 : min;
@@ -51,11 +96,15 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "metodo" }, 405);
 
-  const clave = Deno.env.get("GEMINI_API_KEY");
-  if (!clave) return json({ error: "sin_clave" }, 503);
-
-  let cuerpo: { imagen?: string; tipo?: string; nota?: string };
+  let cuerpo: { imagen?: string; tipo?: string; nota?: string; probar?: boolean };
   try { cuerpo = await req.json(); } catch { return json({ error: "formato" }, 400); }
+
+  // Solo usuarios con sesión (la clave pública va en la app; sin esto, cualquiera gastaría la cuota).
+  if (!esUsuario(req)) return json({ error: "sesion" }, 401);
+
+  const clave = await leerClave().catch((e) => { console.log("clave error", String(e)); return null; });
+  if (!clave) return json({ error: "sin_clave" }, 503);
+  if (cuerpo.probar) return json(await probarClave(clave));
   const imagen = cuerpo.imagen ?? "";
   const tipo = /^image\/(jpeg|png|webp)$/.test(cuerpo.tipo ?? "") ? cuerpo.tipo! : "image/jpeg";
   if (!imagen || imagen.length > 2_800_000 || !/^[A-Za-z0-9+/=]+$/.test(imagen)) return json({ error: "imagen" }, 400);
@@ -78,7 +127,9 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": clave },
       body: JSON.stringify(pedido),
-    });
+      signal: AbortSignal.timeout(45000),
+    }).catch((e) => new Response(String(e), { status: 599 }));
+    console.log("gemini", modelo, r.status);
     if (r.status === 429) return json({ error: "limite" }, 429);
     if (!r.ok) {
       // Modelo que ya no existe u otro error: se prueba con el siguiente.
