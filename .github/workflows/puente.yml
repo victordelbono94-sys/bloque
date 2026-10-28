@@ -1,0 +1,80 @@
+name: App puente
+
+# Compila Bloque Puente cada vez que cambia el código de la app y publica el APK
+# en la release "puente" (descarga directa desde el teléfono).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/puente.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: puente
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      # La llave es siempre la misma para que cada versión se instale encima de la anterior.
+      - name: Preparar la llave de firma
+        env:
+          FIRMA_JKS_B64: ${{ secrets.FIRMA_JKS_B64 }}
+        run: |
+          if [ -n "$FIRMA_JKS_B64" ]; then
+            echo "$FIRMA_JKS_B64" | base64 -d > "$RUNNER_TEMP/bloque.jks"
+            echo "FIRMA_ARCHIVO=$RUNNER_TEMP/bloque.jks" >> "$GITHUB_ENV"
+            echo "FIRMADA=si" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Faltan los secretos FIRMA_JKS_B64 y FIRMA_CLAVE: se compila para verificar, pero no se publica."
+            echo "FIRMADA=no" >> "$GITHUB_ENV"
+          fi
+
+      - name: Compilar
+        working-directory: android
+        env:
+          FIRMA_CLAVE: ${{ secrets.FIRMA_CLAVE }}
+          FIRMA_ALIAS: bloque
+          VERSION_CODE: ${{ github.run_number }}
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Renombrar
+        run: cp android/app/build/outputs/apk/release/app-release.apk bloque-puente.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bloque-puente
+          path: bloque-puente.apk
+          retention-days: 7
+
+      - name: Publicar
+        if: env.FIRMADA == 'si'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: puente
+          name: Bloque Puente
+          make_latest: true
+          files: bloque-puente.apk
+          body: |
+            App puente de Bloque: sincroniza Health Connect (Xiaomi Smart Band, balanza) con Bloque.
+
+            **Instalar:** abre este enlace desde el teléfono y descarga `bloque-puente.apk`.
+            Android va a pedir permiso para instalar apps de esta fuente: acéptalo una vez.
+
+            Versión ${{ github.run_number }} · ${{ github.sha }}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="asfalto">#15171C</color>
+    <style name="Tema" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/asfalto</item>
+        <item name="android:statusBarColor">@color/asfalto</item>
+        <item name="android:navigationBarColor">@color/asfalto</item>
+        <item name="android:colorAccent">#C6F432</item>
+    </style>
+</resources>
