@@ -3,7 +3,7 @@ import { sb, estado, datos, cargarPersonas } from '../db.js';
 import { esc, aviso, avisoError } from '../ui.js';
 import { hoyISO, fechaCorta } from '../fechas.js';
 import {
-  enApp, APK, estadoNativo, pedirPermisos, sincronizarAhora, alEventoNativo, abrirExterno, guardarArchivo, asegurarVinculo,
+  enApp, APK, estadoNativo, pedirPermisos, sincronizarAhora, alEventoNativo, abrirExterno, guardarArchivo, asegurarVinculo, buscarActualizacion,
 } from '../nativo.js';
 
 const NIVELES = { bajo: 'Bajo', moderado: 'Moderado', alto: 'Alto', muy_alto: 'Muy alto' };
@@ -213,7 +213,11 @@ function htmlNativo(e) {
       <button type="button" class="boton boton--sec boton--chico" data-nativo="sync" ${e.sincronizando ? 'disabled' : ''}>Sincronizar</button>
     </div>
     <p class="ayuda" style="margin:0">${e.segundoPlano ? 'Se sincroniza sola cada hora, aunque la app esté cerrada.' : 'Activa «Acceder a datos en segundo plano» para que se sincronice sola con la app cerrada.'}</p>
-    ${e.faltanPermisos ? '<button type="button" class="boton boton--sec" data-nativo="permisos">Revisar permisos</button>' : ''}`;
+    ${e.faltanPermisos ? '<button type="button" class="boton boton--sec" data-nativo="permisos">Revisar permisos</button>' : ''}
+    <div class="fila fila--entre">
+      <span class="quieto">App versión 1.0.${esc(e.version)}</span>
+      <button type="button" class="boton boton--texto boton--chico" data-nativo="actualizar">Buscar actualización</button>
+    </div>`;
 }
 
 function conectarNativo(app) {
@@ -222,6 +226,7 @@ function conectarNativo(app) {
     tarjeta.querySelectorAll('[data-nativo]').forEach((b) => b.addEventListener('click', () => {
       if (b.dataset.nativo === 'permisos') pedirPermisos();
       if (b.dataset.nativo === 'sync') sincronizarAhora();
+      if (b.dataset.nativo === 'actualizar') { buscarActualizacion(); aviso('Buscando actualizaciones…'); }
     }));
   };
   tarjeta.querySelectorAll('a[href^="https://github.com"]').forEach((a) => a.addEventListener('click', (e) => {

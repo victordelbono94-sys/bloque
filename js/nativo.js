@@ -27,6 +27,7 @@ export const pedirPermisos = () => puente?.pedirPermisos();
 export const sincronizarAhora = () => puente?.sincronizar();
 export const abrirExterno = (url) => (puente ? puente.abrirExterno(url) : window.open(url, '_blank', 'noopener'));
 export const desvincular = () => puente?.desvincular();
+export const buscarActualizacion = () => puente?.buscarActualizacion?.();
 
 export function guardarArchivo(nombre, contenido, tipo) {
   if (!puente) return false;

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Archivos que Bloque comparte con el instalador de Android: solo la actualización descargada. -->
+<paths>
+    <cache-path name="actualizacion" path="actualizacion/" />
+</paths>

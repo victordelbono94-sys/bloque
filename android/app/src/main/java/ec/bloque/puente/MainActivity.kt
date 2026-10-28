@@ -51,11 +51,13 @@ class MainActivity : ComponentActivity() {
     private var concedidos: Set<String> = emptySet()
     private var hcDisponible = false
     private var sincronizando = false
+    private lateinit var actualizador: Actualizador
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ajustes = Ajustes(this)
+        actualizador = Actualizador(this, versionApp())
         hcDisponible = HealthConnectClient.getSdkStatus(this) == HealthConnectClient.SDK_AVAILABLE
 
         pedirPermisos = registerForActivityResult(PermissionController.createRequestPermissionResultContract()) {
@@ -109,6 +111,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        actualizador.alVolver()
+        actualizador.revisar()
         refrescarPermisos(despues = {
             val vieja = System.currentTimeMillis() - ajustes.ultimaSync > SYNC_AL_ABRIR_MS
             if (ajustes.codigo != null && tieneLectura() && vieja) sincronizar()
@@ -315,6 +319,11 @@ class MainActivity : ComponentActivity() {
         fun abrirExterno(url: String) {
             val uri = Uri.parse(url)
             if (uri.scheme == "https") runOnUiThread { abrirAfuera(url) }
+        }
+
+        @JavascriptInterface
+        fun buscarActualizacion() {
+            runOnUiThread { actualizador.revisar(forzar = true) }
         }
 
         @JavascriptInterface

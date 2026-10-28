@@ -46,12 +46,15 @@ jobs:
             echo "FIRMADA=no" >> "$GITHUB_ENV"
           fi
 
+      # Número de versión siempre creciente (más 100 para quedar por encima de las de Bloque Puente).
+      - name: Número de versión
+        run: echo "VERSION_CODE=$((GITHUB_RUN_NUMBER + 100))" >> "$GITHUB_ENV"
+
       - name: Compilar
         working-directory: android
         env:
           FIRMA_CLAVE: ${{ secrets.FIRMA_CLAVE }}
           FIRMA_ALIAS: bloque
-          VERSION_CODE: ${{ github.run_number }}
         # Los errores se publican también como anotaciones, para poder leerlos sin el log completo.
         run: |
           set -o pipefail
@@ -64,8 +67,16 @@ jobs:
             exit 1
           fi
 
-      - name: Renombrar
-        run: cp android/app/build/outputs/apk/release/app-release.apk bloque.apk
+      - name: Renombrar y describir la versión
+        env:
+          MENSAJE: ${{ github.event.head_commit.message }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk bloque.apk
+          # La app lee este archivo para saber si hay una versión nueva.
+          NOVEDADES=$(printf '%s' "$MENSAJE" | head -n 1)
+          jq -n --argjson codigo "$VERSION_CODE" --arg nombre "1.0.$VERSION_CODE" --arg novedades "$NOVEDADES" \
+            '{versionCode: $codigo, versionName: $nombre, novedades: $novedades}' > version.json
+          cat version.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -80,11 +91,14 @@ jobs:
           tag_name: app
           name: Bloque
           make_latest: true
-          files: bloque.apk
+          files: |
+            bloque.apk
+            version.json
           body: |
             La app Bloque para Android: entrenamientos, cuerpo y datos de la banda vía Health Connect.
 
             **Instalar:** abre este enlace desde el teléfono y descarga `bloque.apk`.
             Android va a pedir permiso para instalar apps de esta fuente: acéptalo una vez.
 
-            Versión ${{ github.run_number }} · ${{ github.sha }}
+            Versión 1.0.${{ env.VERSION_CODE }} · ${{ github.sha }}
+            Las próximas versiones se avisan solas dentro de la app.

@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Instalar las actualizaciones de Bloque (Android lo pide una vez) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Lectura: lo que registra la banda -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
@@ -67,6 +69,17 @@
                 <data android:scheme="ec.bloque.puente" android:host="auth" />
             </intent-filter>
         </activity>
+
+        <!-- Le pasa el APK descargado al instalador de Android -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.archivos"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/rutas" />
+        </provider>
 
         <!-- Health Connect muestra esta pantalla para explicar el uso de los datos -->
         <activity
