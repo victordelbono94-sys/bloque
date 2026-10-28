@@ -30,7 +30,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.10.2'
+          gradle-version: '8.14.3'
 
       # La llave es siempre la misma para que cada versión se instale encima de la anterior.
       - name: Preparar la llave de firma
@@ -56,8 +56,10 @@ jobs:
         run: |
           set -o pipefail
           if ! gradle assembleRelease --no-daemon 2>&1 | tee "$RUNNER_TEMP/gradle.log"; then
-            grep -E "^e: |^\* What went wrong|^> |Could not (find|resolve)|error:" "$RUNNER_TEMP/gradle.log" \
-              | grep -v "^> Task" | head -40 | sed -E 's/file:\/\/[^ ]*\/android\///' \
+            # Errores de Kotlin y el bloque "What went wrong" completo.
+            { grep -E "^e: " "$RUNNER_TEMP/gradle.log" | head -25
+              awk '/^\* What went wrong/{f=1; next} /^\* Try:/{f=0} f && NF' "$RUNNER_TEMP/gradle.log" | head -25
+            } | sed -E 's/file:\/\/[^ ]*\/android\///' | cut -c1-900 \
               | while IFS= read -r linea; do echo "::error::${linea}"; done
             exit 1
           fi

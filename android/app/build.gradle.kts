@@ -9,7 +9,7 @@ val firmaArchivo = System.getenv("FIRMA_ARCHIVO")
 
 android {
     namespace = "ec.bloque.puente"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "ec.bloque.puente"
