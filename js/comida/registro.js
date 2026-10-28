@@ -50,6 +50,27 @@ export function abrirRegistro(ctx, op = {}) {
     <form class="dialogo registro" novalidate>
       <h2 class="tarjeta__titulo">${editar ? 'Editar comida' : op.repetir ? 'Repetir comida' : 'Registrar comida'}</h2>
 
+      ${otro ? `
+        <fieldset class="quien">
+          <legend>¿Quién comió?</legend>
+          <div class="quien__opciones" id="r-quien">
+            <button type="button" class="chip quien__op" data-valor="juntos" aria-pressed="${quien0 === 'juntos'}">
+              <span class="quien__caras" aria-hidden="true"><span>${esc(inicial(estado.yo))}</span><span>${esc(inicial(otro))}</span></span>${esc(otro.nombre)} y yo
+            </button>
+            <button type="button" class="chip quien__op" data-valor="yo" aria-pressed="${quien0 === 'yo'}">
+              <span class="quien__caras" aria-hidden="true"><span>${esc(inicial(estado.yo))}</span></span>Solo yo
+            </button>
+            <button type="button" class="chip quien__op" data-valor="otro" aria-pressed="${quien0 === 'otro'}">
+              <span class="quien__caras" aria-hidden="true"><span>${esc(inicial(otro))}</span></span>Solo ${esc(otro.nombre)}
+            </button>
+          </div>
+          <div class="quien__reparto" id="r-campo-reparto" ${quien0 === 'juntos' ? '' : 'hidden'}>
+            <div class="fila fila--entre"><span id="r-yo"></span><span id="r-otro"></span></div>
+            <input id="r-reparto" type="range" min="10" max="90" step="5" value="${pct0}" aria-label="Cuánto comió cada uno">
+            <p class="ayuda" style="margin:0">Pon la cantidad total de los dos; esta barra la reparte.</p>
+          </div>
+        </fieldset>` : ''}
+
       <div class="registro__entrada">
         <textarea id="r-texto" rows="2" maxlength="400" placeholder="Escribe qué comiste: «3 huevos revueltos y 200 g de fideos» o «café con leche»">${esc(op.texto ?? '')}</textarea>
         <div class="registro__botones">
@@ -73,16 +94,6 @@ export function abrirRegistro(ctx, op = {}) {
         <div class="chips chips--scroll" id="r-momento" aria-label="Momento">
           ${Object.entries(MOMENTOS).map(([v, t]) => `<button type="button" class="chip chip--mini" data-valor="${v}" aria-pressed="${v === momento0}">${t}</button>`).join('')}
         </div>
-        ${otro ? `
-          <div class="chips" id="r-quien" aria-label="Quién comió">
-            <button type="button" class="chip chip--mini" data-valor="juntos" aria-pressed="${quien0 === 'juntos'}">${esc(otro.nombre)} y yo</button>
-            <button type="button" class="chip chip--mini" data-valor="yo" aria-pressed="${quien0 === 'yo'}">Solo yo</button>
-            <button type="button" class="chip chip--mini" data-valor="otro" aria-pressed="${quien0 === 'otro'}">Solo ${esc(otro.nombre)}</button>
-          </div>
-          <div class="campo" id="r-campo-reparto" ${quien0 === 'juntos' ? '' : 'hidden'}>
-            <input id="r-reparto" type="range" min="10" max="90" step="5" value="${pct0}" aria-label="Cuánto comió cada uno">
-            <div class="fila fila--entre quieto" style="font-size:13px"><span id="r-yo"></span><span id="r-otro"></span></div>
-          </div>` : ''}
       </div>
 
       <div class="comida-total" id="r-total"></div>
@@ -138,8 +149,8 @@ export function abrirRegistro(ctx, op = {}) {
     const total = sumar(items.map((it) => macros(it.alimento, it.gramos)));
     const fr = fracciones();
     if (reparto && !$('#r-campo-reparto').hidden) {
-      $('#r-yo').textContent = `Yo ${reparto.value}% · ${kc(total.kcal * reparto.value / 100)} kcal`;
-      $('#r-otro').textContent = `${otro.nombre} ${100 - reparto.value}% · ${kc(total.kcal * (100 - reparto.value) / 100)} kcal`;
+      $('#r-yo').innerHTML = `<strong>Yo ${reparto.value}%</strong>${items.length ? ` · ${kc(total.kcal * reparto.value / 100)} kcal` : ''}`;
+      $('#r-otro').innerHTML = `<strong>${esc(otro.nombre)} ${100 - reparto.value}%</strong>${items.length ? ` · ${kc(total.kcal * (100 - reparto.value) / 100)} kcal` : ''}`;
     }
     $('#r-total').innerHTML = items.length
       ? `<strong>${kc(total.kcal)} kcal</strong> · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}${fr.length > 1 ? ' · entre los dos' : ''}`
@@ -267,6 +278,8 @@ export function abrirRegistro(ctx, op = {}) {
   if (op.foto) analizar(op.foto);
   return d;
 }
+
+const inicial = (p) => (p?.nombre ?? '?').trim().charAt(0).toUpperCase();
 
 // "Banana (guineo)" → "Banana"; "Proteína whey (polvo)" → "Proteína whey".
 function nombreCorto(a) {

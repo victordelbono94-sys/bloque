@@ -986,3 +986,15 @@ input[type="range"] { accent-color: var(--volt); width: 100%; min-height: 32px; 
 .revision__nombre { font-size: 15px; }
 .revision__cant { display: flex; align-items: center; gap: 6px; color: var(--gris); font-size: 14px; }
 .revision__cant input { width: 64px; min-height: 36px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--linea); background: var(--grafito); text-align: center; font-size: 15px; }
+/* ¿Quién comió? arriba y grande */
+.quien { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.quien legend { font-size: 15px; font-weight: 600; color: var(--tiza); padding: 0; margin-bottom: 8px; }
+.quien__opciones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.quien__op { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 76px; padding: 10px 6px; border-radius: 16px; font-size: 14px; font-weight: 600; text-align: center; line-height: 1.2; }
+.quien__caras { display: inline-flex; }
+.quien__caras span { width: 28px; height: 28px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; background: var(--grafito-2); color: var(--tiza); font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 14px; border: 2px solid var(--grafito); }
+.quien__caras span + span { margin-left: -8px; }
+.quien__op[aria-pressed="true"] .quien__caras span { background: var(--asfalto); color: var(--volt); border-color: var(--volt); }
+.quien__reparto { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 14px; background: var(--asfalto); font-size: 14px; }
+.quien__reparto strong { font-size: 15px; }
+.registro .item-comida__info .chip { white-space: nowrap; min-height: 30px; }
