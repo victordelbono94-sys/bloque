@@ -1,6 +1,10 @@
-// Analiza la foto de una comida con Gemini (capa gratis) y devuelve qué hay en el
-// plato, cuántos gramos aproximados y sus valores por 100 g. La clave de Gemini vive
-// solo en el servidor (secreto GEMINI_API_KEY o la tabla privado.secretos), nunca en la app.
+// Gemini (capa gratis) para la sección Comida. Modos:
+//   foto     → qué hay en el plato de la foto, con gramos estimados
+//   texto    → interpreta "3 huevos y un café con leche"
+//   despensa → productos de un texto de compras o de una foto (bolsas, alacena, ticket)
+//   ideas    → 3 comidas con lo que hay en la despensa y lo que le falta a la persona
+// La clave de Gemini vive solo en el servidor (secreto GEMINI_API_KEY o la tabla
+// privado.secretos) y solo responde a usuarios con sesión.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const MODELOS = (Deno.env.get("GEMINI_MODELO") ?? "gemini-3-flash-preview,gemini-flash-latest,gemini-3.1-flash-lite")
@@ -13,13 +17,17 @@ const CORS = {
 const json = (cuerpo: unknown, estado = 200) =>
   new Response(JSON.stringify(cuerpo), { status: estado, headers: { ...CORS, "Content-Type": "application/json" } });
 
-const INSTRUCCION = `Eres nutricionista. Mira la foto de la comida (en Ecuador, puede ser comida casera ecuatoriana).
-Identifica cada alimento por separado y estima los gramos que se ven en el plato o los platos
-(si hay dos platos, suma ambos). Para cada alimento da sus valores nutricionales por 100 g tal como está
-servido (cocido, frito, etc.). Usa nombres simples en español: "Arroz blanco cocido", "Pechuga de pollo cocida",
-"Plátano maduro frito", "Aguacate". Si no ves comida, devuelve la lista vacía.`;
+const PORCIONES = `Porciones típicas en Ecuador si no dicen gramos: 1 huevo 50 g, 1 clara 33 g, 1 taza de café 240 g,
+1 vaso de leche 250 g, 1 taza de leche 240 g, 1 pan 50 g, 1 rebanada de pan de molde 30 g, 1 banana 120 g,
+1 manzana 180 g, 1 cucharada de azúcar 12 g, 1 cucharadita de azúcar 4 g, 1 cucharada de aceite 13 g,
+1 taza de arroz cocido 160 g, 1 plato de arroz 200 g, 1 porción de pollo 150 g, 1 yogur 170 g, 1 scoop de proteína 30 g.`;
 
-const ESQUEMA = {
+const NUTRIENTES = {
+  kcal_100g: { type: "NUMBER" }, proteina_100g: { type: "NUMBER" },
+  carbohidratos_100g: { type: "NUMBER" }, grasas_100g: { type: "NUMBER" },
+};
+const REQ_NUT = ["kcal_100g", "proteina_100g", "carbohidratos_100g", "grasas_100g"];
+const ESQ_ALIMENTOS = {
   type: "OBJECT",
   properties: {
     descripcion: { type: "STRING" },
@@ -27,20 +35,81 @@ const ESQUEMA = {
       type: "ARRAY",
       items: {
         type: "OBJECT",
-        properties: {
-          nombre: { type: "STRING" },
-          gramos: { type: "NUMBER" },
-          kcal_100g: { type: "NUMBER" },
-          proteina_100g: { type: "NUMBER" },
-          carbohidratos_100g: { type: "NUMBER" },
-          grasas_100g: { type: "NUMBER" },
-        },
-        required: ["nombre", "gramos", "kcal_100g", "proteina_100g", "carbohidratos_100g", "grasas_100g"],
+        properties: { nombre: { type: "STRING" }, gramos: { type: "NUMBER" }, cantidad: { type: "STRING" }, ...NUTRIENTES },
+        required: ["nombre", "gramos", ...REQ_NUT],
       },
     },
   },
   required: ["alimentos"],
 };
+const ESQ_DESPENSA = {
+  type: "OBJECT",
+  properties: {
+    productos: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          nombre: { type: "STRING" }, marca: { type: "STRING" },
+          gramos_envase: { type: "NUMBER" }, envases: { type: "NUMBER" }, ...NUTRIENTES,
+        },
+        required: ["nombre", "gramos_envase", "envases", ...REQ_NUT],
+      },
+    },
+  },
+  required: ["productos"],
+};
+const ESQ_IDEAS = {
+  type: "OBJECT",
+  properties: {
+    ideas: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          titulo: { type: "STRING" },
+          por_que: { type: "STRING" },
+          pasos: { type: "STRING" },
+          ingredientes: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: { nombre: { type: "STRING" }, gramos: { type: "NUMBER" }, de_despensa: { type: "BOOLEAN" }, ...NUTRIENTES },
+              required: ["nombre", "gramos", ...REQ_NUT],
+            },
+          },
+        },
+        required: ["titulo", "por_que", "ingredientes"],
+      },
+    },
+  },
+  required: ["ideas"],
+};
+
+const INSTRUCCIONES: Record<string, string> = {
+  foto: `Eres nutricionista. Mira la foto de la comida (en Ecuador, puede ser comida casera ecuatoriana).
+Identifica cada alimento por separado y estima los gramos que se ven (si hay varios platos, suma todo).
+Da valores nutricionales por 100 g tal como está servido. Nombres simples en español
+("Arroz blanco cocido", "Pechuga de pollo cocida", "Plátano maduro frito"). En "cantidad" pon algo legible
+("1 plato", "2 presas"). Si no ves comida, lista vacía.`,
+  texto: `Eres nutricionista. Interpreta lo que la persona escribió que comió o tomó, en Ecuador.
+Separa cada alimento, estima los gramos totales de cada uno y da sus valores por 100 g tal como se comió.
+Si dice "en tortilla" o "revuelto", trátalo como preparado con un poco de aceite (agrega el aceite aparte, 5-10 g).
+Si dice "café con leche", separa café y leche. En "cantidad" pon lo que dijo en palabras ("3 huevos", "1 taza").
+${PORCIONES}`,
+  despensa: `Eres asistente de cocina en Ecuador. Del texto o la foto (compras, alacena, refrigeradora o ticket),
+lista los productos de comida. Para cada uno: nombre genérico en español (ej. "Fideos secos (pasta)",
+"Arroz blanco crudo", "Avena en hojuelas", "Huevo entero", "Leche entera"), la marca si se ve,
+gramos de UN envase (para huevos: 50 g por huevo y envases = número de huevos; para leche 1 litro ≈ 1030 g),
+cuántos envases, y valores por 100 g del producto crudo/como viene. Ignora lo que no es comida.`,
+  ideas: `Eres nutricionista deportivo. Propón 3 comidas concretas, ricas y fáciles, para la persona del contexto,
+usando sobre todo lo que hay en su despensa (marca de_despensa=true en esos ingredientes) y básicos comunes
+(sal, especias, aceite). Cada idea debe acercarse a lo que le falta del día para su objetivo y respetar la hora
+y los entrenos (antes de entrenar: carbohidratos fáciles y poca grasa; después: proteína y carbohidratos).
+Da gramos de cada ingrediente para UNA persona y valores por 100 g. "por_que" en una línea; "pasos" en dos o tres frases.
+Todo en español de Ecuador.`,
+};
+const ESQUEMAS: Record<string, unknown> = { foto: ESQ_ALIMENTOS, texto: ESQ_ALIMENTOS, despensa: ESQ_DESPENSA, ideas: ESQ_IDEAS };
 
 // La clave: primero el secreto de la función; si no está, la tabla privada (solo service role).
 async function leerClave(): Promise<string | null> {
@@ -59,23 +128,6 @@ async function leerClave(): Promise<string | null> {
   return typeof v === "string" && v ? v : null;
 }
 
-// Prueba sin foto: qué modelo responde con esta clave.
-async function probarClave(clave: string) {
-  const resultados: Record<string, string> = {};
-  for (const modelo of MODELOS) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": clave },
-      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Responde solo: ok" }] }] }),
-      signal: AbortSignal.timeout(20000),
-    }).catch((e) => new Response(String(e), { status: 599 }));
-    console.log("prueba", modelo, r.status);
-    resultados[modelo] = r.ok ? "ok" : `${r.status} ${(await r.text()).slice(0, 200)}`;
-    if (r.ok) break;
-  }
-  return { resultados };
-}
-
 // La firma del token ya la verificó Supabase (verify_jwt); acá se mira que sea un usuario.
 function esUsuario(req: Request): boolean {
   try {
@@ -87,38 +139,75 @@ function esUsuario(req: Request): boolean {
   }
 }
 
-const limitar = (v: unknown, min: number, max: number) => {
+const num = (v: unknown, min: number, max: number) => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.round(Math.min(max, Math.max(min, n)) * 10) / 10 : min;
 };
+const texto = (v: unknown, largo: number) => String(v ?? "").trim().slice(0, largo);
+const nutrientes = (a: Record<string, unknown>) => ({
+  kcal: num(a.kcal_100g, 0, 950),
+  proteina_g: num(a.proteina_100g, 0, 100),
+  carbohidratos_g: num(a.carbohidratos_100g, 0, 100),
+  grasas_g: num(a.grasas_100g, 0, 100),
+});
+
+function limpiar(modo: string, d: Record<string, unknown>) {
+  const lista = (v: unknown, n: number) => (Array.isArray(v) ? v.slice(0, n) : []) as Record<string, unknown>[];
+  if (modo === "despensa") {
+    return {
+      productos: lista(d.productos, 25).map((p) => ({
+        nombre: texto(p.nombre, 120) || "Producto", marca: texto(p.marca, 80) || null,
+        gramos_envase: num(p.gramos_envase, 1, 20000), envases: Math.round(num(p.envases, 1, 60)), ...nutrientes(p),
+      })),
+    };
+  }
+  if (modo === "ideas") {
+    return {
+      ideas: lista(d.ideas, 3).map((i) => ({
+        titulo: texto(i.titulo, 80), por_que: texto(i.por_que, 200), pasos: texto(i.pasos, 400),
+        ingredientes: lista(i.ingredientes, 10).map((a) => ({
+          nombre: texto(a.nombre, 120), gramos: num(a.gramos, 1, 1500), de_despensa: a.de_despensa === true, ...nutrientes(a),
+        })),
+      })),
+    };
+  }
+  return {
+    descripcion: texto(d.descripcion, 200),
+    alimentos: lista(d.alimentos, 12).map((a) => ({
+      nombre: texto(a.nombre, 120) || "Alimento", gramos: num(a.gramos, 1, 2000), cantidad: texto(a.cantidad, 40) || null, ...nutrientes(a),
+    })),
+  };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "metodo" }, 405);
 
-  let cuerpo: { imagen?: string; tipo?: string; nota?: string; probar?: boolean };
+  let cuerpo: { modo?: string; imagen?: string; tipo?: string; texto?: string; contexto?: unknown; nota?: string };
   try { cuerpo = await req.json(); } catch { return json({ error: "formato" }, 400); }
-
-  // Solo usuarios con sesión (la clave pública va en la app; sin esto, cualquiera gastaría la cuota).
   if (!esUsuario(req)) return json({ error: "sesion" }, 401);
 
-  const clave = await leerClave().catch((e) => { console.log("clave error", String(e)); return null; });
+  const clave = await leerClave().catch(() => null);
   if (!clave) return json({ error: "sin_clave" }, 503);
-  if (cuerpo.probar) return json(await probarClave(clave));
+
+  const modo = ["foto", "texto", "despensa", "ideas"].includes(cuerpo.modo ?? "") ? cuerpo.modo! : "foto";
+  const partes: Record<string, unknown>[] = [{ text: INSTRUCCIONES[modo] }];
   const imagen = cuerpo.imagen ?? "";
-  const tipo = /^image\/(jpeg|png|webp)$/.test(cuerpo.tipo ?? "") ? cuerpo.tipo! : "image/jpeg";
-  if (!imagen || imagen.length > 2_800_000 || !/^[A-Za-z0-9+/=]+$/.test(imagen)) return json({ error: "imagen" }, 400);
-  const nota = (cuerpo.nota ?? "").slice(0, 200);
+  if (imagen) {
+    if (imagen.length > 2_800_000 || !/^[A-Za-z0-9+/=]+$/.test(imagen)) return json({ error: "imagen" }, 400);
+    const tipo = /^image\/(jpeg|png|webp)$/.test(cuerpo.tipo ?? "") ? cuerpo.tipo! : "image/jpeg";
+    partes.push({ inline_data: { mime_type: tipo, data: imagen } });
+  }
+  const escrito = texto(cuerpo.texto ?? cuerpo.nota, 1500);
+  if (escrito) partes.push({ text: `${modo === "texto" ? "Lo que comió" : "Texto"}: ${escrito}` });
+  if (modo === "ideas") partes.push({ text: `Contexto: ${JSON.stringify(cuerpo.contexto ?? {}).slice(0, 6000)}` });
+  if (modo === "foto" && !imagen) return json({ error: "imagen" }, 400);
+  if (modo === "texto" && !escrito) return json({ error: "texto" }, 400);
+  if (modo === "despensa" && !imagen && !escrito) return json({ error: "texto" }, 400);
 
   const pedido = {
-    contents: [{
-      role: "user",
-      parts: [
-        { text: INSTRUCCION + (nota ? `\nDato de quien comió: ${nota}` : "") },
-        { inline_data: { mime_type: tipo, data: imagen } },
-      ],
-    }],
-    generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA, temperature: 0.2 },
+    contents: [{ role: "user", parts: partes }],
+    generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMAS[modo], temperature: modo === "ideas" ? 0.7 : 0.2 },
   };
 
   let ultimoError = "";
@@ -129,26 +218,17 @@ Deno.serve(async (req) => {
       body: JSON.stringify(pedido),
       signal: AbortSignal.timeout(45000),
     }).catch((e) => new Response(String(e), { status: 599 }));
-    console.log("gemini", modelo, r.status);
     if (r.status === 429) return json({ error: "limite" }, 429);
     if (!r.ok) {
-      // Modelo que ya no existe u otro error: se prueba con el siguiente.
+      // Modelo saturado o que ya no existe: se prueba con el siguiente.
       ultimoError = `${modelo}: ${r.status} ${(await r.text()).slice(0, 160)}`;
+      console.log("gemini", ultimoError);
       continue;
     }
     const j = await r.json();
-    const texto = j?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
+    const salida = j?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
     try {
-      const datos = JSON.parse(texto);
-      const alimentos = (Array.isArray(datos.alimentos) ? datos.alimentos : []).slice(0, 12).map((a: Record<string, unknown>) => ({
-        nombre: String(a.nombre ?? "Alimento").slice(0, 120),
-        gramos: limitar(a.gramos, 1, 2000),
-        kcal: limitar(a.kcal_100g, 0, 950),
-        proteina_g: limitar(a.proteina_100g, 0, 100),
-        carbohidratos_g: limitar(a.carbohidratos_100g, 0, 100),
-        grasas_g: limitar(a.grasas_100g, 0, 100),
-      }));
-      return json({ modelo, descripcion: String(datos.descripcion ?? "").slice(0, 200), alimentos });
+      return json({ modelo, ...limpiar(modo, JSON.parse(salida)) });
     } catch {
       ultimoError = "respuesta";
     }

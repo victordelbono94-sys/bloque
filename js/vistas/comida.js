@@ -1,28 +1,424 @@
-// Pantalla Comida: metas del día de cada uno, lo que comieron, snacks para los
-// entrenos y la despensa (paquetes que se van usando).
-import { sb, estado, datos, nombrePersona, otraPersona } from '../db.js';
-import { esc, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from '../ui.js';
+// Pantalla Comida, en tres pestañas:
+//   Día      → cuánto falta, registrar rápido (escribir, foto, frecuentes), qué comer ahora y lo comido
+//   Semana   → cómo vienen los últimos 7 días contra la meta
+//   Despensa → lo que hay en casa (cargado con Gemini) e ideas para cocinar con eso
+import { sb, estado, datos } from '../db.js';
+import { esc, aviso, avisoError, abrirDialogo } from '../ui.js';
 import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia } from '../fechas.js';
 import { calcularMetas, consejosDelDia, snacksDelDia, tendenciaPeso, OBJETIVOS } from '../nutricion.js';
-import { buscarEnCatalogo, buscarEnOFF, porCodigo, guardarAlimento, macros, sumar, cargarCatalogo } from '../alimentos.js';
-import { escanearCodigo } from '../escaner.js';
+import { macros, sumar, cargarCatalogo } from '../alimentos.js';
+import { panelBuscar } from '../comida/buscar.js';
+import { abrirRegistro } from '../comida/registro.js';
+import {
+  MOMENTOS, ORDEN_MOMENTO, kc, g, cantidadTexto, momentoPorHora, gemini, fotoBase64, aAlimento, frecuentes, normalizar,
+} from '../comida/comun.js';
 
-const MOMENTOS = {
-  desayuno: 'Desayuno', almuerzo: 'Almuerzo', merienda: 'Merienda', cena: 'Cena', snack: 'Snack',
-  pre_entreno: 'Antes de entrenar', post_entreno: 'Después de entrenar',
-};
-const kc = (n) => Math.round(n).toLocaleString('es-EC');
-const g = (n) => `${Math.round(n)} g`;
+const ICONO_FOTO = '<svg class="icono" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+const ICONO_CHISPA = '<svg class="icono" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>';
 
-function momentoPorHora(d = new Date()) {
-  const m = d.getHours() * 60 + d.getMinutes();
-  if (m < 630) return 'desayuno';
-  if (m < 930) return 'almuerzo';
-  if (m < 1110) return 'merienda';
-  return 'cena';
+function unir(l) { return l.length < 2 ? l[0] : `${l.slice(0, -1).join(', ')} y ${l.at(-1)}`; }
+
+
+// ---------- Entrada ----------
+
+export async function vistaComida(app) {
+  const param = location.hash.split('/')[2] ?? '';
+  const pestana = param === 'semana' ? 'semana' : param === 'despensa' ? 'despensa' : 'dia';
+  const fecha = /^\d{4}-\d{2}-\d{2}$/.test(param) ? param : hoyISO();
+  try {
+    await cargarCatalogo();
+    if (pestana === 'semana') return await vistaSemana(app);
+    if (pestana === 'despensa') return await vistaDespensa(app);
+    return await vistaDia(app, fecha);
+  } catch (err) {
+    // La base todavía no tiene las tablas de la dieta (falta aplicar la migración).
+    if (['PGRST205', '42P01', 'PGRST200'].includes(err?.code) || /alimentos|despensa|comida_items/.test(err?.message ?? '')) {
+      app.innerHTML = `
+        <header class="encabezado"><div><h1 class="titulo">Comida</h1></div></header>
+        <div class="tarjeta"><p style="margin:0"><strong>Casi lista.</strong> Falta terminar de preparar la base de datos de la dieta.</p></div>`;
+      return;
+    }
+    throw err;
+  }
 }
 
-// ---------- Datos del día ----------
+function pestanas(activa, fecha) {
+  const t = [['dia', 'Día', fecha && fecha !== hoyISO() ? `#/comida/${fecha}` : '#/comida'], ['semana', 'Semana', '#/comida/semana'], ['despensa', 'Despensa', '#/comida/despensa']];
+  return `<nav class="segmentos" aria-label="Secciones de comida">${t.map(([k, n, h]) => `<a href="${h}" class="segmentos__item" ${k === activa ? 'aria-current="page"' : ''}>${n}</a>`).join('')}</nav>`;
+}
+
+const ordenar = (comidas) => [...comidas].sort((a, b) =>
+  (a.hora ?? '99').localeCompare(b.hora ?? '99') || ORDEN_MOMENTO.indexOf(a.momento) - ORDEN_MOMENTO.indexOf(b.momento));
+
+// ---------- Día ----------
+
+async function vistaDia(app, fecha) {
+  const esHoy = fecha === hoyISO();
+  const [d, frec] = await Promise.all([cargarDia(fecha), frecuentes(10)]);
+  const personas = [...estado.personas].sort((a, b) => (a.id === estado.yo.id ? -1 : b.id === estado.yo.id ? 1 : 0));
+  const info = personas.map((p) => datosPersona(p, d));
+  const yo = info[0];
+  const snacks = esHoy ? snacksDelDia(yo.eventos, yo.metas.ok ? yo.metas.peso : null) : [];
+  const ctx = {
+    fecha, esHoy, info, despensa: d.despensa, frecuentes: frec,
+    recargar: (f) => { if (f && f !== fecha) location.hash = f === hoyISO() ? '#/comida' : `#/comida/${f}`; else vistaDia(app, fecha); },
+  };
+
+  app.innerHTML = `
+    <header class="encabezado">
+      <div>
+        <h1 class="titulo">Comida</h1>
+        <p class="subtitulo">${esc(esHoy ? 'Hoy' : diaLargo(fecha))}</p>
+      </div>
+      <div class="fila" style="gap:6px">
+        <a class="boton boton--sec boton--chico boton--icono" href="#/comida/${sumarDias(fecha, -1)}" aria-label="Día anterior">‹</a>
+        ${esHoy ? '' : `<a class="boton boton--sec boton--chico boton--icono" href="${sumarDias(fecha, 1) === hoyISO() ? '#/comida' : `#/comida/${sumarDias(fecha, 1)}`}" aria-label="Día siguiente">›</a>`}
+      </div>
+    </header>
+    ${pestanas('dia', fecha)}
+
+    ${htmlResumen(yo, true)}
+    ${info.slice(1).map((x) => htmlResumen(x, false)).join('')}
+
+    <section class="tarjeta rapido" aria-label="Registrar rápido">
+      <form class="rapido__fila" id="rapido">
+        <input id="rapido-texto" autocomplete="off" maxlength="400" placeholder="¿Qué comiste? «2 huevos y un café»" aria-label="Qué comiste">
+        <button type="submit" class="boton boton--chico" aria-label="Registrar">Agregar</button>
+        <button type="button" class="boton boton--sec boton--chico boton--icono" id="rapido-foto" aria-label="Foto del plato">${ICONO_FOTO}</button>
+        <input type="file" id="rapido-archivo" accept="image/*" hidden>
+      </form>
+      ${frec.length ? `
+        <div class="frecuentes">
+          ${frec.map((f, i) => `<button type="button" class="chip chip--mini" data-frec="${i}">+ ${esc(f.alimento.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, ''))}</button>`).join('')}
+        </div>` : ''}
+    </section>
+
+    ${esHoy ? `
+      <section class="seccion" aria-labelledby="t-ahora">
+        <h2 class="seccion__titulo" id="t-ahora">¿Qué como ahora?</h2>
+        <div class="tarjeta pila" style="gap:12px">
+          ${snacks.length ? htmlSnack(snacks[0]) + (snacks.length > 1 ? `<details class="snacks-mas"><summary>Ver ${snacks.length - 1} más</summary>${snacks.slice(1).map(htmlSnack).join('')}</details>` : '') : ''}
+          <button type="button" class="boton boton--sec" id="ideas-btn">${ICONO_CHISPA} Ideas con lo que hay en casa</button>
+          <div id="ideas" class="pila" style="gap:12px"></div>
+        </div>
+      </section>` : ''}
+
+    <section class="seccion" aria-labelledby="t-comidas">
+      <h2 class="seccion__titulo" id="t-comidas">${esHoy ? 'Lo que comieron hoy' : 'Lo que comieron'}</h2>
+      ${d.comidas.length
+        ? `<div class="pila">${ordenar(d.comidas).map(htmlComida).join('')}</div>`
+        : `<p class="vacio">Todavía nada${esHoy ? ' hoy' : ''}. Escribe arriba lo que comiste.</p>`}
+    </section>`;
+
+  const form = app.querySelector('#rapido');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const texto = app.querySelector('#rapido-texto').value.trim();
+    abrirRegistro(ctx, texto ? { texto } : {});
+  });
+  app.querySelector('#rapido-foto').addEventListener('click', () => app.querySelector('#rapido-archivo').click());
+  app.querySelector('#rapido-archivo').addEventListener('change', (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (f) abrirRegistro(ctx, { foto: f });
+  });
+  app.querySelectorAll('[data-frec]').forEach((b) => b.addEventListener('click', () => {
+    const f = frec[Number(b.dataset.frec)];
+    abrirRegistro(ctx, { items: [{ alimento: f.alimento, gramos: f.gramos }], momento: momentoPorHora() });
+  }));
+  app.querySelectorAll('[data-comida]').forEach((b) => b.addEventListener('click', () =>
+    abrirRegistro(ctx, { comida: d.comidas.find((c) => c.id === b.dataset.comida) })));
+  app.querySelector('#cambiar-objetivo')?.addEventListener('click', () => dialogoObjetivo(yo.foco, () => vistaDia(app, fecha)));
+  app.querySelector('#ideas-btn')?.addEventListener('click', (e) => mostrarIdeas(ctx, app.querySelector('#ideas'), e.currentTarget));
+}
+
+function htmlComida(c) {
+  const lineas = c.comida_items.map((i) => {
+    const cant = cantidadTexto(i.alimento, Number(i.gramos));
+    return `${i.alimento.nombre} · ${cant}`;
+  });
+  const total = sumar(c.comida_items.map((i) => macros(i.alimento, i.gramos)));
+  return `
+    <button type="button" class="tarjeta comida-fila" data-comida="${esc(c.id)}" aria-label="Editar ${esc(MOMENTOS[c.momento] ?? c.momento)}">
+      <div class="fila fila--entre">
+        <strong>${esc(MOMENTOS[c.momento] ?? c.momento)}${c.hora ? ` <span class="quieto">· ${esc(c.hora.slice(0, 5))}</span>` : ''}</strong>
+        <span class="comida-fila__kcal">${kc(total.kcal)} kcal</span>
+      </div>
+      <ul class="comida-fila__items">${lineas.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>
+      <div class="comida-fila__porciones">
+        ${c.porciones.map((x) => `<span>${esc(x.persona_id === estado.yo.id ? 'Yo' : (estado.personas.find((p) => p.id === x.persona_id)?.nombre ?? ''))} <strong>${kc(x.kcal ?? 0)}</strong> kcal · ${Math.round(x.proteina_g ?? 0)} g prot</span>`).join('')}
+        <span class="comida-fila__editar">Editar ›</span>
+      </div>
+    </button>`;
+}
+
+// ---------- Ideas con Gemini ----------
+
+async function mostrarIdeas(ctx, cont, boton) {
+  const yo = ctx.info[0];
+  const clave = `bloque-ideas-${ctx.fecha}-${ctx.despensa.length}`;
+  let ideas = null;
+  try { const c = JSON.parse(sessionStorage.getItem(clave) ?? 'null'); if (c && Date.now() - c.t < 30 * 60e3 && !boton.dataset.otra) ideas = c.ideas; } catch { /* sin caché */ }
+  if (!ideas) {
+    boton.disabled = true;
+    cont.innerHTML = '<p class="quieto" style="margin:0">Pensando ideas con tu despensa y lo que te falta hoy…</p>';
+    const ahora = new Date();
+    const falta = yo.metas.ok ? {
+      kcal: Math.round(yo.metas.kcal - yo.comido.kcal), proteina_g: Math.round(yo.metas.proteina - yo.comido.proteina),
+      carbohidratos_g: Math.round(yo.metas.carbos - yo.comido.carbos), grasas_g: Math.round(yo.metas.grasas - yo.comido.grasas),
+    } : null;
+    const contexto = {
+      objetivo: OBJETIVOS[yo.foco]?.nombre, peso_kg: yo.metas.peso ?? null,
+      hora: `${ahora.getHours()}:${String(ahora.getMinutes()).padStart(2, '0')}`, proxima_comida: MOMENTOS[momentoPorHora(ahora)],
+      falta_hoy: falta,
+      entrenos_hoy: yo.eventos.filter((e) => e.tipo !== 'descanso').map((e) => ({ tipo: e.tipo === 'otro' ? e.actividad : e.tipo, hora: e.hora_inicio?.slice(0, 5) ?? null })),
+      despensa: ctx.despensa.map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(p.gramos_restantes) })),
+    };
+    try {
+      ideas = (await gemini('ideas', { contexto })).ideas ?? [];
+      try { sessionStorage.setItem(clave, JSON.stringify({ t: Date.now(), ideas })); } catch { /* sin caché */ }
+    } catch (err) {
+      cont.innerHTML = `<p class="quieto" style="margin:0">${esc(err.message)}</p>`;
+      boton.disabled = false;
+      return;
+    }
+    boton.disabled = false;
+  }
+  if (!ideas.length) { cont.innerHTML = '<p class="quieto" style="margin:0">No salieron ideas. Prueba de nuevo.</p>'; return; }
+  boton.innerHTML = `${ICONO_CHISPA} Otras ideas`;
+  boton.dataset.otra = '1';
+  cont.innerHTML = ideas.map((idea, i) => {
+    const t = sumar(idea.ingredientes.map((a) => macros(a, a.gramos)));
+    return `
+      <article class="idea">
+        <div class="fila fila--entre" style="align-items:flex-start"><strong>${esc(idea.titulo)}</strong><span class="quieto" style="white-space:nowrap">${kc(t.kcal)} kcal</span></div>
+        <p class="quieto idea__porque">${esc(idea.por_que)}</p>
+        <ul class="idea__ingredientes">${idea.ingredientes.map((a) => `<li>${esc(a.nombre)} · ${g(a.gramos)}${a.de_despensa ? ' <span class="etiqueta etiqueta--mini">en casa</span>' : ''}</li>`).join('')}</ul>
+        <p class="quieto idea__macros">P ${Math.round(t.proteina)} · C ${Math.round(t.carbos)} · G ${Math.round(t.grasas)}</p>
+        ${idea.pasos ? `<details><summary>Cómo hacerlo</summary><p class="idea__pasos">${esc(idea.pasos)}</p></details>` : ''}
+        <button type="button" class="boton boton--chico" data-idea="${i}">Comí esto</button>
+      </article>`;
+  }).join('');
+  cont.querySelectorAll('[data-idea]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      const idea = ideas[Number(b.dataset.idea)];
+      const items = [];
+      for (const a of idea.ingredientes) {
+        const alimento = await aAlimento(a);
+        const paquete = a.de_despensa ? ctx.despensa.find((p) => p.alimento_id === alimento.id && Number(p.gramos_restantes) > 0) ?? null : null;
+        items.push({ alimento, gramos: a.gramos, paquete });
+      }
+      abrirRegistro(ctx, { items, momento: momentoPorHora() });
+    } catch (err) { avisoError(err); }
+    b.disabled = false;
+  }));
+}
+
+// ---------- Semana ----------
+
+async function vistaSemana(app) {
+  const hoy = hoyISO();
+  const dias = Array.from({ length: 7 }, (_, i) => sumarDias(hoy, i - 6));
+  const ids = estado.personas.map((p) => p.id);
+  const desde = new Date(`${dias[0]}T00:00:00`).toISOString();
+  const [eventos, mediciones, objetivos, reloj, comidas] = await Promise.all([
+    sb.from('calendario').select('*').eq('hogar_id', estado.yo.hogar_id).gte('fecha', dias[0]).lte('fecha', hoy).then(datos),
+    sb.from('mediciones_corporales').select('persona_id, medido_en, peso_kg, grasa_pct, masa_magra_kg').in('persona_id', ids).order('medido_en', { ascending: false }).limit(120).then(datos),
+    sb.from('objetivos').select('*').in('persona_id', ids).order('desde', { ascending: false }).then(datos),
+    sb.from('sesiones_banda').select('persona_id, calorias, inicio').in('persona_id', ids).gte('inicio', desde).then(datos),
+    sb.from('comidas').select('fecha, porciones(*)').eq('hogar_id', estado.yo.hogar_id).gte('fecha', dias[0]).lte('fecha', hoy).then(datos),
+  ]);
+  const rutinaIds = [...new Set(eventos.map((e) => e.rutina_id).filter(Boolean))];
+  const rutinas = rutinaIds.length ? datos(await sb.from('rutinas').select('id, foco').in('id', rutinaIds)) : [];
+  for (const e of eventos) e.liviana = rutinas.find((r) => r.id === e.rutina_id)?.foco === 'recuperacion';
+  const yo = estado.yo;
+  const fechaLocal = (iso) => { const t = new Date(iso); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
+  const filas = dias.map((f) => {
+    const dia = { fecha: f, eventos: eventos.filter((e) => e.fecha === f), mediciones, objetivos, comidas: comidas.filter((c) => c.fecha === f), reloj: reloj.filter((s) => fechaLocal(s.inicio) === f) };
+    return datosPersona(yo, dia);
+  });
+  const conDatos = filas.filter((x) => x.comido.kcal > 0);
+  const prom = (k) => conDatos.length ? conDatos.reduce((a, x) => a + x.comido[k], 0) / conDatos.length : 0;
+  const promMeta = (k) => conDatos.length ? conDatos.reduce((a, x) => a + (x.metas.ok ? x.metas[k] : 0), 0) / conDatos.length : 0;
+  const tendencia = filas.at(-1).tendencia;
+
+  app.innerHTML = `
+    <header class="encabezado"><div><h1 class="titulo">Comida</h1><p class="subtitulo">Últimos 7 días</p></div></header>
+    ${pestanas('semana')}
+    <section class="tarjeta">
+      ${conDatos.length ? `
+        <div class="grilla-2">
+          <div><p class="quieto" style="margin:0 0 4px">Calorías por día</p><span class="dato-medio">${kc(prom('kcal'))}</span>${promMeta('kcal') ? `<span class="dato-unidad">de ${kc(promMeta('kcal'))}</span>` : ''}</div>
+          <div><p class="quieto" style="margin:0 0 4px">Proteína por día</p><span class="dato-medio">${Math.round(prom('proteina'))}</span><span class="dato-unidad">g${promMeta('proteina') ? ` de ${Math.round(promMeta('proteina'))}` : ''}</span></div>
+        </div>
+        <p class="ayuda" style="margin-top:10px">Promedio de los ${conDatos.length} días con comidas registradas.</p>`
+        : '<p class="quieto" style="margin:0">Cuando registres comidas, acá ves cómo vas contra tu meta cada día.</p>'}
+      ${tendencia?.nota ? `<ul class="notas-comida">${`<li>${esc(tendencia.nota)}</li>`}</ul>` : ''}
+    </section>
+    <section class="seccion">
+      <div class="pila" style="gap:8px">
+        ${filas.map((x, i) => [x, dias[i]]).reverse().map(([x, f]) => {
+          const meta = x.metas.ok ? x.metas.kcal : null;
+          const pct = meta ? Math.min(100, (x.comido.kcal / meta) * 100) : 0;
+          const estadoDia = !x.comido.kcal ? 'vacio' : !meta ? '' : x.comido.kcal < meta * 0.85 ? 'bajo' : x.comido.kcal > meta * 1.1 ? 'alto' : 'bien';
+          return `
+            <a class="tarjeta semana-dia" href="${f === hoy ? '#/comida' : `#/comida/${f}`}">
+              <div class="semana-dia__fecha"><span>${esc(f === hoy ? 'Hoy' : diaCorto(f))}</span><strong>${numeroDia(f)}</strong></div>
+              <div class="semana-dia__datos">
+                <div class="fila fila--entre"><span>${x.comido.kcal ? `${kc(x.comido.kcal)}${meta ? ` / ${kc(meta)}` : ''} kcal` : '<span class="quieto">Sin registros</span>'}</span>
+                  <span class="quieto">${x.comido.kcal ? `P ${Math.round(x.comido.proteina)}${x.metas.ok ? `/${x.metas.proteina}` : ''} g` : ''}</span></div>
+                <div class="kcal__barra semana-dia__barra semana-dia__barra--${estadoDia}"><span style="width:${pct}%"></span></div>
+              </div>
+            </a>`;
+        }).join('')}
+      </div>
+    </section>`;
+}
+
+// ---------- Despensa ----------
+
+async function vistaDespensa(app) {
+  const despensa = datos(await sb.from('despensa').select('*, alimento:alimentos(*)').eq('hogar_id', estado.yo.hogar_id)
+    .is('terminado_en', null).order('agregado_en', { ascending: false }));
+  const fecha = hoyISO();
+  const recargar = () => vistaDespensa(app);
+
+  app.innerHTML = `
+    <header class="encabezado"><div><h1 class="titulo">Comida</h1><p class="subtitulo">Lo que hay en casa</p></div></header>
+    ${pestanas('despensa')}
+    <section class="tarjeta pila" style="gap:10px">
+      <h2 class="seccion__titulo" style="margin:0">Agregar lo que compraste</h2>
+      <textarea id="dp-texto" rows="2" maxlength="1200" class="area" placeholder="Ej.: 2 fundas de fideos de 400 g, 1 kg de arroz, 30 huevos, 2 litros de leche"></textarea>
+      <div class="fila" style="gap:8px;flex-wrap:wrap">
+        <button type="button" class="boton boton--chico" id="dp-leer">${ICONO_CHISPA} Agregar con Gemini</button>
+        <button type="button" class="boton boton--sec boton--chico" id="dp-foto">${ICONO_FOTO} Foto de las compras</button>
+        <button type="button" class="boton boton--texto boton--chico" id="dp-manual">Buscar o escanear</button>
+        <input type="file" id="dp-archivo" accept="image/*" hidden>
+      </div>
+      <p class="ayuda" style="margin:0">Sirve una foto de las fundas, la alacena, la refri o el ticket.</p>
+      <div id="dp-revision"></div>
+    </section>
+
+    <section class="seccion" aria-labelledby="t-casa">
+      <h2 class="seccion__titulo" id="t-casa">En casa${despensa.length ? ` · ${despensa.length}` : ''}</h2>
+      ${despensa.length ? `
+        <div class="tarjeta pila" style="gap:12px">${agrupar(despensa).map(htmlGrupo).join('')}</div>
+        <button type="button" class="boton boton--sec boton--bloque" id="ideas-btn" style="margin-top:12px">${ICONO_CHISPA} Ideas para cocinar con esto</button>
+        <div id="ideas" class="pila" style="gap:12px;margin-top:12px"></div>`
+        : '<p class="vacio">La despensa está vacía. Escribe arriba lo que compraste.</p>'}
+    </section>`;
+
+  const revision = app.querySelector('#dp-revision');
+  const procesar = async (cuerpo, boton) => {
+    boton.disabled = true;
+    revision.innerHTML = '<p class="quieto" style="margin:0">Gemini está leyendo…</p>';
+    try {
+      const { productos = [] } = await gemini('despensa', cuerpo);
+      if (!productos.length) { revision.innerHTML = '<p class="quieto" style="margin:0">No encontré comida ahí. Prueba de nuevo.</p>'; return; }
+      revisarProductos(revision, productos, recargar);
+    } catch (err) {
+      revision.innerHTML = `<p class="quieto" style="margin:0">${esc(err.message)}</p>`;
+    } finally { boton.disabled = false; }
+  };
+  app.querySelector('#dp-leer').addEventListener('click', (e) => {
+    const texto = app.querySelector('#dp-texto').value.trim();
+    if (!texto) return app.querySelector('#dp-texto').focus();
+    procesar({ texto }, e.currentTarget);
+  });
+  app.querySelector('#dp-foto').addEventListener('click', () => app.querySelector('#dp-archivo').click());
+  app.querySelector('#dp-archivo').addEventListener('change', async (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (f) procesar({ imagen: await fotoBase64(f), tipo: 'image/jpeg', texto: app.querySelector('#dp-texto').value.trim() }, app.querySelector('#dp-foto'));
+  });
+  app.querySelector('#dp-manual').addEventListener('click', () => dialogoPaquete({ recargar }));
+  app.querySelectorAll('[data-paquete]').forEach((b) => b.addEventListener('click', () =>
+    dialogoEditarPaquete(despensa.find((x) => x.id === b.dataset.paquete), { recargar })));
+  app.querySelector('#ideas-btn')?.addEventListener('click', async (e) => {
+    // Ideas con la despensa: se arma el contexto del día de hoy.
+    const boton = e.currentTarget;
+    boton.disabled = true;
+    const d = await cargarDia(fecha);
+    boton.disabled = false;
+    const yo = datosPersona(estado.yo, d);
+    const ctx = { fecha, esHoy: true, info: [yo, ...estado.personas.filter((p) => p.id !== estado.yo.id).map((p) => datosPersona(p, d))], despensa, frecuentes: [], recargar: () => { location.hash = '#/comida'; } };
+    mostrarIdeas(ctx, app.querySelector('#ideas'), boton);
+  });
+}
+
+// Paquetes iguales juntos: "Fideos · 2 paquetes · 680 g de 800 g". Se edita primero el que está abierto.
+function agrupar(despensa) {
+  const grupos = new Map();
+  for (const x of despensa) {
+    const gr = grupos.get(x.alimento_id) ?? { alimento: x.alimento, paquetes: [] };
+    gr.paquetes.push(x);
+    grupos.set(x.alimento_id, gr);
+  }
+  return [...grupos.values()].map((gr) => ({
+    ...gr,
+    paquetes: gr.paquetes.sort((a, b) => a.gramos_restantes / a.gramos_total - b.gramos_restantes / b.gramos_total),
+  }));
+}
+
+function htmlGrupo(gr) {
+  const quedan = gr.paquetes.reduce((a, x) => a + Number(x.gramos_restantes), 0);
+  const total = gr.paquetes.reduce((a, x) => a + Number(x.gramos_total), 0);
+  const pct = Math.max(0, Math.min(100, (quedan / total) * 100));
+  const n = gr.paquetes.length;
+  return `
+    <button type="button" class="paquete" data-paquete="${esc(gr.paquetes[0].id)}">
+      <div class="fila fila--entre"><strong>${esc(gr.alimento.nombre)}</strong><span class="quieto">${cantidadTexto(gr.alimento, quedan)}${n > 1 ? ` · ${n} paquetes` : ''}</span></div>
+      ${gr.alimento.marca ? `<span class="quieto" style="font-size:13px">${esc(gr.alimento.marca)}</span>` : ''}
+      <div class="paquete__barra"><span style="width:${pct}%"></span></div>
+    </button>`;
+}
+
+// Revisar lo que leyó Gemini antes de guardarlo en la despensa.
+function revisarProductos(cont, productos, alGuardar) {
+  cont.innerHTML = `
+    <div class="revision">
+      <p class="seccion__titulo" style="margin:4px 0 8px">Revisa y agrega</p>
+      ${productos.map((p, i) => `
+        <label class="revision__fila">
+          <input type="checkbox" data-sel="${i}" checked>
+          <span class="revision__nombre"><strong>${esc(p.nombre)}</strong>${p.marca ? ` <span class="quieto">· ${esc(p.marca)}</span>` : ''}</span>
+          <span class="revision__cant">
+            <input type="number" inputmode="numeric" min="1" max="60" value="${p.envases}" data-env="${i}" aria-label="Cuántos">
+            ×
+            <input type="number" inputmode="decimal" min="1" value="${Math.round(p.gramos_envase)}" data-gr="${i}" aria-label="Gramos de cada uno"> g
+          </span>
+        </label>`).join('')}
+      <button type="button" class="boton boton--chico" id="dp-agregar" style="margin-top:10px">Agregar a la despensa</button>
+    </div>`;
+  cont.querySelector('#dp-agregar').addEventListener('click', async (e) => {
+    const boton = e.currentTarget;
+    boton.disabled = true;
+    try {
+      const filas = [];
+      for (const [i, p] of productos.entries()) {
+        if (!cont.querySelector(`[data-sel="${i}"]`).checked) continue;
+        const envases = Math.max(1, Number(cont.querySelector(`[data-env="${i}"]`).value) || 1);
+        const gramos = Math.max(1, Number(cont.querySelector(`[data-gr="${i}"]`).value) || p.gramos_envase);
+        const alimento = await aAlimento(p);
+        // Paquetes grandes (fideos, arroz) van uno por uno; lo chico (huevos) va junto.
+        const separados = envases <= 6 && gramos >= 150;
+        for (let k = 0; k < (separados ? envases : 1); k++) {
+          const total = separados ? gramos : gramos * envases;
+          filas.push({ hogar_id: estado.yo.hogar_id, alimento_id: alimento.id, gramos_total: total, gramos_restantes: total });
+        }
+      }
+      if (filas.length) datos(await sb.from('despensa').insert(filas));
+      aviso(`${filas.length} ${filas.length === 1 ? 'producto agregado' : 'productos agregados'} a la despensa.`);
+      alGuardar();
+    } catch (err) {
+      avisoError(err);
+      boton.disabled = false;
+    }
+  });
+}
+
+// ---------- Datos (compartidos) y piezas ----------
 
 async function cargarDia(fecha) {
   const ids = estado.personas.map((p) => p.id);
@@ -63,80 +459,6 @@ function datosPersona(p, d) {
   return { p, metas, comido, foco, eventos, tendencia };
 }
 
-// ---------- Pantalla ----------
-
-export async function vistaComida(app) {
-  const fecha = /^\d{4}-\d{2}-\d{2}$/.test(location.hash.split('/')[2] ?? '') ? location.hash.split('/')[2] : hoyISO();
-  const esHoy = fecha === hoyISO();
-  let d;
-  try {
-    [d] = await Promise.all([cargarDia(fecha), cargarCatalogo()]);
-  } catch (err) {
-    // La base todavía no tiene las tablas de la dieta (falta aplicar la migración).
-    if (['PGRST205', '42P01', 'PGRST200'].includes(err?.code) || /alimentos|despensa|comida_items/.test(err?.message ?? '')) {
-      app.innerHTML = `
-        <header class="encabezado"><div><h1 class="titulo">Comida</h1></div></header>
-        <div class="tarjeta"><p style="margin:0"><strong>Casi lista.</strong> Falta terminar de preparar la base de datos de la dieta. Vuelve a abrir esta sección en un rato.</p></div>`;
-      return;
-    }
-    throw err;
-  }
-  const personas = [...estado.personas].sort((a, b) => (a.id === estado.yo.id ? -1 : b.id === estado.yo.id ? 1 : 0));
-  const info = personas.map((p) => datosPersona(p, d));
-  const yo = info[0];
-  const snacks = esHoy ? snacksDelDia(yo.eventos, yo.metas.ok ? yo.metas.peso : null) : [];
-
-  app.innerHTML = `
-    <header class="encabezado">
-      <div>
-        <h1 class="titulo">Comida</h1>
-        <p class="subtitulo">${esc(esHoy ? 'Hoy' : diaLargo(fecha))}</p>
-      </div>
-      <div class="fila" style="gap:6px">
-        <a class="boton boton--sec boton--chico boton--icono" href="#/comida/${sumarDias(fecha, -1)}" aria-label="Día anterior">‹</a>
-        ${esHoy ? '' : `<a class="boton boton--sec boton--chico" href="#/comida">Hoy</a>`}
-        ${esHoy ? '' : `<a class="boton boton--sec boton--chico boton--icono" href="#/comida/${sumarDias(fecha, 1)}" aria-label="Día siguiente">›</a>`}
-      </div>
-    </header>
-
-    ${htmlResumen(yo, true)}
-    ${info.slice(1).map((x) => htmlResumen(x, false)).join('')}
-
-    <button type="button" class="boton boton--bloque" id="registrar" style="margin-top:16px">+ Registrar comida</button>
-
-    ${snacks.length ? `
-      <section class="seccion" aria-labelledby="t-snacks">
-        <h2 class="seccion__titulo" id="t-snacks">Para tus entrenos de hoy</h2>
-        <div class="tarjeta pila snacks">${snacks.map(htmlSnack).join('')}</div>
-      </section>` : ''}
-
-    <section class="seccion" aria-labelledby="t-comidas">
-      <h2 class="seccion__titulo" id="t-comidas">${esHoy ? 'Lo que comieron hoy' : 'Lo que comieron'}</h2>
-      ${d.comidas.length
-        ? `<div class="pila">${d.comidas.map(htmlComida).join('')}</div>`
-        : '<p class="vacio">Todavía nada. Registra la primera comida del día.</p>'}
-    </section>
-
-    <section class="seccion" aria-labelledby="t-despensa">
-      <div class="fila fila--entre" style="margin-bottom:10px">
-        <h2 class="seccion__titulo" id="t-despensa" style="margin:0">Despensa</h2>
-        <button type="button" class="boton boton--texto boton--chico" id="agregar-paquete">+ Agregar paquete</button>
-      </div>
-      ${d.despensa.length
-        ? `<div class="tarjeta pila" style="gap:12px">${d.despensa.map(htmlPaquete).join('')}</div>`
-        : '<p class="vacio">Carga los paquetes que compras (fideos, arroz, avena…) y al registrar una comida eliges cuánto usaste.</p>'}
-    </section>`;
-
-  const recargar = () => vistaComida(app);
-  const ctx = { fecha, esHoy, info, despensa: d.despensa, recargar };
-  app.querySelector('#registrar').addEventListener('click', () => dialogoComida(ctx));
-  app.querySelector('#agregar-paquete').addEventListener('click', () => dialogoPaquete(ctx));
-  app.querySelectorAll('[data-comida]').forEach((b) => b.addEventListener('click', () =>
-    dialogoDetalle(d.comidas.find((c) => c.id === b.dataset.comida), ctx)));
-  app.querySelectorAll('[data-paquete]').forEach((b) => b.addEventListener('click', () =>
-    dialogoEditarPaquete(d.despensa.find((x) => x.id === b.dataset.paquete), ctx)));
-  app.querySelector('#cambiar-objetivo')?.addEventListener('click', () => dialogoObjetivo(yo.foco, recargar));
-}
 
 function barra(nombre, valor, meta, clase) {
   const pct = meta > 0 ? Math.min(100, (valor / meta) * 100) : 0;
@@ -201,21 +523,6 @@ function htmlSnack(s) {
     </div>`;
 }
 
-function htmlComida(c) {
-  const nombres = c.comida_items.map((i) => i.alimento?.nombre).filter(Boolean);
-  const texto = c.descripcion || nombres.slice(0, 4).join(', ') + (nombres.length > 4 ? '…' : '');
-  return `
-    <button type="button" class="tarjeta comida-fila" data-comida="${esc(c.id)}">
-      <div class="fila fila--entre">
-        <strong>${esc(MOMENTOS[c.momento] ?? c.momento)}</strong>
-        <span class="quieto">${c.hora ? esc(c.hora.slice(0, 5)) : ''}</span>
-      </div>
-      <p class="comida-fila__texto">${esc(texto || 'Sin detalle')}</p>
-      <div class="comida-fila__porciones">
-        ${c.porciones.map((x) => `<span>${esc(x.persona_id === estado.yo.id ? 'Yo' : nombrePersona(x.persona_id))} <strong>${kc(x.kcal ?? 0)}</strong> kcal · ${Math.round(x.proteina_g ?? 0)} g prot</span>`).join('')}
-      </div>
-    </button>`;
-}
 
 function htmlPaquete(x) {
   const pct = Math.max(0, Math.min(100, (x.gramos_restantes / x.gramos_total) * 100));
@@ -227,396 +534,7 @@ function htmlPaquete(x) {
     </button>`;
 }
 
-const normalizar = (t) => (t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
-// Achica la foto (máx. 1024 px) y la manda a la función que usa Gemini.
-async function analizarFoto(archivo) {
-  const imagen = await createImageBitmap(archivo);
-  const escala = Math.min(1, 1024 / Math.max(imagen.width, imagen.height));
-  const lienzo = document.createElement('canvas');
-  lienzo.width = Math.round(imagen.width * escala);
-  lienzo.height = Math.round(imagen.height * escala);
-  lienzo.getContext('2d').drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
-  const base64 = lienzo.toDataURL('image/jpeg', 0.82).split(',')[1];
-  const { data, error } = await sb.functions.invoke('analizar-comida', { body: { imagen: base64, tipo: 'image/jpeg' } });
-  if (error) {
-    let codigo = null;
-    try { codigo = (await error.context?.json?.())?.error; } catch { /* sin detalle */ }
-    throw new Error({
-      sin_clave: 'Falta conectar Gemini (la clave gratis). Mientras tanto, busca o escanea.',
-      limite: 'Gemini llegó al límite gratis por ahora. Prueba en un minuto.',
-      imagen: 'La foto es muy pesada o no se pudo leer.',
-      gemini: 'Gemini está saturado en este momento. Prueba en un rato o búscalo a mano.',
-      sesion: 'Tu sesión se venció: vuelve a entrar a Bloque.',
-    }[codigo] ?? 'No se pudo analizar la foto. Revisa la conexión.');
-  }
-  return data?.alimentos ?? [];
-}
-
-function unir(l) { return l.length < 2 ? l[0] : `${l.slice(0, -1).join(', ')} y ${l.at(-1)}`; }
-
-// ---------- Buscar un alimento (catálogo, Open Food Facts, código, a mano) ----------
-
-/**
- * Panel de búsqueda dentro de un diálogo.
- * @param {HTMLElement} cont
- * @param {{ despensa?: Array, conFoto?: boolean, alElegir: (alimento, paquete, gramos?) => void }} op
- */
-function panelBuscar(cont, { despensa = [], conFoto = false, alElegir }) {
-  cont.innerHTML = `
-    <div class="ba">
-      <div class="ba__fila">
-        <input type="search" id="ba-q" autocomplete="off" placeholder="Buscar: arroz, huevo, avena Quaker…" aria-label="Buscar alimento">
-        ${conFoto ? `
-          <button type="button" class="boton boton--sec boton--icono" id="ba-foto" aria-label="Foto de la comida (Gemini)">
-            <svg class="icono" viewBox="0 0 24 24" style="width:22px;height:22px"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
-          </button>
-          <input type="file" id="ba-archivo" accept="image/*" hidden>` : ''}
-        <button type="button" class="boton boton--sec boton--icono" id="ba-escanear" aria-label="Escanear código de barras">
-          <svg class="icono" viewBox="0 0 24 24" style="width:22px;height:22px"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M7 8v8M10 8v8M13 8v8M16.5 8v8"/></svg>
-        </button>
-      </div>
-      <div class="ba__res" id="ba-res"></div>
-      <button type="button" class="boton boton--texto boton--chico" id="ba-crear" style="align-self:flex-start;padding:0">No está: crear con la etiqueta</button>
-      <div id="ba-form" hidden></div>
-    </div>`;
-  const q = cont.querySelector('#ba-q');
-  const res = cont.querySelector('#ba-res');
-  let pedido = 0, espera = null, offLista = [];
-
-  const fila = (a, i, origen, extra = '') => `
-    <button type="button" class="ba__item" data-origen="${origen}" data-i="${i}">
-      <span><strong>${esc(a.nombre)}</strong>${a.marca ? ` <span class="quieto">· ${esc(a.marca)}</span>` : ''}</span>
-      <span class="quieto">${extra || `${kc(a.kcal)} kcal · P ${Math.round(a.proteina_g)} · C ${Math.round(a.carbohidratos_g)} · G ${Math.round(a.grasas_g)} por 100 g`}</span>
-    </button>`;
-
-  let enDespensa = [], enCatalogo = [];
-  const pintar = (cargandoOFF = false) => {
-    res.innerHTML = [
-      enDespensa.length ? `<p class="ba__grupo">En la despensa</p>${enDespensa.map((x, i) => fila(x.alimento, i, 'despensa', `Quedan ${g(x.gramos_restantes)}`)).join('')}` : '',
-      enCatalogo.length ? `<p class="ba__grupo">Alimentos</p>${enCatalogo.map((a, i) => fila(a, i, 'catalogo')).join('')}` : '',
-      offLista.length ? `<p class="ba__grupo">Productos (Open Food Facts)</p>${offLista.map((a, i) => fila(a, i, 'off')).join('')}` : '',
-      cargandoOFF ? '<p class="quieto ba__vacio">Buscando productos con marca…</p>' : '',
-      !cargandoOFF && q.value.trim().length >= 2 && !enDespensa.length && !enCatalogo.length && !offLista.length
-        ? '<p class="quieto ba__vacio">No encontré nada. Escanea el código o créalo con la etiqueta.</p>' : '',
-    ].join('');
-  };
-  const filtrarDespensa = (t) => {
-    const n = t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    return despensa.filter((x) => !n || x.alimento.nombre.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes(n));
-  };
-  enDespensa = filtrarDespensa('');
-  pintar();
-
-  q.addEventListener('input', () => {
-    clearTimeout(espera);
-    const t = q.value.trim();
-    const turno = ++pedido;
-    offLista = [];
-    enDespensa = filtrarDespensa(t);
-    buscarEnCatalogo(t).then((l) => { if (turno === pedido) { enCatalogo = l; pintar(t.length >= 3); } });
-    if (t.length < 3) { enCatalogo = t ? enCatalogo : []; pintar(); return; }
-    espera = setTimeout(async () => {
-      try {
-        const l = await buscarEnOFF(t);
-        if (turno !== pedido) return;
-        const propios = new Set(enCatalogo.map((a) => a.codigo_barras).filter(Boolean));
-        offLista = l.filter((a) => !a.codigo_barras || !propios.has(a.codigo_barras));
-      } catch { offLista = []; }
-      if (turno === pedido) pintar();
-    }, 600);
-  });
-
-  const elegir = async (a, paquete = null) => {
-    try {
-      const guardado = await guardarAlimento(a);
-      alElegir(guardado, paquete);
-    } catch (err) { avisoError(err); }
-  };
-  res.addEventListener('click', (e) => {
-    const b = e.target.closest('.ba__item');
-    if (!b) return;
-    const i = Number(b.dataset.i);
-    if (b.dataset.origen === 'despensa') elegir(enDespensa[i].alimento, enDespensa[i]);
-    else if (b.dataset.origen === 'catalogo') elegir(enCatalogo[i]);
-    else elegir(offLista[i]);
-  });
-
-  const formulario = (codigo = '', nombre = '') => {
-    const f = cont.querySelector('#ba-form');
-    f.hidden = false;
-    f.innerHTML = `
-      <div class="ba__manual pila" style="gap:10px">
-        <p class="seccion__titulo" style="margin:0">Nuevo alimento · valores por 100 g</p>
-        <div class="campo"><label for="m-nombre">Nombre</label><input id="m-nombre" maxlength="120" value="${esc(nombre)}"></div>
-        <div class="grilla-2">
-          <div class="campo"><label for="m-kcal">Calorías</label><input id="m-kcal" type="number" inputmode="decimal" min="0" max="950" step="0.1"></div>
-          <div class="campo"><label for="m-prot">Proteína (g)</label><input id="m-prot" type="number" inputmode="decimal" min="0" max="100" step="0.1"></div>
-          <div class="campo"><label for="m-carb">Carbohidratos (g)</label><input id="m-carb" type="number" inputmode="decimal" min="0" max="100" step="0.1"></div>
-          <div class="campo"><label for="m-gras">Grasas (g)</label><input id="m-gras" type="number" inputmode="decimal" min="0" max="100" step="0.1"></div>
-        </div>
-        <div class="grilla-2">
-          <div class="campo"><label for="m-paquete">El paquete trae (g)</label><input id="m-paquete" type="number" inputmode="decimal" min="1" placeholder="Opcional"></div>
-          <div class="campo"><label for="m-codigo">Código de barras</label><input id="m-codigo" inputmode="numeric" maxlength="14" value="${esc(codigo)}" placeholder="Opcional"></div>
-        </div>
-        <p class="ayuda">Si la etiqueta da los valores por porción, divide por los gramos de la porción y multiplica por 100.</p>
-        <button type="button" class="boton boton--chico" id="m-guardar">Guardar y usar</button>
-      </div>`;
-    f.querySelector('#m-guardar').addEventListener('click', () => {
-      const v = (id) => f.querySelector(`#${id}`).value.trim();
-      const n = (id) => (v(id) === '' ? null : Number(v(id)));
-      if (!v('m-nombre')) return aviso('Ponle un nombre.', 'error');
-      if (n('m-kcal') == null || n('m-kcal') > 950) return aviso('Revisa las calorías por 100 g.', 'error');
-      const cod = v('m-codigo').replace(/\D/g, '');
-      elegir({
-        nombre: v('m-nombre'), kcal: n('m-kcal'), proteina_g: n('m-prot') ?? 0, carbohidratos_g: n('m-carb') ?? 0,
-        grasas_g: n('m-gras') ?? 0, paquete_g: n('m-paquete'), codigo_barras: cod.length >= 6 ? cod : null, origen: 'manual',
-      });
-    });
-    f.querySelector('#m-nombre').focus();
-  };
-  cont.querySelector('#ba-crear').addEventListener('click', () => formulario('', q.value.trim()));
-
-  // Foto: Gemini reconoce los alimentos y estima gramos; revisas y agregas.
-  const archivo = cont.querySelector('#ba-archivo');
-  cont.querySelector('#ba-foto')?.addEventListener('click', () => archivo.click());
-  archivo?.addEventListener('change', async () => {
-    const f = archivo.files?.[0];
-    archivo.value = '';
-    if (!f) return;
-    ++pedido;
-    res.innerHTML = '<p class="quieto ba__vacio">Mirando la foto con Gemini…</p>';
-    try {
-      const encontrados = await analizarFoto(f);
-      if (!encontrados.length) { res.innerHTML = '<p class="quieto ba__vacio">No reconocí comida en la foto. Prueba con otra más cerca o búscala a mano.</p>'; return; }
-      res.innerHTML = `
-        <p class="ba__grupo">Gemini ve esto · revisa los gramos después</p>
-        ${encontrados.map((a) => `<div class="ba__item ba__item--foto"><span><strong>${esc(a.nombre)}</strong> <span class="quieto">· ${g(a.gramos)}</span></span><span class="quieto">${kc(a.kcal * a.gramos / 100)} kcal · P ${Math.round(a.proteina_g * a.gramos / 100)} · C ${Math.round(a.carbohidratos_g * a.gramos / 100)} · G ${Math.round(a.grasas_g * a.gramos / 100)}</span></div>`).join('')}
-        <button type="button" class="boton boton--chico" id="ba-foto-agregar">Agregar ${encontrados.length === 1 ? 'este alimento' : `los ${encontrados.length}`}</button>`;
-      res.querySelector('#ba-foto-agregar').addEventListener('click', async (e) => {
-        e.target.disabled = true;
-        try {
-          for (const a of encontrados) {
-            // Si ya existe uno con el mismo nombre (base o de una foto anterior), se usa ese.
-            const parecidos = await buscarEnCatalogo(a.nombre);
-            const igual = parecidos.find((x) => normalizar(x.nombre) === normalizar(a.nombre));
-            const alimento = igual ?? await guardarAlimento({
-              nombre: a.nombre, kcal: a.kcal, proteina_g: a.proteina_g, carbohidratos_g: a.carbohidratos_g, grasas_g: a.grasas_g, origen: 'gemini',
-            });
-            alElegir(alimento, null, a.gramos);
-          }
-          res.innerHTML = '';
-        } catch (err) { avisoError(err); e.target.disabled = false; }
-      });
-    } catch (err) {
-      res.innerHTML = `<p class="quieto ba__vacio">${esc(err.message)}</p>`;
-    }
-  });
-  cont.querySelector('#ba-escanear').addEventListener('click', async () => {
-    const codigo = await escanearCodigo();
-    if (!codigo) return;
-    try {
-      const a = await porCodigo(codigo);
-      if (a) return elegir(a);
-      aviso('Ese producto no está en Open Food Facts: cárgalo con la etiqueta.');
-      formulario(codigo, '');
-    } catch (err) { avisoError(err); }
-  });
-  return { enfocar: () => q.focus() };
-}
-
-// ---------- Registrar una comida ----------
-
-function dialogoComida(ctx) {
-  const otro = otraPersona();
-  const yoInfo = ctx.info[0];
-  const otroInfo = ctx.info.find((x) => x.p.id === otro?.id);
-  // Reparto por defecto: según las metas de calorías de cada uno.
-  const pctYo = yoInfo.metas.ok && otroInfo?.metas.ok
-    ? Math.round((yoInfo.metas.kcal / (yoInfo.metas.kcal + otroInfo.metas.kcal)) * 100) : 50;
-  const items = [];
-
-  const d = abrirDialogo(`
-    <form class="dialogo comida-dialogo" novalidate>
-      <h2 class="tarjeta__titulo">Registrar comida</h2>
-      <div class="chips" id="momento" aria-label="Momento">
-        ${Object.entries(MOMENTOS).map(([v, t]) => `<button type="button" class="chip" data-valor="${v}" aria-pressed="${v === momentoPorHora()}">${t}</button>`).join('')}
-      </div>
-      <div class="chips" id="quien" aria-label="Quién comió">
-        ${otro ? `<button type="button" class="chip" data-valor="juntos" aria-pressed="true">${esc(otro.nombre)} y yo</button>` : ''}
-        <button type="button" class="chip" data-valor="yo" aria-pressed="${!otro}">Solo yo</button>
-        ${otro ? `<button type="button" class="chip" data-valor="otro" aria-pressed="false">Solo ${esc(otro.nombre)}</button>` : ''}
-      </div>
-      ${otro ? `
-        <div class="campo" id="campo-reparto">
-          <label for="reparto">Cuánto comió cada uno</label>
-          <input id="reparto" type="range" min="10" max="90" step="5" value="${pctYo}">
-          <div class="fila fila--entre quieto" style="font-size:14px"><span id="r-yo"></span><span id="r-otro"></span></div>
-        </div>` : ''}
-
-      <div id="items" class="pila" style="gap:8px"></div>
-      <div id="buscar"></div>
-
-      <div class="campo">
-        <label for="descripcion">Nota</label>
-        <input id="descripcion" maxlength="120" placeholder="Opcional: «almuerzo en la oficina»">
-      </div>
-      <div class="comida-total" id="total"></div>
-      <div class="dialogo__pie">
-        <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
-        <button type="submit" class="boton" id="guardar" disabled>Guardar</button>
-      </div>
-    </form>`, 'Registrar comida');
-
-  const quien = d.querySelector('#quien');
-  const reparto = d.querySelector('#reparto');
-  const campoReparto = d.querySelector('#campo-reparto');
-  grupoChips(d.querySelector('#momento'));
-  grupoChips(quien, (v) => { if (campoReparto) campoReparto.hidden = v !== 'juntos'; pintar(); });
-  reparto?.addEventListener('input', () => pintar());
-
-  const fracciones = () => {
-    const v = valorChips(quien);
-    if (v === 'yo') return [[estado.yo.id, 1]];
-    if (v === 'otro') return [[otro.id, 1]];
-    const f = Number(reparto.value) / 100;
-    return [[estado.yo.id, f], [otro.id, 1 - f]];
-  };
-
-  const pintar = () => {
-    const cont = d.querySelector('#items');
-    cont.innerHTML = items.map((it, i) => {
-      const m = macros(it.alimento, it.gramos);
-      return `
-        <div class="item-comida">
-          <div class="item-comida__info">
-            <strong>${esc(it.alimento.nombre)}</strong>
-            <span class="quieto">${kc(m.kcal)} kcal · P ${Math.round(m.proteina)} · C ${Math.round(m.carbos)} · G ${Math.round(m.grasas)}${it.paquete ? ` · de la despensa` : ''}</span>
-            <div class="item-comida__atajos">
-              ${it.alimento.porcion_g ? `<button type="button" class="chip chip--mini" data-mas="${i}">+ ${esc(it.alimento.porcion_nombre ?? 'porción')}</button>` : ''}
-              ${it.paquete ? `<button type="button" class="chip chip--mini" data-todo="${i}">Todo (${g(it.paquete.gramos_restantes)})</button>` : ''}
-            </div>
-          </div>
-          <label class="item-comida__gramos"><input type="number" inputmode="decimal" min="1" step="1" value="${Math.round(it.gramos)}" data-gramos="${i}" aria-label="Gramos de ${esc(it.alimento.nombre)}"> g</label>
-          <button type="button" class="item-comida__quitar" data-quitar="${i}" aria-label="Quitar ${esc(it.alimento.nombre)}">×</button>
-        </div>`;
-    }).join('');
-    const total = sumar(items.map((it) => macros(it.alimento, it.gramos)));
-    const fr = fracciones();
-    if (reparto) {
-      d.querySelector('#r-yo').textContent = `Yo ${reparto.value}% · ${kc(total.kcal * reparto.value / 100)} kcal`;
-      d.querySelector('#r-otro').textContent = `${otro.nombre} ${100 - reparto.value}% · ${kc(total.kcal * (100 - reparto.value) / 100)} kcal`;
-    }
-    d.querySelector('#total').innerHTML = items.length ? `
-      <strong>Total ${kc(total.kcal)} kcal</strong> · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}
-      ${fr.length > 1 ? '' : `<span class="quieto"> · para ${esc(fr[0][0] === estado.yo.id ? 'mí' : otro.nombre)}</span>`}` : '';
-    d.querySelector('#guardar').disabled = !items.length;
-    cont.querySelectorAll('[data-gramos]').forEach((inp) => inp.addEventListener('change', () => {
-      const v = Number(inp.value);
-      items[Number(inp.dataset.gramos)].gramos = v > 0 ? v : 1;
-      pintar();
-    }));
-    cont.querySelectorAll('[data-quitar]').forEach((b) => b.addEventListener('click', () => { items.splice(Number(b.dataset.quitar), 1); pintar(); }));
-    cont.querySelectorAll('[data-mas]').forEach((b) => b.addEventListener('click', () => {
-      const it = items[Number(b.dataset.mas)];
-      it.gramos = (it.sinTocar ? 0 : it.gramos) + Number(it.alimento.porcion_g);
-      it.sinTocar = false;
-      pintar();
-    }));
-    cont.querySelectorAll('[data-todo]').forEach((b) => b.addEventListener('click', () => {
-      const it = items[Number(b.dataset.todo)];
-      it.gramos = Number(it.paquete.gramos_restantes);
-      pintar();
-    }));
-  };
-
-  panelBuscar(d.querySelector('#buscar'), {
-    despensa: ctx.despensa,
-    conFoto: true,
-    alElegir: (alimento, paquete, gramosFoto) => {
-      const gramos = gramosFoto ?? (paquete ? Number(paquete.gramos_restantes) : Number(alimento.porcion_g ?? 100));
-      items.push({ alimento, gramos, paquete, sinTocar: !paquete && gramosFoto == null });
-      d.querySelector('#ba-q').value = '';
-      d.querySelector('#ba-q').dispatchEvent(new Event('input'));
-      d.querySelector('#ba-form').hidden = true;
-      pintar();
-    },
-  });
-  pintar();
-
-  d.querySelector('form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!items.length) return;
-    const boton = d.querySelector('#guardar');
-    boton.disabled = true;
-    const ahora = new Date();
-    try {
-      const comida = datos(await sb.from('comidas').insert({
-        hogar_id: estado.yo.hogar_id,
-        fecha: ctx.fecha,
-        momento: valorChips(d.querySelector('#momento')) ?? momentoPorHora(),
-        hora: ctx.esHoy ? `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}` : null,
-        descripcion: d.querySelector('#descripcion').value.trim() || null,
-        creada_por: estado.yo.id,
-      }).select('id').single());
-      datos(await sb.from('comida_items').insert(items.map((it) => ({
-        comida_id: comida.id, alimento_id: it.alimento.id, gramos: Math.round(it.gramos * 10) / 10, despensa_id: it.paquete?.id ?? null,
-      }))));
-      const total = sumar(items.map((it) => macros(it.alimento, it.gramos)));
-      const r1 = (n) => Math.round(n * 10) / 10;
-      datos(await sb.from('porciones').insert(fracciones().map(([persona, f]) => ({
-        comida_id: comida.id, persona_id: persona, fraccion: Math.round(f * 1000) / 1000,
-        kcal: r1(total.kcal * f), proteina_g: r1(total.proteina * f), carbohidratos_g: r1(total.carbos * f), grasas_g: r1(total.grasas * f),
-      }))));
-      // Lo usado sale de la despensa.
-      for (const it of items.filter((x) => x.paquete)) {
-        const quedan = Math.max(0, Number(it.paquete.gramos_restantes) - it.gramos);
-        await sb.from('despensa').update({ gramos_restantes: quedan, terminado_en: quedan < 1 ? new Date().toISOString() : null }).eq('id', it.paquete.id);
-      }
-      d.close();
-      aviso(`Registrado: ${kc(total.kcal)} kcal.`);
-      ctx.recargar();
-    } catch (err) {
-      avisoError(err);
-      boton.disabled = false;
-    }
-  });
-}
-
-function dialogoDetalle(c, ctx) {
-  const total = sumar(c.comida_items.map((i) => macros(i.alimento, i.gramos)));
-  const d = abrirDialogo(`
-    <div class="dialogo">
-      <h2 class="tarjeta__titulo">${esc(MOMENTOS[c.momento] ?? c.momento)}${c.hora ? ` · ${esc(c.hora.slice(0, 5))}` : ''}</h2>
-      ${c.descripcion ? `<p class="quieto" style="margin:-8px 0 0">${esc(c.descripcion)}</p>` : ''}
-      <ul class="lista-ajustes">
-        ${c.comida_items.map((i) => `<li>${esc(i.alimento.nombre)} <span>${g(i.gramos)} · ${kc(macros(i.alimento, i.gramos).kcal)} kcal</span></li>`).join('')}
-      </ul>
-      <p style="margin:0"><strong>Total ${kc(total.kcal)} kcal</strong> · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}</p>
-      <div class="pila" style="gap:4px">
-        ${c.porciones.map((x) => `<p class="quieto" style="margin:0">${esc(x.persona_id === estado.yo.id ? 'Yo' : nombrePersona(x.persona_id))}: ${Math.round(Number(x.fraccion) * 100)}% · ${kc(x.kcal)} kcal · ${Math.round(x.proteina_g)} g de proteína</p>`).join('')}
-      </div>
-      <div class="dialogo__pie">
-        <button type="button" class="boton boton--peligro" id="borrar" style="margin-right:auto">Eliminar</button>
-        <button type="button" class="boton boton--sec" data-cerrar>Cerrar</button>
-      </div>
-    </div>`, 'Detalle de la comida');
-  d.querySelector('#borrar').addEventListener('click', async () => {
-    try {
-      // Lo que salió de la despensa vuelve.
-      for (const i of c.comida_items.filter((x) => x.despensa_id)) {
-        const p = datos(await sb.from('despensa').select('gramos_restantes, gramos_total').eq('id', i.despensa_id).maybeSingle());
-        if (p) await sb.from('despensa').update({ gramos_restantes: Math.min(Number(p.gramos_total), Number(p.gramos_restantes) + Number(i.gramos)), terminado_en: null }).eq('id', i.despensa_id);
-      }
-      datos(await sb.from('comidas').delete().eq('id', c.id));
-      d.close();
-      aviso('Comida eliminada.');
-      ctx.recargar();
-    } catch (err) { avisoError(err); }
-  });
-}
-
-// ---------- Despensa ----------
 
 function dialogoPaquete(ctx) {
   let elegido = null;
@@ -690,7 +608,6 @@ function dialogoEditarPaquete(x, ctx) {
   });
 }
 
-// ---------- Objetivo ----------
 
 function dialogoObjetivo(actual, alGuardar) {
   const d = abrirDialogo(`

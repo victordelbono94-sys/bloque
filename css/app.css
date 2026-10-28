@@ -921,3 +921,68 @@ input[type="range"] { accent-color: var(--volt); width: 100%; min-height: 32px; 
 .ba__item--foto { cursor: default; }
 .ba__fila input { min-width: 0; }
 .ba__fila .boton { flex-shrink: 0; min-width: 48px; padding: 0; }
+
+/* =====================================================================
+   Comida: pestañas, registro rápido, ideas, semana y despensa
+   ===================================================================== */
+.segmentos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 14px; background: var(--grafito); margin-bottom: 14px; }
+.segmentos__item { text-align: center; padding: 10px 0; border-radius: 10px; color: var(--gris); text-decoration: none; font-weight: 600; font-size: 15px; transition: background-color 0.2s ease, color 0.2s ease; }
+.segmentos__item[aria-current="page"] { background: var(--grafito-2); color: var(--tiza); }
+
+.rapido { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.rapido__fila { display: flex; gap: 8px; }
+.rapido__fila input[type="text"], .rapido__fila input:not([type]) { flex: 1; min-width: 0; min-height: 48px; padding: 10px 14px; border-radius: var(--radio-chico); border: 1px solid var(--linea); background: var(--asfalto); font-size: 16px; }
+.rapido__fila .boton { flex-shrink: 0; min-height: 48px; }
+.frecuentes { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.frecuentes::-webkit-scrollbar { display: none; }
+.frecuentes .chip { flex-shrink: 0; white-space: nowrap; }
+.frecuentes .chip .quieto { font-size: 12px; margin-left: 2px; }
+.chips--scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.chips--scroll::-webkit-scrollbar { display: none; }
+.chips--scroll .chip { flex-shrink: 0; }
+.chip--activo { border-color: var(--volt); color: var(--volt); }
+.icono { vertical-align: -3px; }
+.boton .icono { width: 18px; height: 18px; }
+
+.registro__entrada { display: flex; flex-direction: column; gap: 8px; }
+.registro__entrada textarea, .area { width: 100%; min-height: 56px; padding: 12px 14px; border-radius: var(--radio-chico); border: 1px solid var(--linea); background: var(--asfalto); font-size: 16px; resize: vertical; line-height: 1.35; }
+.registro__botones { display: flex; gap: 8px; }
+.registro__botones .boton--icono { min-width: 48px; padding: 0; }
+.registro__estado { margin: 0; font-size: 14px; color: var(--volt); }
+.registro__opciones { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; border-top: 1px solid var(--grafito-2); }
+.registro .chip--mini { min-height: 34px; }
+.registro .item-comida { grid-template-columns: minmax(0, 1fr) auto auto; }
+.registro .item-comida__info .chip { align-self: flex-start; margin-top: 4px; }
+.paso-mini { display: flex; align-items: center; gap: 2px; background: var(--grafito); border-radius: 10px; padding: 2px; }
+.paso-mini button { width: 32px; height: 36px; border: 0; background: none; color: var(--tiza); cursor: pointer; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+.paso-mini button:active { background: var(--grafito-2); }
+.paso-mini input { width: 52px; min-height: 36px; border: 0; background: none; text-align: center; font-size: 16px; font-variant-numeric: tabular-nums; padding: 0; }
+
+.comida-fila__kcal { font-family: var(--titulo); font-stretch: 112%; font-weight: 800; }
+.comida-fila__items { list-style: none; margin: 8px 0 10px; padding: 0; display: flex; flex-direction: column; gap: 3px; color: var(--tiza-2); font-size: 15px; }
+.comida-fila__editar { margin-left: auto; color: var(--volt); font-weight: 600; }
+.comida-fila__porciones { align-items: center; }
+
+.snacks-mas summary, .idea details summary { cursor: pointer; color: var(--volt); font-weight: 600; font-size: 14px; }
+.idea { padding: 14px; border-radius: 14px; background: var(--asfalto); display: flex; flex-direction: column; gap: 6px; }
+.idea__porque, .idea__macros { margin: 0; font-size: 14px; }
+.idea__ingredientes { margin: 0; padding-left: 18px; font-size: 14px; display: flex; flex-direction: column; gap: 2px; }
+.idea__pasos { margin: 6px 0 0; font-size: 14px; color: var(--tiza-2); }
+.idea .boton { align-self: flex-start; margin-top: 4px; }
+.etiqueta--mini { height: 20px; padding: 0 7px; font-size: 11px; background: rgba(198, 244, 50, 0.15); color: var(--volt); }
+
+.semana-dia { display: flex; align-items: center; gap: 14px; color: inherit; text-decoration: none; padding: 12px 16px; }
+.pila > .semana-dia { margin: 0; }
+.semana-dia__fecha { display: flex; flex-direction: column; align-items: center; width: 40px; font-size: 12px; color: var(--gris); text-transform: uppercase; }
+.semana-dia__fecha strong { font-family: var(--titulo); font-stretch: 112%; font-size: 20px; color: var(--tiza); }
+.semana-dia__datos { flex: 1; min-width: 0; font-size: 14px; }
+.semana-dia__barra { height: 6px; margin-top: 8px; }
+.semana-dia__barra--bajo span { background: var(--ambar); }
+.semana-dia__barra--alto span { background: #FFB86B; }
+
+.revision { display: flex; flex-direction: column; gap: 6px; }
+.revision__fila { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; row-gap: 4px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--asfalto); cursor: pointer; }
+.revision__fila input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--volt); grid-row: span 2; }
+.revision__nombre { font-size: 15px; }
+.revision__cant { display: flex; align-items: center; gap: 6px; color: var(--gris); font-size: 14px; }
+.revision__cant input { width: 64px; min-height: 36px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--linea); background: var(--grafito); text-align: center; font-size: 15px; }
