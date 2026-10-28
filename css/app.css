@@ -798,3 +798,8 @@ span.serie--hecha { opacity: 0.85; }
 @media (prefers-reduced-motion: reduce) { .sello-hoy__punto, .luz--on { animation: none; } }
 .checkin[hidden] { display: none; }
 .pila > .tarjeta + .tarjeta { margin-top: 0; }
+/* Entrenos del reloj en el plan */
+.plan__reloj { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--tiza-2); margin-top: -4px; }
+.plan__reloj .icono { width: 14px; height: 14px; color: var(--volt); }
+.plan__icono--reloj { background: transparent; box-shadow: inset 0 0 0 1.5px var(--volt); color: var(--volt); }
+.semaforo__estimado { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--tiza); background: rgba(21, 23, 28, 0.45); padding: 3px 9px; border-radius: 999px; }

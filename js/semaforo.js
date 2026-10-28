@@ -1,8 +1,9 @@
-// Semáforo básico de fatiga.
-// Por ahora usa el check-in del día y lo que hizo cada uno ayer y hoy según el
-// calendario. Cuando lleguen los datos de la banda (sueño, frecuencia cardiaca,
-// calorías) se suman a este cálculo.
+// Semáforo de fatiga: cómo te sientes, el sueño, y la carga de ayer y de hoy.
+// La carga sale de lo agendado y de todo lo que registró el reloj: lo que coincide
+// con un evento (el gym, el derby) se cuenta una vez; lo demás (caminar, correr,
+// escalar…) se suma aparte.
 import { incluyeA } from './eventos.js';
+import { emparejar, cargaSesion, nombresSesiones } from './actividades.js';
 
 const CARGA = { derby: 2.5, gym: 1.5, clase: 1, descanso: 0 };
 
@@ -21,10 +22,11 @@ export const SEMAFORO = {
  * @param {Array} p.extrasAyer actividades extra de ayer de la persona
  * @param {string} p.personaId
  * @param {number|null} [p.suenoMin] minutos dormidos anoche, según la banda
- * @param {Array} [p.bandaAyer] entrenos que registró la banda ayer ({ calorias })
+ * @param {Array} [p.bandaAyer] entrenos que registró el reloj ayer ({ tipo, inicio, fin, calorias })
+ * @param {Array} [p.bandaHoy] entrenos que registró el reloj hoy (ya hechos)
  * @returns {{semaforo: 'verde'|'ambar'|'rojo', motivo: string}}
  */
-export function calcularSemaforo({ cansancio, dolor, ayer, hoy, extrasAyer, personaId, suenoMin = null, bandaAyer = [] }) {
+export function calcularSemaforo({ cansancio, dolor, ayer, hoy, extrasAyer, personaId, suenoMin = null, bandaAyer = [], bandaHoy = [] }) {
   const motivos = [];
   let puntos = 0;
 
@@ -37,18 +39,34 @@ export function calcularSemaforo({ cansancio, dolor, ayer, hoy, extrasAyer, pers
     if (dolor >= 3) motivos.push(`dolor muscular ${dolor}/5`);
   }
 
-  // Carga de ayer: lo agendado da una estimación; si la banda registró los entrenos,
-  // se usa la mayor de las dos (no se suman: es el mismo esfuerzo medido dos veces).
+  // Carga de ayer: cada evento agendado vale su estimación, o lo que midió el reloj si
+  // lo registró (se usa el mayor: es el mismo esfuerzo). Los entrenos del reloj que no
+  // coinciden con nada agendado se suman aparte.
   const propiosAyer = ayer.filter((e) => incluyeA(e, personaId) && e.tipo !== 'descanso');
-  let cargaAgendada = 0;
-  for (const e of propiosAyer) cargaAgendada += CARGA[e.tipo] ?? 0;
-  for (const x of extrasAyer) cargaAgendada += x.intensidad >= 4 ? 2 : x.intensidad >= 3 ? 1 : 0.5;
+  const { pares, sueltas } = emparejar(propiosAyer, bandaAyer);
+  let cargaAyer = 0;
+  for (const e of propiosAyer) {
+    const s = pares.get(e);
+    cargaAyer += Math.max(CARGA[e.tipo] ?? 0, s ? cargaSesion(s) : 0);
+  }
+  for (const s of sueltas) cargaAyer += cargaSesion(s);
+  for (const x of extrasAyer) cargaAyer += x.intensidad >= 4 ? 2 : x.intensidad >= 3 ? 1 : 0.5;
+  puntos += cargaAyer;
   const kcalAyer = bandaAyer.reduce((a, s) => a + (s.calorias ?? 0), 0);
-  const cargaBanda = kcalAyer / 350; // un derby de unas 850 kcal ≈ 2,5
-  puntos += Math.max(cargaAgendada, cargaBanda);
-  const nombresAyer = [...new Set([...propiosAyer.map((e) => e.tipo), ...extrasAyer.map((x) => x.tipo)])];
-  if (nombresAyer.length) motivos.push(`${unir(nombresAyer)} ayer${kcalAyer ? ` (${kcalAyer} kcal)` : ''}`);
-  else if (kcalAyer >= 500) motivos.push(`${kcalAyer} kcal en entrenos ayer`);
+  const nombresAyer = [...new Set([...propiosAyer.map((e) => e.tipo), ...nombresSesiones(sueltas), ...extrasAyer.map((x) => x.tipo)])];
+  if (nombresAyer.length) motivos.push(`${unir(nombresAyer)} ayer${kcalAyer ? ` (${miles(kcalAyer)} kcal)` : ''}`);
+
+  // Lo que ya hiciste hoy también cansa (un trote de mañana antes del gym de la tarde).
+  const cargaHoy = bandaHoy.reduce((a, s) => a + cargaSesion(s), 0);
+  puntos += cargaHoy;
+  const kcalHoy = bandaHoy.reduce((a, s) => a + (s.calorias ?? 0), 0);
+  if (cargaHoy >= 0.5) {
+    // Lo que coincide con lo agendado se nombra como el evento (gym, derby).
+    const agendadosHoy = hoy.filter((e) => incluyeA(e, personaId) && e.tipo !== 'descanso');
+    const { pares: paresHoy, sueltas: sueltasHoy } = emparejar(agendadosHoy, bandaHoy);
+    const nombres = [...new Set([...[...paresHoy.keys()].map((e) => e.tipo), ...nombresSesiones(sueltasHoy)])];
+    motivos.push(`hoy ya: ${unir(nombres)}${kcalHoy ? ` (${miles(kcalHoy)} kcal)` : ''}`);
+  }
 
   // Sueño de anoche (banda)
   if (suenoMin != null && suenoMin > 0) {
@@ -92,6 +110,8 @@ function horas(min) {
   const h = Math.floor(min / 60), m = min % 60;
   return m ? `${h} h ${m} min` : `${h} h`;
 }
+
+const miles = (n) => Math.round(n).toLocaleString('es-EC');
 
 function unir(lista) {
   return lista.length < 2 ? lista[0] : `${lista.slice(0, -1).join(', ')} y ${lista.at(-1)}`;
