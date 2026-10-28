@@ -40,11 +40,15 @@ export function abrirRegistro(ctx, op = {}) {
   let quien0 = porciones.length === 1 ? (porciones[0].persona_id === estado.yo.id ? 'yo' : 'otro') : porciones.length > 1 ? 'juntos' : null;
   quien0 ??= leerQuien(momento0) ?? (['almuerzo', 'cena'].includes(momento0) && otro ? 'juntos' : 'yo');
   if (!otro) quien0 = 'yo';
-  const yoInfo = ctx.info[0], otroInfo = ctx.info.find((x) => x.p.id === otro?.id);
-  const pctMetas = yoInfo?.metas.ok && otroInfo?.metas.ok
-    ? Math.round((yoInfo.metas.kcal / (yoInfo.metas.kcal + otroInfo.metas.kcal)) * 20) * 5 : 50;
+  // Comidas viejas con un reparto distinto de la mitad: lo compartido pasa a renglones de cada uno.
   const mia = porciones.find((x) => x.persona_id === estado.yo.id);
-  const pct0 = porciones.length > 1 && mia ? Math.round(Number(mia.fraccion) * 100) : pctMetas;
+  if (porciones.length > 1 && mia && Math.abs(Number(mia.fraccion) - 0.5) > 0.01) {
+    const f = Number(mia.fraccion);
+    for (const it of items.filter((x) => !x.persona)) {
+      items.push({ ...it, persona: otro.id, gramos: it.gramos * (1 - f), paquete: null });
+      it.persona = estado.yo.id; it.gramos *= f;
+    }
+  }
 
   const d = abrirDialogo(`
     <form class="dialogo registro" novalidate>
@@ -64,11 +68,7 @@ export function abrirRegistro(ctx, op = {}) {
               <span class="quien__caras" aria-hidden="true"><span>${esc(inicial(otro))}</span></span>Solo ${esc(otro.nombre)}
             </button>
           </div>
-          <div class="quien__reparto" id="r-campo-reparto" ${quien0 === 'juntos' ? '' : 'hidden'}>
-            <div class="fila fila--entre"><span id="r-yo"></span><span id="r-otro"></span></div>
-            <input id="r-reparto" type="range" min="10" max="90" step="5" value="${pct0}" aria-label="Cuánto comió cada uno">
-            <p class="ayuda" style="margin:0">Reparte lo que marcaste «Los dos». Lo que es de uno solo ya cuenta solo para esa persona.</p>
-          </div>
+          <p class="ayuda quien__ayuda" id="r-ayuda-juntos" ${quien0 === 'juntos' ? '' : 'hidden'}>Lo que diga «Los dos» se reparte a la mitad. Si comieron distinto, toca «Separar» y pon cuánto comió cada uno.</p>
         </fieldset>` : ''}
 
       <div class="registro__entrada">
@@ -108,7 +108,6 @@ export function abrirRegistro(ctx, op = {}) {
   const $ = (s) => d.querySelector(s);
   const estadoEl = $('#r-estado');
   const quien = $('#r-quien');
-  const reparto = $('#r-reparto');
   grupoChips($('#r-momento'));
   if (quien) grupoChips(quien, () => pintar());
   const quienAhora = () => (quien ? valorChips(quien) : 'yo');
@@ -116,15 +115,13 @@ export function abrirRegistro(ctx, op = {}) {
     if (!quien) return;
     quien.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.valor === v)));
   };
-  reparto?.addEventListener('input', () => pintar());
 
   const mensaje = (t) => { estadoEl.hidden = !t; estadoEl.textContent = t ?? ''; };
   const fracciones = () => {
     const v = quienAhora();
     if (v === 'yo') return [[estado.yo.id, 1]];
     if (v === 'otro') return [[otro.id, 1]];
-    const f = Number(reparto.value) / 100;
-    return [[estado.yo.id, f], [otro.id, 1 - f]];
+    return [[estado.yo.id, 0.5], [otro.id, 0.5]];
   };
   const paqueteDe = (alimento) => ctx.despensa.find((p) => p.alimento_id === alimento.id && Number(p.gramos_restantes) > 0);
 
@@ -139,7 +136,9 @@ export function abrirRegistro(ctx, op = {}) {
           <div class="item-comida__info">
             <span class="item-comida__titulo">
               <strong>${esc(it.alimento.nombre)}</strong>
-              ${quienAhora() === 'juntos' ? `<button type="button" class="dueno dueno--${it.persona === estado.yo.id ? 'yo' : it.persona ? 'otro' : 'ambos'}" data-dueno="${i}" aria-label="De quién es: tocar para cambiar">${it.persona === estado.yo.id ? 'Yo' : it.persona ? esc(otro.nombre) : 'Los dos'}</button>` : ''}
+              ${quienAhora() === 'juntos' ? `
+                <button type="button" class="dueno dueno--${it.persona === estado.yo.id ? 'yo' : it.persona ? 'otro' : 'ambos'}" data-dueno="${i}" aria-label="De quién es: tocar para cambiar">${it.persona === estado.yo.id ? 'Solo yo' : it.persona ? `Solo ${esc(otro.nombre)}` : 'Los dos · mitad c/u'}</button>
+                ${!it.persona ? `<button type="button" class="dueno dueno--accion" data-separar="${i}">Separar</button>` : ''}` : ''}
             </span>
             <span class="quieto">${esc(cantidadTexto(it.alimento, it.gramos))}${cantidadTexto(it.alimento, it.gramos).endsWith(' g') ? '' : ` · ${g(it.gramos)}`} · ${kc(m.kcal)} kcal · P ${Math.round(m.proteina)}</span>
             ${paquete ? `<button type="button" class="chip chip--mini chip--activo" data-despensa="${i}">De la despensa ✓</button>`
@@ -157,14 +156,8 @@ export function abrirRegistro(ctx, op = {}) {
     const total = sumar(items.map((it) => macros(it.alimento, it.gramos)));
     const juntos = quienAhora() === 'juntos';
     const compartidos = items.filter((it) => !it.persona);
-    // La barra solo aparece si hay algo de los dos para repartir.
-    if (quien) $('#r-campo-reparto').hidden = !juntos || (items.length > 0 && !compartidos.length);
+    if (quien) $('#r-ayuda-juntos').hidden = !juntos;
     const porPersona = porciones2(items, fracciones());
-    if (reparto && juntos) {
-      const f = Number(reparto.value);
-      $('#r-yo').innerHTML = `<strong>Yo ${f}%</strong>`;
-      $('#r-otro').innerHTML = `<strong>${esc(otro.nombre)} ${100 - f}%</strong>`;
-    }
     $('#r-total').innerHTML = !items.length ? '' : juntos
       ? `<div class="total-personas">${porPersona.map(([id, m]) => `<span><strong>${id === estado.yo.id ? 'Yo' : esc(otro.nombre)}</strong> ${kc(m.kcal)} kcal · P ${Math.round(m.proteina)}</span>`).join('')}</div>`
       : `<strong>${kc(total.kcal)} kcal</strong> · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}`;
@@ -179,6 +172,14 @@ export function abrirRegistro(ctx, op = {}) {
     cont.querySelectorAll('[data-mas]').forEach((b) => b.addEventListener('click', () => { const it = items[Number(b.dataset.mas)]; it.gramos += paso(it); pintar(); }));
     cont.querySelectorAll('[data-menos]').forEach((b) => b.addEventListener('click', () => { const it = items[Number(b.dataset.menos)]; it.gramos = Math.max(1, it.gramos - paso(it)); pintar(); }));
     cont.querySelectorAll('[data-quitar]').forEach((b) => b.addEventListener('click', () => { items.splice(Number(b.dataset.quitar), 1); pintar(); }));
+    cont.querySelectorAll('[data-separar]').forEach((b) => b.addEventListener('click', () => {
+      // Un renglón para cada uno, con la mitad de partida; después se ajusta cada cantidad.
+      const k = Number(b.dataset.separar), it = items[k];
+      const mitad = Math.round(it.gramos / 2);
+      items.splice(k, 1, { ...it, persona: estado.yo.id, gramos: mitad }, { ...it, persona: otro.id, gramos: mitad, paquete: null });
+      pintar();
+      cont.querySelectorAll('[data-gramos]')[k]?.focus();
+    }));
     cont.querySelectorAll('[data-dueno]').forEach((b) => b.addEventListener('click', () => {
       // Los dos → Yo → el otro → Los dos
       const it = items[Number(b.dataset.dueno)];

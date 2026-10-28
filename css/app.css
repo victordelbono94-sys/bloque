@@ -1004,3 +1004,5 @@ input[type="range"] { accent-color: var(--volt); width: 100%; min-height: 32px; 
 .dueno--yo { background: var(--volt); color: var(--asfalto); }
 .dueno--otro { background: #7FD6FF; color: var(--asfalto); }
 .total-personas { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.dueno--accion { background: none; border: 1px solid var(--volt); color: var(--volt); }
+.quien__ayuda { margin: 0; }
