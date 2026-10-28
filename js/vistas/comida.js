@@ -133,9 +133,23 @@ async function vistaDia(app, fecha) {
 }
 
 function htmlComida(c) {
-  const lineas = c.comida_items.map((i) => {
-    const cant = cantidadTexto(i.alimento, Number(i.gramos));
-    return `${i.alimento.nombre} · ${cant}`;
+  const quienDe = (id) => (id === estado.yo.id ? 'Yo' : estado.personas.find((p) => p.id === id)?.nombre ?? '');
+  // Un renglón por alimento: lo compartido, lo igual para los dos ("c/u") o cuánto comió cada uno.
+  const grupos = new Map();
+  for (const i of c.comida_items) {
+    const gr = grupos.get(i.alimento.id) ?? { alimento: i.alimento, compartido: 0, personas: new Map() };
+    if (i.persona_id) gr.personas.set(i.persona_id, (gr.personas.get(i.persona_id) ?? 0) + Number(i.gramos));
+    else gr.compartido += Number(i.gramos);
+    grupos.set(i.alimento.id, gr);
+  }
+  const lineas = [...grupos.values()].map((gr) => {
+    const partes = [];
+    if (gr.compartido) partes.push(cantidadTexto(gr.alimento, gr.compartido));
+    const cada = [...gr.personas.entries()];
+    if (cada.length === 2 && Math.abs(cada[0][1] - cada[1][1]) < 1) partes.push(`${cantidadTexto(gr.alimento, cada[0][1])} c/u`);
+    else if (cada.length === 1) partes.push(`solo ${quienDe(cada[0][0]) === 'Yo' ? 'yo' : quienDe(cada[0][0])} ${cantidadTexto(gr.alimento, cada[0][1])}`);
+    else for (const [id, gramos] of cada) partes.push(`${quienDe(id)} ${cantidadTexto(gr.alimento, gramos)}`);
+    return `${gr.alimento.nombre} · ${partes.join(' · ')}`;
   });
   const total = sumar(c.comida_items.map((i) => macros(i.alimento, i.gramos)));
   return `
@@ -431,7 +445,7 @@ async function cargarDia(fecha) {
     sb.from('objetivos').select('*').in('persona_id', ids).order('desde', { ascending: false }).then(datos),
     sb.from('sesiones_banda').select('persona_id, calorias, inicio').in('persona_id', ids)
       .gte('inicio', desde.toISOString()).lte('inicio', hasta.toISOString()).then(datos),
-    sb.from('comidas').select('*, comida_items(id, gramos, despensa_id, alimento:alimentos(*)), porciones(*)')
+    sb.from('comidas').select('*, comida_items(id, gramos, despensa_id, persona_id, alimento:alimentos(*)), porciones(*)')
       .eq('hogar_id', hogar).eq('fecha', fecha).order('hora', { nullsFirst: true }).then(datos),
     sb.from('despensa').select('*, alimento:alimentos(*)').eq('hogar_id', hogar).is('terminado_en', null)
       .order('agregado_en', { ascending: false }).then(datos),

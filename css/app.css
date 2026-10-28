@@ -998,3 +998,9 @@ input[type="range"] { accent-color: var(--volt); width: 100%; min-height: 32px; 
 .quien__reparto { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 14px; background: var(--asfalto); font-size: 14px; }
 .quien__reparto strong { font-size: 15px; }
 .registro .item-comida__info .chip { white-space: nowrap; min-height: 30px; }
+.item-comida__titulo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dueno { border: 0; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.dueno--ambos { background: var(--grafito-2); color: var(--tiza-2); }
+.dueno--yo { background: var(--volt); color: var(--asfalto); }
+.dueno--otro { background: #7FD6FF; color: var(--asfalto); }
+.total-personas { display: flex; flex-wrap: wrap; gap: 6px 18px; }

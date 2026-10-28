@@ -146,13 +146,21 @@ export async function guardarComida(c) {
   }).select('id').single());
   datos(await sb.from('comida_items').insert(c.items.map((it) => ({
     comida_id: comida.id, alimento_id: it.alimento.id, gramos: Math.round(it.gramos * 10) / 10, despensa_id: it.paquete?.id ?? null,
+    persona_id: it.persona ?? null,
   }))));
   const total = sumar(c.items.map((it) => macros(it.alimento, it.gramos)));
+  // Cada uno: lo suyo + su parte (fracción) de lo compartido.
+  const compartido = sumar(c.items.filter((it) => !it.persona).map((it) => macros(it.alimento, it.gramos)));
   const r1 = (n) => Math.round(n * 10) / 10;
-  datos(await sb.from('porciones').insert(c.fracciones.map(([persona, f]) => ({
-    comida_id: comida.id, persona_id: persona, fraccion: Math.round(f * 1000) / 1000,
-    kcal: r1(total.kcal * f), proteina_g: r1(total.proteina * f), carbohidratos_g: r1(total.carbos * f), grasas_g: r1(total.grasas * f),
-  }))));
+  const filas = c.fracciones.map(([persona, f]) => {
+    const propio = sumar(c.items.filter((it) => it.persona === persona).map((it) => macros(it.alimento, it.gramos)));
+    const m = { kcal: propio.kcal + compartido.kcal * f, proteina: propio.proteina + compartido.proteina * f, carbos: propio.carbos + compartido.carbos * f, grasas: propio.grasas + compartido.grasas * f };
+    return {
+      comida_id: comida.id, persona_id: persona, fraccion: Math.round(f * 1000) / 1000,
+      kcal: r1(m.kcal), proteina_g: r1(m.proteina), carbohidratos_g: r1(m.carbos), grasas_g: r1(m.grasas),
+    };
+  }).filter((x) => x.kcal > 0 || x.fraccion > 0);
+  datos(await sb.from('porciones').insert(filas));
   for (const it of c.items.filter((x) => x.paquete)) {
     const p = datos(await sb.from('despensa').select('gramos_restantes').eq('id', it.paquete.id).maybeSingle());
     if (!p) continue;

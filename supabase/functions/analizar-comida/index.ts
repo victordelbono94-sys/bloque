@@ -42,6 +42,23 @@ const ESQ_ALIMENTOS = {
   },
   required: ["alimentos"],
 };
+const ESQ_TEXTO = {
+  type: "OBJECT",
+  properties: {
+    alimentos: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          nombre: { type: "STRING" }, cantidad_yo: { type: "STRING" }, cantidad_otro: { type: "STRING" },
+          gramos_yo: { type: "NUMBER" }, gramos_otro: { type: "NUMBER" }, ...NUTRIENTES,
+        },
+        required: ["nombre", "gramos_yo", "gramos_otro", ...REQ_NUT],
+      },
+    },
+  },
+  required: ["alimentos"],
+};
 const ESQ_DESPENSA = {
   type: "OBJECT",
   properties: {
@@ -92,10 +109,13 @@ Identifica cada alimento por separado y estima los gramos que se ven (si hay var
 Da valores nutricionales por 100 g tal como está servido. Nombres simples en español
 ("Arroz blanco cocido", "Pechuga de pollo cocida", "Plátano maduro frito"). En "cantidad" pon algo legible
 ("1 plato", "2 presas"). Si no ves comida, lista vacía.`,
-  texto: `Eres nutricionista. Interpreta lo que la persona escribió que comió o tomó, en Ecuador.
-Separa cada alimento, estima los gramos totales de cada uno y da sus valores por 100 g tal como se comió.
-Si dice "en tortilla" o "revuelto", trátalo como preparado con un poco de aceite (agrega el aceite aparte, 5-10 g).
-Si dice "café con leche", separa café y leche. En "cantidad" pon lo que dijo en palabras ("3 huevos", "1 taza").
+  texto: `Eres nutricionista. Interpreta lo que comieron o tomaron, en Ecuador. Puede ser una sola persona o dos.
+Separa cada alimento y di cuántos gramos comió CADA persona: gramos_yo (quien escribe) y gramos_otro (la otra persona);
+pon 0 si esa persona no lo comió. "Yo", "mi", "me" = quien escribe. "Él", "ella" o el nombre de la otra persona = la otra.
+"Ambos", "los dos" o "comimos" sin separar = los dos; si dan un total compartido (ej. "6 huevos entre los dos") repártelo
+en partes iguales salvo que digan otra cosa. Si solo habla de una persona, la otra va en 0.
+Si dice "en tortilla" o "revuelto", agrega aceite aparte (5-10 g por persona). "Café con leche" = café y leche por separado.
+En cantidad_yo / cantidad_otro pon lo que corresponde en palabras ("3 huevos", "1 taza"). Valores por 100 g tal como se comió.
 ${PORCIONES}`,
   despensa: `Eres asistente de cocina en Ecuador. Del texto o la foto (compras, alacena, refrigeradora o ticket),
 lista los productos de comida. Para cada uno: nombre genérico en español (ej. "Fideos secos (pasta)",
@@ -109,7 +129,7 @@ y los entrenos (antes de entrenar: carbohidratos fáciles y poca grasa; después
 Da gramos de cada ingrediente para UNA persona y valores por 100 g. "por_que" en una línea; "pasos" en dos o tres frases.
 Todo en español de Ecuador.`,
 };
-const ESQUEMAS: Record<string, unknown> = { foto: ESQ_ALIMENTOS, texto: ESQ_ALIMENTOS, despensa: ESQ_DESPENSA, ideas: ESQ_IDEAS };
+const ESQUEMAS: Record<string, unknown> = { foto: ESQ_ALIMENTOS, texto: ESQ_TEXTO, despensa: ESQ_DESPENSA, ideas: ESQ_IDEAS };
 
 // La clave: primero el secreto de la función; si no está, la tabla privada (solo service role).
 async function leerClave(): Promise<string | null> {
@@ -171,6 +191,15 @@ function limpiar(modo: string, d: Record<string, unknown>) {
       })),
     };
   }
+  if (modo === "texto") {
+    return {
+      alimentos: lista(d.alimentos, 16).map((a) => ({
+        nombre: texto(a.nombre, 120) || "Alimento",
+        gramos_yo: num(a.gramos_yo, 0, 2000), gramos_otro: num(a.gramos_otro, 0, 2000),
+        ...nutrientes(a),
+      })).filter((a) => a.gramos_yo > 0 || a.gramos_otro > 0),
+    };
+  }
   return {
     descripcion: texto(d.descripcion, 200),
     alimentos: lista(d.alimentos, 12).map((a) => ({
@@ -183,7 +212,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "metodo" }, 405);
 
-  let cuerpo: { modo?: string; imagen?: string; tipo?: string; texto?: string; contexto?: unknown; nota?: string };
+  let cuerpo: { modo?: string; imagen?: string; tipo?: string; texto?: string; contexto?: unknown; nota?: string; personas?: { yo?: string; otro?: string } };
   try { cuerpo = await req.json(); } catch { return json({ error: "formato" }, 400); }
   if (!esUsuario(req)) return json({ error: "sesion" }, 401);
 
@@ -199,7 +228,11 @@ Deno.serve(async (req) => {
     partes.push({ inline_data: { mime_type: tipo, data: imagen } });
   }
   const escrito = texto(cuerpo.texto ?? cuerpo.nota, 1500);
-  if (escrito) partes.push({ text: `${modo === "texto" ? "Lo que comió" : "Texto"}: ${escrito}` });
+  if (modo === "texto") {
+    const yo = texto(cuerpo.personas?.yo, 40) || "quien escribe", otro = texto(cuerpo.personas?.otro, 40);
+    partes.push({ text: otro ? `Quien escribe se llama ${yo}. La otra persona se llama ${otro}.` : `Quien escribe se llama ${yo}. No hay otra persona: gramos_otro siempre 0.` });
+  }
+  if (escrito) partes.push({ text: `${modo === "texto" ? "Lo que comieron" : "Texto"}: ${escrito}` });
   if (modo === "ideas") partes.push({ text: `Contexto: ${JSON.stringify(cuerpo.contexto ?? {}).slice(0, 6000)}` });
   if (modo === "foto" && !imagen) return json({ error: "imagen" }, 400);
   if (modo === "texto" && !escrito) return json({ error: "texto" }, 400);
