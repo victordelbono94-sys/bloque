@@ -406,23 +406,9 @@ dialog::backdrop { background: rgba(10, 11, 14, 0.7); }
 }
 .chip.pop { animation: pop 0.28s var(--resorte); }
 
-/* Menú inferior: el ícono activo sube y aparece una marca volt. */
-.nav__item { position: relative; }
+/* Menú inferior: el ícono activo sube un poco. */
 .nav__item svg { transition: transform 0.25s var(--resorte); }
 .nav__item[aria-current="page"] svg { transform: translateY(-2px) scale(1.08); }
-.nav__item::after {
-  content: '';
-  position: absolute;
-  top: 6px;
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--volt);
-  opacity: 0;
-  transform: scale(0);
-  transition: opacity 0.2s ease, transform 0.3s var(--resorte);
-}
-.nav__item[aria-current="page"]::after { opacity: 1; transform: scale(1); }
 .nav:not([hidden]) { animation: subir-nav 0.4s var(--suave) both; }
 @keyframes subir-nav { from { transform: translateY(100%); } to { transform: none; } }
 @media (min-width: 720px) {
