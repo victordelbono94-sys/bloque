@@ -227,6 +227,30 @@ function htmlPaquete(x) {
     </button>`;
 }
 
+const normalizar = (t) => (t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+// Achica la foto (máx. 1024 px) y la manda a la función que usa Gemini.
+async function analizarFoto(archivo) {
+  const imagen = await createImageBitmap(archivo);
+  const escala = Math.min(1, 1024 / Math.max(imagen.width, imagen.height));
+  const lienzo = document.createElement('canvas');
+  lienzo.width = Math.round(imagen.width * escala);
+  lienzo.height = Math.round(imagen.height * escala);
+  lienzo.getContext('2d').drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
+  const base64 = lienzo.toDataURL('image/jpeg', 0.82).split(',')[1];
+  const { data, error } = await sb.functions.invoke('analizar-comida', { body: { imagen: base64, tipo: 'image/jpeg' } });
+  if (error) {
+    let codigo = null;
+    try { codigo = (await error.context?.json?.())?.error; } catch { /* sin detalle */ }
+    throw new Error({
+      sin_clave: 'Falta conectar Gemini (la clave gratis). Mientras tanto, busca o escanea.',
+      limite: 'Gemini llegó al límite gratis por ahora. Prueba en un minuto.',
+      imagen: 'La foto es muy pesada o no se pudo leer.',
+    }[codigo] ?? 'No se pudo analizar la foto. Revisa la conexión.');
+  }
+  return data?.alimentos ?? [];
+}
+
 function unir(l) { return l.length < 2 ? l[0] : `${l.slice(0, -1).join(', ')} y ${l.at(-1)}`; }
 
 // ---------- Buscar un alimento (catálogo, Open Food Facts, código, a mano) ----------
@@ -234,13 +258,18 @@ function unir(l) { return l.length < 2 ? l[0] : `${l.slice(0, -1).join(', ')} y 
 /**
  * Panel de búsqueda dentro de un diálogo.
  * @param {HTMLElement} cont
- * @param {{ despensa?: Array, alElegir: (alimento, paquete) => void }} op
+ * @param {{ despensa?: Array, conFoto?: boolean, alElegir: (alimento, paquete, gramos?) => void }} op
  */
-function panelBuscar(cont, { despensa = [], alElegir }) {
+function panelBuscar(cont, { despensa = [], conFoto = false, alElegir }) {
   cont.innerHTML = `
     <div class="ba">
       <div class="ba__fila">
         <input type="search" id="ba-q" autocomplete="off" placeholder="Buscar: arroz, huevo, avena Quaker…" aria-label="Buscar alimento">
+        ${conFoto ? `
+          <button type="button" class="boton boton--sec boton--icono" id="ba-foto" aria-label="Foto de la comida (Gemini)">
+            <svg class="icono" viewBox="0 0 24 24" style="width:22px;height:22px"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          </button>
+          <input type="file" id="ba-archivo" accept="image/*" hidden>` : ''}
         <button type="button" class="boton boton--sec boton--icono" id="ba-escanear" aria-label="Escanear código de barras">
           <svg class="icono" viewBox="0 0 24 24" style="width:22px;height:22px"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M7 8v8M10 8v8M13 8v8M16.5 8v8"/></svg>
         </button>
@@ -345,6 +374,42 @@ function panelBuscar(cont, { despensa = [], alElegir }) {
     f.querySelector('#m-nombre').focus();
   };
   cont.querySelector('#ba-crear').addEventListener('click', () => formulario('', q.value.trim()));
+
+  // Foto: Gemini reconoce los alimentos y estima gramos; revisas y agregas.
+  const archivo = cont.querySelector('#ba-archivo');
+  cont.querySelector('#ba-foto')?.addEventListener('click', () => archivo.click());
+  archivo?.addEventListener('change', async () => {
+    const f = archivo.files?.[0];
+    archivo.value = '';
+    if (!f) return;
+    ++pedido;
+    res.innerHTML = '<p class="quieto ba__vacio">Mirando la foto con Gemini…</p>';
+    try {
+      const encontrados = await analizarFoto(f);
+      if (!encontrados.length) { res.innerHTML = '<p class="quieto ba__vacio">No reconocí comida en la foto. Prueba con otra más cerca o búscala a mano.</p>'; return; }
+      res.innerHTML = `
+        <p class="ba__grupo">Gemini ve esto · revisa los gramos después</p>
+        ${encontrados.map((a) => `<div class="ba__item ba__item--foto"><span><strong>${esc(a.nombre)}</strong> <span class="quieto">· ${g(a.gramos)}</span></span><span class="quieto">${kc(a.kcal * a.gramos / 100)} kcal · P ${Math.round(a.proteina_g * a.gramos / 100)} · C ${Math.round(a.carbohidratos_g * a.gramos / 100)} · G ${Math.round(a.grasas_g * a.gramos / 100)}</span></div>`).join('')}
+        <button type="button" class="boton boton--chico" id="ba-foto-agregar">Agregar ${encontrados.length === 1 ? 'este alimento' : `los ${encontrados.length}`}</button>`;
+      res.querySelector('#ba-foto-agregar').addEventListener('click', async (e) => {
+        e.target.disabled = true;
+        try {
+          for (const a of encontrados) {
+            // Si ya existe uno con el mismo nombre (base o de una foto anterior), se usa ese.
+            const parecidos = await buscarEnCatalogo(a.nombre);
+            const igual = parecidos.find((x) => normalizar(x.nombre) === normalizar(a.nombre));
+            const alimento = igual ?? await guardarAlimento({
+              nombre: a.nombre, kcal: a.kcal, proteina_g: a.proteina_g, carbohidratos_g: a.carbohidratos_g, grasas_g: a.grasas_g, origen: 'gemini',
+            });
+            alElegir(alimento, null, a.gramos);
+          }
+          res.innerHTML = '';
+        } catch (err) { avisoError(err); e.target.disabled = false; }
+      });
+    } catch (err) {
+      res.innerHTML = `<p class="quieto ba__vacio">${esc(err.message)}</p>`;
+    }
+  });
   cont.querySelector('#ba-escanear').addEventListener('click', async () => {
     const codigo = await escanearCodigo();
     if (!codigo) return;
@@ -465,9 +530,10 @@ function dialogoComida(ctx) {
 
   panelBuscar(d.querySelector('#buscar'), {
     despensa: ctx.despensa,
-    alElegir: (alimento, paquete) => {
-      const gramos = paquete ? Number(paquete.gramos_restantes) : Number(alimento.porcion_g ?? 100);
-      items.push({ alimento, gramos, paquete, sinTocar: !paquete });
+    conFoto: true,
+    alElegir: (alimento, paquete, gramosFoto) => {
+      const gramos = gramosFoto ?? (paquete ? Number(paquete.gramos_restantes) : Number(alimento.porcion_g ?? 100));
+      items.push({ alimento, gramos, paquete, sinTocar: !paquete && gramosFoto == null });
       d.querySelector('#ba-q').value = '';
       d.querySelector('#ba-q').dispatchEvent(new Event('input'));
       d.querySelector('#ba-form').hidden = true;

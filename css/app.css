@@ -918,3 +918,6 @@ input[type="range"] { accent-color: var(--volt); width: 100%; min-height: 32px; 
 .escaner video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .escaner__linea { position: absolute; left: 10%; right: 10%; top: 50%; height: 2px; background: var(--volt); box-shadow: 0 0 12px var(--volt); animation: barrer 1.8s ease-in-out infinite alternate; }
 @keyframes barrer { from { transform: translateY(-60px); } to { transform: translateY(60px); } }
+.ba__item--foto { cursor: default; }
+.ba__fila input { min-width: 0; }
+.ba__fila .boton { flex-shrink: 0; min-width: 48px; padding: 0; }
