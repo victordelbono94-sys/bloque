@@ -634,7 +634,7 @@ function dialogoObjetivo(actual, alGuardar) {
             <strong>${esc(OBJETIVOS[f].nombre)}</strong>
             <span class="quieto">${{
               recomposicion: 'Proteína alta y un déficit chico (o comer a mantenimiento si ya tienes poca grasa).',
-              masa_muscular: 'Un poco por encima del gasto para construir músculo.',
+              masa_muscular: 'Comer por encima del gasto, con proteína alta, para subir de peso ganando músculo.',
               perder_grasa: 'Déficit más marcado, con proteína alta para no perder músculo.',
               mantenimiento: 'Comer lo que gastas.',
             }[f]}</span>

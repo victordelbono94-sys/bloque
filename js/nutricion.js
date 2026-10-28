@@ -23,7 +23,7 @@ const OTRO_POR_HORA = { caminar: 0.3, correr: 1.3, escalada: 1.2, trekking: 0.9,
 
 export const OBJETIVOS = {
   recomposicion: { nombre: 'Bajar grasa y ganar músculo', factor: 0.88, proteinaKg: 2.2 },
-  masa_muscular: { nombre: 'Ganar músculo', factor: 1.1, proteinaKg: 1.8 },
+  masa_muscular: { nombre: 'Ganar peso y músculo', factor: 1.1, proteinaKg: 2 },
   perder_grasa: { nombre: 'Bajar de peso', factor: 0.8, proteinaKg: 2.3 },
   mantenimiento: { nombre: 'Mantener', factor: 1, proteinaKg: 1.6 },
   cardio: { nombre: 'Mejorar cardio', factor: 1, proteinaKg: 1.6 },
