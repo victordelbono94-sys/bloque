@@ -77,9 +77,6 @@ async function vistaDia(app, fecha) {
     </header>
     ${pestanas('dia', fecha)}
 
-    ${htmlResumen(yo, true)}
-    ${info.slice(1).map((x) => htmlResumen(x, false)).join('')}
-
     <section class="tarjeta rapido" aria-label="Registrar rápido">
       <form class="rapido__fila" id="rapido">
         <input id="rapido-texto" autocomplete="off" maxlength="400" placeholder="¿Qué comiste? «2 huevos y un café»" aria-label="Qué comiste">
@@ -92,6 +89,11 @@ async function vistaDia(app, fecha) {
           ${frec.map((f, i) => `<button type="button" class="chip chip--mini" data-frec="${i}">+ ${esc(f.alimento.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, ''))}</button>`).join('')}
         </div>` : ''}
     </section>
+
+    ${htmlResumen(yo, true)}
+    ${info.slice(1).map((x) => htmlResumen(x, false)).join('')}
+
+
 
     ${esHoy ? `
       <section class="seccion" aria-labelledby="t-ahora">
@@ -124,7 +126,7 @@ async function vistaDia(app, fecha) {
   });
   app.querySelectorAll('[data-frec]').forEach((b) => b.addEventListener('click', () => {
     const f = frec[Number(b.dataset.frec)];
-    abrirRegistro(ctx, { items: [{ alimento: f.alimento, gramos: f.gramos }], momento: momentoPorHora() });
+    abrirRegistro(ctx, { items: [{ alimento: f.alimento, gramos: f.gramos }] });
   }));
   app.querySelectorAll('[data-comida]').forEach((b) => b.addEventListener('click', () =>
     abrirRegistro(ctx, { comida: d.comidas.find((c) => c.id === b.dataset.comida) })));
@@ -223,7 +225,7 @@ async function mostrarIdeas(ctx, cont, boton) {
         const paquete = a.de_despensa ? ctx.despensa.find((p) => p.alimento_id === alimento.id && Number(p.gramos_restantes) > 0) ?? null : null;
         items.push({ alimento, gramos: a.gramos, paquete });
       }
-      abrirRegistro(ctx, { items, momento: momentoPorHora() });
+      abrirRegistro(ctx, { items });
     } catch (err) { avisoError(err); }
     b.disabled = false;
   }));

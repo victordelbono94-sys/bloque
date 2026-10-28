@@ -7,7 +7,7 @@ import { hoyISO } from '../fechas.js';
 import { macros, sumar } from '../alimentos.js';
 import { panelBuscar } from './buscar.js';
 import {
-  MOMENTOS, momentoPorHora, kc, g, cantidadTexto, gemini, fotoBase64, aAlimento, guardarComida, borrarComida,
+  MOMENTOS, momentoPorHora, momentoSugerido, kc, g, cantidadTexto, gemini, fotoBase64, aAlimento, guardarComida, borrarComida,
 } from './comun.js';
 
 const ICONO = {
@@ -34,7 +34,8 @@ export function abrirRegistro(ctx, op = {}) {
     paquete: !op.repetir && i.despensa_id ? ctx.despensa.find((p) => p.id === i.despensa_id) ?? { id: i.despensa_id, gramos_restantes: 0 } : null,
   })) ?? []).map((x) => ({ ...x }));
 
-  const momento0 = op.momento ?? op.comida?.momento ?? momentoPorHora();
+  const sugerido = fecha === hoyISO() ? momentoSugerido(ctx.info?.[0]?.eventos ?? []) : null;
+  const momento0 = op.momento ?? op.comida?.momento ?? sugerido ?? momentoPorHora();
   // Quién comió: lo de la comida que se edita, o lo último que eligieron para ese momento.
   const porciones = op.comida?.porciones ?? [];
   let quien0 = porciones.length === 1 ? (porciones[0].persona_id === estado.yo.id ? 'yo' : 'otro') : porciones.length > 1 ? 'juntos' : null;
@@ -71,6 +72,13 @@ export function abrirRegistro(ctx, op = {}) {
           <p class="ayuda quien__ayuda" id="r-ayuda-juntos" ${quien0 === 'juntos' ? '' : 'hidden'}>Lo que diga «Los dos» se reparte a la mitad. Si comieron distinto, toca «Separar» y pon cuánto comió cada uno.</p>
         </fieldset>` : ''}
 
+      <fieldset class="cuando">
+        <legend>¿Cuándo?${!op.comida && !op.momento && sugerido ? ' <span class="quieto">· elegido por la hora</span>' : ''}</legend>
+        <div class="chips chips--scroll" id="r-momento" aria-label="Momento">
+          ${Object.entries(MOMENTOS).map(([v, t]) => `<button type="button" class="chip chip--mini" data-valor="${v}" aria-pressed="${v === momento0}">${t}</button>`).join('')}
+        </div>
+      </fieldset>
+
       <div class="registro__entrada">
         <textarea id="r-texto" rows="2" maxlength="600" placeholder="Escribe qué comieron: «yo 3 huevos y café; ${esc(otro?.nombre ?? 'él')} 2 huevos y leche» o «café con leche»">${esc(op.texto ?? '')}</textarea>
         <div class="registro__botones">
@@ -90,11 +98,6 @@ export function abrirRegistro(ctx, op = {}) {
 
       <div id="r-items" class="pila" style="gap:8px"></div>
 
-      <div class="registro__opciones">
-        <div class="chips chips--scroll" id="r-momento" aria-label="Momento">
-          ${Object.entries(MOMENTOS).map(([v, t]) => `<button type="button" class="chip chip--mini" data-valor="${v}" aria-pressed="${v === momento0}">${t}</button>`).join('')}
-        </div>
-      </div>
 
       <div class="comida-total" id="r-total"></div>
       <div class="dialogo__pie">
@@ -275,7 +278,7 @@ export function abrirRegistro(ctx, op = {}) {
   });
   $('#r-repetir')?.addEventListener('click', () => {
     d.close();
-    setTimeout(() => abrirRegistro(ctx, { comida: op.comida, repetir: true, momento: momentoPorHora() }), 200);
+    setTimeout(() => abrirRegistro(ctx, { comida: op.comida, repetir: true }), 200);
   });
 
   d.querySelector('form').addEventListener('submit', async (e) => {

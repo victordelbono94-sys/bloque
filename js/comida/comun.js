@@ -11,12 +11,35 @@ export const kc = (n) => Math.round(n).toLocaleString('es-EC');
 export const g = (n) => `${Math.round(n)} g`;
 export const normalizar = (t) => (t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
+// Por la hora: desayuno hasta 10:30, snack de media mañana hasta 12:00, almuerzo hasta 15:30,
+// merienda hasta 18:30, cena hasta 23:00 y snack de noche después.
 export function momentoPorHora(d = new Date()) {
   const m = d.getHours() * 60 + d.getMinutes();
-  if (m < 630) return 'desayuno';
-  if (m < 900) return 'almuerzo';
-  if (m < 1110) return 'merienda';
-  return 'cena';
+  if (m >= 300 && m < 630) return 'desayuno';
+  if (m >= 630 && m < 720) return 'snack';
+  if (m >= 720 && m < 930) return 'almuerzo';
+  if (m >= 930 && m < 1110) return 'merienda';
+  if (m >= 1110 && m < 1380) return 'cena';
+  return 'snack';
+}
+
+const DURACION = { derby: 120, gym: 60, otro: 60, clase: 60 };
+
+/**
+ * Momento sugerido: la hora, pero si falta poco para entrenar (hasta 90 min) es «antes de entrenar»
+ * y si acaba de terminar (hasta 2 h) es «después de entrenar».
+ */
+export function momentoSugerido(eventos = [], d = new Date()) {
+  const ahora = d.getHours() * 60 + d.getMinutes();
+  for (const e of eventos) {
+    // Solo con hora cargada: sin hora no sabemos si ya entrenaron.
+    if (!DURACION[e.tipo] || !e.hora_inicio || (e.tipo === 'otro' && ['caminar', 'yoga'].includes(e.actividad))) continue;
+    const [h, mm] = e.hora_inicio.slice(0, 5).split(':').map(Number);
+    const inicio = h * 60 + mm, fin = inicio + DURACION[e.tipo];
+    if (ahora >= inicio - 90 && ahora < inicio) return 'pre_entreno';
+    if (ahora >= fin && ahora <= fin + 120) return 'post_entreno';
+  }
+  return momentoPorHora(d);
 }
 
 // ---------- Cantidades legibles: "3 huevos", "1 taza", "200 g" ----------
