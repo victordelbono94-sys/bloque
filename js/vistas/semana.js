@@ -1,9 +1,9 @@
 // Pantalla Semana: calendario compartido de gym, derby, clases y descanso.
-// Cada evento va "Juntos" por defecto; "Solo" indica quién va.
+// Cada evento va para los dos por defecto ("Sant y yo"); "Solo" indica quién va.
 import { sb, estado, datos, otraPersona } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from '../ui.js';
 import { hoyISO, sumarDias, inicioSemana, rangoSemana, diaCorto, numeroDia, diaLargo, hora } from '../fechas.js';
-import { TIPOS, htmlEvento } from '../eventos.js';
+import { TIPOS, htmlEvento, textoJuntos } from '../eventos.js';
 
 export async function vistaSemana(app) {
   const param = location.hash.split('/')[2];
@@ -105,7 +105,7 @@ function dialogoEvento(ev, rutinas, alGuardar) {
       <fieldset class="campo" id="campo-asistencia">
         <legend>Quién va</legend>
         <div class="chips" id="asistencia">
-          <button type="button" class="chip" data-valor="juntos" aria-pressed="${asistenciaActual === 'juntos'}">Juntos</button>
+          <button type="button" class="chip" data-valor="juntos" aria-pressed="${asistenciaActual === 'juntos'}">${esc(textoJuntos())}</button>
           <button type="button" class="chip" data-valor="${esc(estado.yo.id)}" aria-pressed="${asistenciaActual === estado.yo.id}">Solo yo</button>
           ${otro ? `<button type="button" class="chip" data-valor="${esc(otro.id)}" aria-pressed="${asistenciaActual === otro.id}">Solo ${esc(otro.nombre)}</button>` : ''}
         </div>

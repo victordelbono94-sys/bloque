@@ -1,6 +1,6 @@
 // Textos compartidos para los eventos del calendario.
 import { esc } from './ui.js';
-import { estado, nombrePersona } from './db.js';
+import { estado, nombrePersona, otraPersona } from './db.js';
 import { hora } from './fechas.js';
 
 export const TIPOS = {
@@ -10,9 +10,15 @@ export const TIPOS = {
   descanso: 'Descanso',
 };
 
+// "Sant y yo" (o "Victor y yo" para Sant).
+export function textoJuntos() {
+  const otro = otraPersona();
+  return otro ? `${otro.nombre} y yo` : 'Juntos';
+}
+
 export function textoAsistencia(ev) {
   if (ev.tipo === 'descanso') return '';
-  if (ev.asistencia === 'juntos') return 'Juntos';
+  if (ev.asistencia === 'juntos') return textoJuntos();
   return ev.persona_id === estado.yo?.id ? 'Solo tú' : `Solo ${nombrePersona(ev.persona_id)}`;
 }
 

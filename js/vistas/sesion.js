@@ -89,7 +89,7 @@ export async function vistaSesion(app) {
       <div>
         <a href="#/hoy" class="boton boton--texto" style="padding:0;min-height:32px">‹ Hoy</a>
         <h1 class="titulo">${esc(rutina.nombre)}</h1>
-        <p class="subtitulo"><span id="transcurrido"></span> · ${participantes.map((p) => esc(p.id === estado.yo.id ? 'tú' : p.nombre)).join(' y ')}</p>
+        <p class="subtitulo"><span id="transcurrido"></span> · ${esc(participantes.length > 1 ? `${participantes.filter((p) => p.id !== estado.yo.id).map((p) => p.nombre).join(', ')} y yo` : (participantes[0]?.id === estado.yo.id ? 'Solo yo' : `Solo ${participantes[0]?.nombre ?? ''}`))}</p>
       </div>
     </header>
 

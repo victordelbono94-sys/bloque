@@ -114,7 +114,7 @@ function htmlPlan(ev, rutinas, sesiones) {
     </div>`;
 }
 
-// Botones para marcar el día sin ir a Semana. Va "Juntos", sin hora.
+// Botones para marcar el día sin ir a Semana. Va para los dos, sin hora.
 function conectarRapido(app, hoy) {
   app.querySelectorAll('#rapido .chip').forEach((chip) => chip.addEventListener('click', async () => {
     app.querySelectorAll('#rapido .chip').forEach((c) => { c.disabled = true; });
