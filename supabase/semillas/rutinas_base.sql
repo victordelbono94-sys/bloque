@@ -136,9 +136,9 @@ on conflict do nothing;
 -- Rutinas
 insert into public.rutinas (hogar_id, nombre, foco, autor, notas)
 select current_setting('bloque.hogar')::uuid, n, f, 'claude', t from (values
-  ('Trapecios y core', 'recuperacion', 'Lunes, día de derby: liviano y corto, sin piernas.'),
+  ('Core, estabilidad y lumbar', 'recuperacion', 'Lunes, día de derby: liviano y corto, sin piernas.'),
   ('Pecho, hombros y tríceps', 'masa_muscular', 'Martes: pesado.'),
-  ('Antebrazos, core y estabilidad', 'recuperacion', 'Miércoles, día de derby: liviano, enfocado en estabilidad para la pista.'),
+  ('Trapecios, core y antebrazos', 'recuperacion', 'Miércoles, día de derby: liviano. Trapecios, agarre y core para la pista.'),
   ('Piernas y glúteos', 'fuerza', 'Jueves: pesado. Dos noches de recuperación antes del derby del sábado.'),
   ('Espalda y bíceps', 'masa_muscular', 'Domingo: pesado.')
 ) as r(n, f, t);
@@ -147,11 +147,11 @@ select current_setting('bloque.hogar')::uuid, n, f, 'claude', t from (values
 insert into public.rutina_ejercicios (rutina_id, ejercicio_id, orden, series_base, reps_base, descanso_base)
 select r.id, e.id, x.o, x.s, x.re, x.d
 from (values
-  ('Trapecios y core', 'Encogimientos con mancuernas', 1, 3, 15, 60),
-  ('Trapecios y core', 'Face pull en polea', 2, 3, 15, 60),
-  ('Trapecios y core', 'Abdominal en máquina', 3, 3, 15, 45),
-  ('Trapecios y core', 'Plancha', 4, 3, 40, 45),
-  ('Trapecios y core', 'Lumbar en máquina', 5, 3, 12, 45),
+  ('Core, estabilidad y lumbar', 'Abdominal en máquina', 1, 3, 15, 45),
+  ('Core, estabilidad y lumbar', 'Pallof press en polea', 2, 3, 12, 45),
+  ('Core, estabilidad y lumbar', 'Plancha', 3, 3, 40, 45),
+  ('Core, estabilidad y lumbar', 'Lumbar en máquina', 4, 3, 12, 45),
+  ('Core, estabilidad y lumbar', 'Equilibrio a una pierna', 5, 3, 30, 30),
 
   ('Pecho, hombros y tríceps', 'Press de pecho en máquina', 1, 4, 8, 120),
   ('Pecho, hombros y tríceps', 'Press inclinado con mancuernas', 2, 3, 10, 90),
@@ -160,12 +160,12 @@ from (values
   ('Pecho, hombros y tríceps', 'Elevaciones laterales en máquina', 5, 3, 12, 60),
   ('Pecho, hombros y tríceps', 'Extensión de tríceps en polea', 6, 3, 12, 60),
 
-  ('Antebrazos, core y estabilidad', 'Curl de muñeca con mancuerna', 1, 3, 15, 45),
-  ('Antebrazos, core y estabilidad', 'Curl invertido en polea', 2, 3, 12, 45),
-  ('Antebrazos, core y estabilidad', 'Caminata de granjero', 3, 3, 40, 60),
-  ('Antebrazos, core y estabilidad', 'Pallof press en polea', 4, 3, 12, 45),
-  ('Antebrazos, core y estabilidad', 'Plancha lateral', 5, 3, 30, 45),
-  ('Antebrazos, core y estabilidad', 'Equilibrio a una pierna', 6, 3, 30, 30),
+  ('Trapecios, core y antebrazos', 'Encogimientos con mancuernas', 1, 3, 15, 60),
+  ('Trapecios, core y antebrazos', 'Face pull en polea', 2, 3, 15, 60),
+  ('Trapecios, core y antebrazos', 'Curl de muñeca con mancuerna', 3, 3, 15, 45),
+  ('Trapecios, core y antebrazos', 'Curl invertido en polea', 4, 3, 12, 45),
+  ('Trapecios, core y antebrazos', 'Caminata de granjero', 5, 3, 40, 60),
+  ('Trapecios, core y antebrazos', 'Plancha lateral', 6, 3, 30, 45),
 
   ('Piernas y glúteos', 'Prensa de piernas', 1, 4, 10, 150),
   ('Piernas y glúteos', 'Extensión de cuádriceps', 2, 3, 12, 75),
@@ -192,9 +192,9 @@ select current_setting('bloque.hogar')::uuid, d::date, x.tipo, 'juntos',
 from generate_series((now() at time zone 'America/Guayaquil')::date + 1,
                      (now() at time zone 'America/Guayaquil')::date + 28, interval '1 day') as d
 join (values
-  (1, 'gym', 'Trapecios y core'), (1, 'derby', null),
+  (1, 'gym', 'Core, estabilidad y lumbar'), (1, 'derby', null),
   (2, 'gym', 'Pecho, hombros y tríceps'),
-  (3, 'gym', 'Antebrazos, core y estabilidad'), (3, 'derby', null),
+  (3, 'gym', 'Trapecios, core y antebrazos'), (3, 'derby', null),
   (4, 'gym', 'Piernas y glúteos'),
   (5, 'descanso', null),
   (6, 'derby', null),
