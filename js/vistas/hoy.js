@@ -26,6 +26,19 @@ export async function vistaHoy(app) {
   const proximo = eventos.find((e) => e.fecha > hoy && e.tipo !== 'descanso');
   const contexto = { hoy, deAyer, deHoy, extrasAyer };
 
+  // Un check-in guardado sin semáforo (por ejemplo, de antes de que existiera)
+  // se calcula al abrir la pantalla.
+  const mio = estados.find((e) => e.persona_id === estado.yo.id);
+  if (mio && !mio.semaforo && (mio.cansancio != null || mio.dolor_muscular != null)) {
+    const r = calcularSemaforo({
+      cansancio: mio.cansancio, dolor: mio.dolor_muscular, ayer: deAyer, hoy: deHoy, extrasAyer, personaId: estado.yo.id,
+    });
+    const { error } = await sb.from('estado_diario')
+      .update({ ...r, calculado_en: new Date().toISOString() })
+      .eq('persona_id', estado.yo.id).eq('fecha', hoy);
+    if (!error) Object.assign(mio, r);
+  }
+
   app.innerHTML = `
     <header class="encabezado">
       <div>
