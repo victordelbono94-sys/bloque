@@ -19,11 +19,11 @@ concurrency:
 
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -52,7 +52,15 @@ jobs:
           FIRMA_CLAVE: ${{ secrets.FIRMA_CLAVE }}
           FIRMA_ALIAS: bloque
           VERSION_CODE: ${{ github.run_number }}
-        run: gradle assembleRelease --no-daemon --stacktrace
+        # Los errores se publican también como anotaciones, para poder leerlos sin el log completo.
+        run: |
+          set -o pipefail
+          if ! gradle assembleRelease --no-daemon 2>&1 | tee "$RUNNER_TEMP/gradle.log"; then
+            grep -E "^e: |^\* What went wrong|^> |Could not (find|resolve)|error:" "$RUNNER_TEMP/gradle.log" \
+              | grep -v "^> Task" | head -40 | sed -E 's/file:\/\/[^ ]*\/android\///' \
+              | while IFS= read -r linea; do echo "::error::${linea}"; done
+            exit 1
+          fi
 
       - name: Renombrar
         run: cp android/app/build/outputs/apk/release/app-release.apk bloque-puente.apk
