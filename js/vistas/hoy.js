@@ -1,8 +1,10 @@
 // Pantalla Hoy: qué toca, cómo está cada uno y su última medición.
 import { sb, estado, datos } from '../db.js';
 import { esc, num, aviso, avisoError, grupoChips, valorChips } from '../ui.js';
-import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia, fechaCorta } from '../fechas.js';
-import { TIPOS, htmlEvento, horaEfectiva } from '../eventos.js';
+import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia, fechaCorta, hora } from '../fechas.js';
+import { TIPOS, horaEfectiva, textoAsistencia } from '../eventos.js';
+import { iconoTipo, mapaCuerpo, chipsZonas } from '../iconos.js';
+import { resumenRutinas } from '../rutinas.js';
 import { calcularSemaforo, esDescanso, textoSemaforo } from '../semaforo.js';
 import { empezarSesion } from './sesion.js';
 
@@ -54,6 +56,7 @@ export async function vistaHoy(app) {
     sb.from('rutinas').select('id, nombre, foco').in('id', conRutina.map((e) => e.rutina_id)).then(datos),
     sb.from('sesiones').select('id, calendario_id, terminados, terminada_en').in('calendario_id', conRutina.map((e) => e.id)).then(datos),
   ]) : [[], []];
+  const resumen = await resumenRutinas(rutinas.map((r) => r.id));
   // Las rutinas de los días de derby son livianas a propósito: el semáforo lo tiene en cuenta.
   for (const e of deHoy) e.liviana = rutinas.find((r) => r.id === e.rutina_id)?.foco === 'recuperacion';
   const proximo = eventos.find((e) => e.fecha > hoy && e.tipo !== 'descanso');
@@ -86,15 +89,17 @@ export async function vistaHoy(app) {
     </header>
 
     <section class="tarjeta" aria-labelledby="plan-hoy">
-      <h2 class="seccion__titulo" id="plan-hoy">Plan de hoy</h2>
+      <div class="fila fila--entre" style="margin-bottom:6px">
+        <h2 class="seccion__titulo" id="plan-hoy" style="margin:0">Plan de hoy</h2>
+        <a class="enlace-chico" href="#/semana">Semana ›</a>
+      </div>
       ${deHoy.length
-        ? `<div class="pila">${deHoy.map((e) => htmlPlan(e, rutinas, sesiones)).join('')}</div>`
-        : `<p class="vacio" style="padding-top:0">No hay nada agendado. ¿Qué hacen hoy?</p>
+        ? `<ol class="plan">${deHoy.map((e) => htmlPlan(e, rutinas, sesiones, resumen)).join('')}</ol>`
+        : `<p class="vacio" style="padding-top:4px">No hay nada agendado. ¿Qué hacen hoy?</p>
            <div class="chips" id="rapido">
-             ${Object.entries(TIPOS).map(([v, t]) => `<button type="button" class="chip" data-valor="${v}">${t}</button>`).join('')}
+             ${Object.entries(TIPOS).map(([v, t]) => `<button type="button" class="chip chip--icono" data-valor="${v}">${iconoTipo(v)}${t}</button>`).join('')}
            </div>`}
-      ${proximo ? `<p class="quieto" style="margin:12px 0 0">Próximo: ${esc(diaCorto(proximo.fecha))} ${numeroDia(proximo.fecha)} · ${esc(htmlTextoPlano(proximo))}</p>` : ''}
-      <a class="boton boton--sec boton--chico" style="margin-top:14px" href="#/semana">Ver la semana</a>
+      ${proximo ? `<p class="plan__proximo"><span class="quieto">Después</span> ${iconoTipo(proximo.tipo)} <strong>${esc(TIPOS[proximo.tipo])}</strong> <span class="quieto">${esc(diaCorto(proximo.fecha))} ${numeroDia(proximo.fecha)}${proximo.hora_inicio ? ` · ${esc(hora(proximo.hora_inicio))}` : ''}</span></p>` : ''}
     </section>
 
     ${estado.personas.map((p, i) => `
@@ -116,26 +121,46 @@ export async function vistaHoy(app) {
   }));
 }
 
-// Un evento del plan; si es gym con rutina, con su botón para entrenar.
-function htmlPlan(ev, rutinas, sesiones) {
+// Un evento del plan como paso de la línea de tiempo; el gym trae su rutina y el botón para entrenar.
+function htmlPlan(ev, rutinas, sesiones, resumen) {
   const rutina = rutinas.find((r) => r.id === ev.rutina_id);
-  if (!rutina) return `<div class="evento">${htmlEvento(ev)}</div>`;
-  const sesion = sesiones.find((s) => s.calendario_id === ev.id && !s.terminada_en) ?? sesiones.find((s) => s.calendario_id === ev.id);
-  const voy = ev.asistencia === 'juntos' || ev.persona_id === estado.yo.id;
-  let accion = '';
-  if (sesion?.terminados.includes(estado.yo.id)) {
-    accion = `<a class="boton boton--sec boton--chico" href="#/sesion/${esc(sesion.id)}">Ver entreno de hoy</a>`;
-  } else if (sesion) {
-    accion = `<a class="boton boton--chico" href="#/sesion/${esc(sesion.id)}">${voy ? 'Continuar entreno' : 'Ver entreno'}</a>`;
-  } else if (voy) {
-    accion = `<button type="button" class="boton boton--chico" data-empezar="${esc(ev.id)}">Empezar entreno</button>`;
+  const detalle = [textoAsistencia(ev), ev.notas].filter(Boolean).join(' · ');
+  let extra = '';
+  if (rutina) {
+    const sesion = sesiones.find((s) => s.calendario_id === ev.id && !s.terminada_en) ?? sesiones.find((s) => s.calendario_id === ev.id);
+    const voy = ev.asistencia === 'juntos' || ev.persona_id === estado.yo.id;
+    let accion = '';
+    if (sesion?.terminados.includes(estado.yo.id)) {
+      accion = `<a class="boton boton--sec boton--chico boton--bloque" href="#/sesion/${esc(sesion.id)}">✓ Hecho · ver entreno</a>`;
+    } else if (sesion) {
+      accion = `<a class="boton boton--chico boton--bloque" href="#/sesion/${esc(sesion.id)}">${voy ? 'Continuar entreno' : 'Ver entreno'}</a>`;
+    } else if (voy) {
+      accion = `<button type="button" class="boton boton--chico boton--bloque" data-empezar="${esc(ev.id)}">Empezar entreno</button>`;
+    }
+    const zonas = resumen[rutina.id]?.zonas ?? [];
+    extra = `
+      <a class="plan__rutina" href="#/entreno/${esc(rutina.id)}" aria-label="Ver rutina ${esc(rutina.nombre)}">
+        <span class="plan__rutina-texto">
+          <strong>${esc(rutina.nombre)}</strong>
+          ${zonas.length ? chipsZonas(zonas) : ''}
+        </span>
+        ${zonas.length ? mapaCuerpo(zonas, { alto: 64 }) : ''}
+        <span class="plan__flecha" aria-hidden="true">›</span>
+      </a>
+      ${accion}`;
   }
   return `
-    <div class="evento-gym">
-      <div class="evento">${htmlEvento(ev)}</div>
-      <span class="evento-gym__rutina"><strong>${esc(rutina.nombre)}</strong> · <a href="#/entreno/${esc(rutina.id)}">ver rutina</a></span>
-      ${accion ? `<div>${accion}</div>` : ''}
-    </div>`;
+    <li class="plan__item">
+      <span class="plan__icono plan__icono--${esc(ev.tipo)}">${iconoTipo(ev.tipo)}</span>
+      <div class="plan__cuerpo">
+        <div class="plan__titulo">
+          <strong>${esc(TIPOS[ev.tipo] ?? ev.tipo)}</strong>
+          ${ev.hora_inicio ? `<span class="plan__hora">${esc(hora(ev.hora_inicio))}</span>` : ''}
+        </div>
+        ${detalle ? `<span class="plan__detalle">${esc(detalle)}</span>` : ''}
+        ${extra}
+      </div>
+    </li>`;
 }
 
 // Botones para marcar el día sin ir a Semana. Va para los dos, sin hora.
@@ -156,41 +181,56 @@ function conectarRapido(app, hoy) {
   }));
 }
 
-function htmlTextoPlano(ev) {
-  const div = document.createElement('div');
-  div.innerHTML = htmlEvento(ev);
-  return div.textContent.replace(/\s+/g, ' ').trim();
-}
-
 function tarjetaPersona(p, est, med, descanso, b) {
   const soyYo = p.id === estado.yo.id;
-  const sem = est?.semaforo;
+  const hecho = est && (est.cansancio != null || est.dolor_muscular != null);
   return `
-    <article class="tarjeta">
-      <div class="fila fila--entre">
-        <h3 class="tarjeta__titulo">${esc(p.nombre)}</h3>
-        <span class="fila" style="gap:8px">
-          <span class="punto ${sem ? `punto--${sem}` : ''}" aria-hidden="true"></span>
-          <span class="quieto">${sem ? esc(textoSemaforo(sem, descanso)) : 'Sin semáforo aún'}</span>
-        </span>
-      </div>
-      ${est?.motivo ? `<p class="motivo"><strong>Por qué:</strong> ${esc(est.motivo)}</p>` : ''}
-
-      <div class="grilla-2" style="margin-top:14px">
-        <div>
-          <p class="quieto" style="margin:0 0 4px">Peso</p>
-          ${med?.peso_kg != null ? `<span class="dato-grande">${num(med.peso_kg)}</span><span class="dato-unidad">kg</span>` : '<span class="quieto">—</span>'}
-        </div>
-        <div>
-          <p class="quieto" style="margin:0 0 4px">Grasa</p>
-          ${med?.grasa_pct != null ? `<span class="dato-grande">${num(med.grasa_pct)}</span><span class="dato-unidad">%</span>` : '<span class="quieto">—</span>'}
-        </div>
-      </div>
-      ${med ? `<p class="quieto" style="margin:8px 0 0">Última medición: ${esc(fechaCorta(med.medido_en))}</p>` : ''}
-      ${htmlBanda(b)}
-
-      ${soyYo ? formularioCheckIn(est) : resumenCheckIn(est)}
+    <article class="tarjeta persona">
+      ${heroSemaforo(est, descanso, soyYo)}
+      ${hecho ? resumenCheckIn(est, soyYo) : ''}
+      ${soyYo ? formularioCheckIn(est, hecho) : ''}
+      ${htmlDatos(med, b)}
     </article>`;
+}
+
+// El semáforo como protagonista: las tres luces, el estado grande y el porqué.
+function heroSemaforo(est, descanso, soyYo) {
+  const sem = est?.semaforo;
+  const luces = ['rojo', 'ambar', 'verde'].map((c) => `<i class="luz luz--${c} ${sem === c ? 'luz--on' : ''}"></i>`).join('');
+  if (!sem) {
+    return `
+      <div class="semaforo semaforo--vacio">
+        <span class="semaforo__luces" aria-hidden="true">${luces}</span>
+        <div>
+          <span class="semaforo__estado">Sin semáforo</span>
+          <p class="semaforo__motivo">${soyYo ? 'Marca cómo te sientes y lo calculo.' : 'Se calcula cuando marque cómo se siente.'}</p>
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="semaforo semaforo--${sem}" role="status">
+      <span class="semaforo__luces" aria-hidden="true">${luces}</span>
+      <div>
+        <span class="semaforo__estado">${esc(textoSemaforo(sem, descanso))}</span>
+        ${est.motivo ? `<p class="semaforo__motivo"><strong>Por qué:</strong> ${esc(est.motivo)}</p>` : ''}
+      </div>
+    </div>`;
+}
+
+// Cansancio y dolor ya marcados: dos medidores en una línea.
+function resumenCheckIn(est, soyYo) {
+  const medidor = (nombre, v) => `
+    <span class="medidor" aria-label="${nombre} ${v ?? 'sin marcar'} de 5">
+      <span class="medidor__nombre">${nombre}</span>
+      <span class="medidor__barras" aria-hidden="true">${[1, 2, 3, 4, 5].map((n) => `<i class="${v != null && n <= v ? `on n${v}` : ''}"></i>`).join('')}</span>
+      <strong>${v ?? '—'}</strong>
+    </span>`;
+  return `
+    <div class="checkin-resumen">
+      ${medidor('Cansancio', est.cansancio)}
+      ${medidor('Dolor', est.dolor_muscular)}
+      ${soyYo ? '<button type="button" class="boton boton--texto boton--chico" id="editar-checkin" aria-expanded="false" aria-controls="checkin">Editar</button>' : ''}
+    </div>`;
 }
 
 function chips(nombre, actual) {
@@ -199,32 +239,32 @@ function chips(nombre, actual) {
   ).join('');
 }
 
-function formularioCheckIn(est) {
+function formularioCheckIn(est, hecho) {
   return `
-    <div class="pila" style="margin-top:18px" id="checkin">
+    <div class="pila checkin" id="checkin" ${hecho ? 'hidden' : ''}>
       <fieldset class="campo">
-        <legend>Cansancio (1 = fresco, 5 = agotado)</legend>
+        <legend>Cansancio <span class="quieto">· 1 fresco, 5 agotado</span></legend>
         <div class="chips" id="cansancio">${chips('Cansancio', est?.cansancio ?? null)}</div>
       </fieldset>
       <fieldset class="campo">
-        <legend>Dolor muscular (1 = nada, 5 = mucho)</legend>
+        <legend>Dolor muscular <span class="quieto">· 1 nada, 5 mucho</span></legend>
         <div class="chips" id="dolor">${chips('Dolor muscular', est?.dolor_muscular ?? null)}</div>
       </fieldset>
-      <button type="button" class="boton boton--chico" id="guardar-checkin">${est ? 'Actualizar' : 'Calcular mi semáforo'}</button>
-      <p class="ayuda">El semáforo usa cómo te sientes, lo que hicieron ayer y hoy, y el sueño y los entrenos de la banda.</p>
+      <button type="button" class="boton boton--chico" id="guardar-checkin">${hecho ? 'Actualizar' : 'Calcular mi semáforo'}</button>
+      <p class="ayuda">Usa cómo te sientes, lo que hiciste ayer y hoy, y el sueño y los entrenos de la banda.</p>
     </div>`;
-}
-
-function resumenCheckIn(est) {
-  if (!est || (est.cansancio == null && est.dolor_muscular == null)) {
-    return '<p class="quieto" style="margin:14px 0 0">Todavía no registró cómo se siente hoy.</p>';
-  }
-  return `<p class="quieto" style="margin:14px 0 0">Cansancio ${est.cansancio ?? '—'}/5 · Dolor muscular ${est.dolor_muscular ?? '—'}/5</p>`;
 }
 
 function conectarCheckIn(app, { hoy, deAyer, deHoy, extrasAyer, suenoMin, bandaAyer }, est) {
   const cont = app.querySelector('#checkin');
   if (!cont) return;
+  const editar = app.querySelector('#editar-checkin');
+  editar?.addEventListener('click', () => {
+    const abrir = cont.hidden;
+    cont.hidden = !abrir;
+    editar.textContent = abrir ? 'Cerrar' : 'Editar';
+    editar.setAttribute('aria-expanded', String(abrir));
+  });
   const cansancio = cont.querySelector('#cansancio');
   const dolor = cont.querySelector('#dolor');
   grupoChips(cansancio);
@@ -259,23 +299,36 @@ function conectarCheckIn(app, { hoy, deAyer, deHoy, extrasAyer, suenoMin, bandaA
   });
 }
 
-// Pasos, sueño, calorías y entrenos del día según la banda.
-function htmlBanda(b) {
-  if (!b.hoy && !b.ayer && !b.entrenosHoy.length) return '';
+// Cuerpo y banda en una grilla compacta: peso, grasa, músculo / sueño, pasos, activas.
+function htmlDatos(med, b) {
   const h = b.hoy ?? {};
-  const sueno = b.suenoMin != null
-    ? `${Math.floor(b.suenoMin / 60)}<span class="dato-unidad">h</span> ${String(b.suenoMin % 60).padStart(2, '0')}<span class="dato-unidad">min</span>`
-    : '—';
-  const pasos = h.pasos != null ? Number(h.pasos).toLocaleString('es-EC') : '—';
-  const kcal = h.calorias_activas != null ? `${Number(h.calorias_activas).toLocaleString('es-EC')}<span class="dato-unidad">kcal</span>` : '—';
-  return `
-    <div class="banda">
-      <div><p class="quieto">Sueño</p><span class="dato-medio">${sueno}</span></div>
-      <div><p class="quieto">Pasos</p><span class="dato-medio">${pasos}</span></div>
-      <div><p class="quieto">Activas</p><span class="dato-medio">${kcal}</span></div>
-    </div>
-    ${b.entrenosHoy.map((s) => {
+  const fmt = (v, d = 1) => (v != null ? num(v, d) : null);
+  const sueno = b.suenoMin != null && b.suenoMin > 0
+    ? `${Math.floor(b.suenoMin / 60)}<span class="dato-unidad">h</span>${String(b.suenoMin % 60).padStart(2, '0')}`
+    : null;
+  const celdas = [
+    ['Peso', fmt(med?.peso_kg), 'kg'],
+    ['Grasa', fmt(med?.grasa_pct), '%'],
+    ['Músculo', fmt(med?.masa_muscular_kg), 'kg'],
+    ['Sueño', sueno, '', b.suenoMin != null && b.suenoMin > 0 && b.suenoMin < 360],
+    ['Pasos', h.pasos != null ? Number(h.pasos).toLocaleString('es-EC') : null, ''],
+    ['Activas', h.calorias_activas != null ? Number(h.calorias_activas).toLocaleString('es-EC') : null, 'kcal'],
+  ];
+  if (celdas.every((c) => c[1] == null)) return '';
+  const pie = [
+    med ? `Medición del ${fechaCorta(med.medido_en)}` : null,
+    ...b.entrenosHoy.map((s) => {
       const min = Math.round((new Date(s.fin) - new Date(s.inicio)) / 60000);
-      return `<p class="quieto" style="margin:6px 0 0">Banda: ${esc(s.tipo)} · ${min} min${s.calorias != null ? ` · ${s.calorias} kcal` : ''}${s.fc_promedio ? ` · ${s.fc_promedio} ppm` : ''}</p>`;
-    }).join('')}`;
+      return `Banda: ${s.tipo} ${min} min${s.calorias != null ? ` · ${s.calorias} kcal` : ''}`;
+    }),
+  ].filter(Boolean);
+  return `
+    <div class="datos">
+      ${celdas.map(([nombre, valor, unidad, alerta]) => `
+        <div class="dato ${alerta ? 'dato--alerta' : ''}">
+          <span class="dato__nombre">${nombre}</span>
+          <span class="dato__valor">${valor ?? '<span class="quieto">—</span>'}${valor != null && unidad ? `<span class="dato-unidad">${unidad}</span>` : ''}</span>
+        </div>`).join('')}
+    </div>
+    ${pie.length ? `<p class="datos__pie">${esc(pie.join(' · '))}</p>` : ''}`;
 }

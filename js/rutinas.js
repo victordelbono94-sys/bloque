@@ -1,6 +1,7 @@
 // Datos de rutinas: ejercicios en orden, metas de cada persona y alternativas.
 import { sb, datos } from './db.js';
 import { num } from './ui.js';
+import { zonasDe } from './iconos.js';
 
 export const FOCOS = {
   masa_muscular: 'Masa muscular',
@@ -55,4 +56,17 @@ export function textoDescanso(seg) {
 // Redondea al múltiplo de 2,5 kg más cercano (lo que permiten los discos y las máquinas).
 export function redondearPeso(kg) {
   return Math.max(0, Math.round(kg / 2.5) * 2.5);
+}
+
+// Zonas del cuerpo y cantidad de ejercicios de cada rutina (para el mapa y las etiquetas).
+export async function resumenRutinas(rutinaIds) {
+  if (!rutinaIds.length) return {};
+  const filas = datos(await sb.from('rutina_ejercicios')
+    .select('rutina_id, ejercicio:ejercicios(grupo_muscular)').in('rutina_id', rutinaIds));
+  const res = {};
+  for (const id of rutinaIds) {
+    const propias = filas.filter((f) => f.rutina_id === id);
+    res[id] = { cuantos: propias.length, zonas: zonasDe(propias.map((f) => f.ejercicio?.grupo_muscular)) };
+  }
+  return res;
 }

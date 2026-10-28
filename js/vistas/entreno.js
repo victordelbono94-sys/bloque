@@ -2,7 +2,8 @@
 import { sb, estado, datos } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo } from '../ui.js';
 import { hoyISO, diaCorto, numeroDia } from '../fechas.js';
-import { FOCOS, cargarRutina, textoMeta, textoDescanso } from '../rutinas.js';
+import { FOCOS, cargarRutina, textoMeta, textoDescanso, resumenRutinas } from '../rutinas.js';
+import { mapaCuerpo, chipsZonas, zonasDe } from '../iconos.js';
 import { abrirFicha, miniatura } from '../ficha.js';
 
 export async function vistaEntreno(app) {
@@ -13,12 +14,16 @@ export async function vistaEntreno(app) {
 
 async function lista(app) {
   const hogar = estado.yo.hogar_id;
-  const [rutinas, items, proximos] = await Promise.all([
+  const hoy = hoyISO();
+  const [rutinas, proximos] = await Promise.all([
     sb.from('rutinas').select('*').eq('hogar_id', hogar).order('creada_en').then(datos),
-    sb.from('rutina_ejercicios').select('rutina_id').then(datos),
-    sb.from('calendario').select('fecha, rutina_id').eq('hogar_id', hogar)
-      .gte('fecha', hoyISO()).not('rutina_id', 'is', null).order('fecha').then(datos),
+    sb.from('calendario').select('fecha, rutina_id, asistencia, persona_id').eq('hogar_id', hogar)
+      .gte('fecha', hoy).not('rutina_id', 'is', null).order('fecha').then(datos),
   ]);
+  const resumen = await resumenRutinas(rutinas.map((r) => r.id));
+  // La de hoy va primero y resaltada.
+  const deHoy = new Set(proximos.filter((p) => p.fecha === hoy).map((p) => p.rutina_id));
+  rutinas.sort((a, b) => deHoy.has(b.id) - deHoy.has(a.id));
 
   app.innerHTML = `
     <header class="encabezado">
@@ -29,18 +34,19 @@ async function lista(app) {
     </header>
     <div class="pila">
       ${rutinas.map((r) => {
-        const cuantos = items.filter((i) => i.rutina_id === r.id).length;
-        const prox = proximos.find((p) => p.rutina_id === r.id);
+        const { cuantos = 0, zonas = [] } = resumen[r.id] ?? {};
+        const esHoy = deHoy.has(r.id);
+        const prox = proximos.find((p) => p.rutina_id === r.id && p.fecha > hoy);
         return `
-          <a class="tarjeta tarjeta--enlace" href="#/entreno/${esc(r.id)}">
-            <div class="fila fila--entre" style="align-items:flex-start">
-              <div>
-                <h2 class="tarjeta__titulo">${esc(r.nombre)}</h2>
-                <p class="quieto" style="margin:4px 0 0">${esc(FOCOS[r.foco] ?? '')} · ${cuantos} ejercicios</p>
-              </div>
-              ${prox ? `<span class="etiqueta">${esc(diaCorto(prox.fecha))} ${numeroDia(prox.fecha)}</span>` : ''}
+          <a class="tarjeta tarjeta--enlace rutina-tarjeta ${esHoy ? 'rutina-tarjeta--hoy' : ''}" href="#/entreno/${esc(r.id)}">
+            <div class="rutina-tarjeta__texto">
+              ${esHoy ? '<span class="sello-hoy"><span class="sello-hoy__punto" aria-hidden="true"></span>Hoy toca</span>' : ''}
+              <h2 class="tarjeta__titulo">${esc(r.nombre)}</h2>
+              <p class="quieto" style="margin:4px 0 0">${esc(FOCOS[r.foco] ?? '')} · ${cuantos} ejercicios</p>
+              ${zonas.length ? chipsZonas(zonas) : ''}
+              ${!esHoy && prox ? `<p class="quieto rutina-tarjeta__prox">Próxima: ${esc(diaCorto(prox.fecha))} ${numeroDia(prox.fecha)}</p>` : ''}
             </div>
-            ${r.notas ? `<p class="quieto" style="margin:10px 0 0">${esc(r.notas)}</p>` : ''}
+            ${zonas.length ? mapaCuerpo(zonas, { alto: esHoy ? 96 : 76 }) : ''}
           </a>`;
       }).join('') || '<p class="vacio">Todavía no hay rutinas.</p>'}
     </div>`;
@@ -49,6 +55,7 @@ async function lista(app) {
 async function detalle(app, rutinaId) {
   const { rutina, items } = await cargarRutina(rutinaId);
   const personas = estado.personas;
+  const zonas = zonasDe(items.map((it) => it.ejercicio.grupo_muscular));
 
   app.innerHTML = `
     <header class="encabezado">
@@ -58,6 +65,15 @@ async function detalle(app, rutinaId) {
         <p class="subtitulo">${esc(FOCOS[rutina.foco] ?? '')}${rutina.notas ? ` · ${esc(rutina.notas)}` : ''}</p>
       </div>
     </header>
+    ${zonas.length ? `
+      <section class="tarjeta rutina-mapa">
+        ${mapaCuerpo(zonas, { alto: 110 })}
+        <div>
+          <p class="seccion__titulo" style="margin:0 0 8px">Qué trabajas</p>
+          ${chipsZonas(zonas, 6)}
+          <p class="quieto" style="margin:10px 0 0">${items.length} ejercicios</p>
+        </div>
+      </section>` : ''}
     <div class="pila">
       ${items.map((it, i) => `
         <article class="tarjeta">

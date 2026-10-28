@@ -2,6 +2,7 @@
 import { esc } from './ui.js';
 import { estado, nombrePersona, otraPersona } from './db.js';
 import { hora } from './fechas.js';
+import { iconoTipo } from './iconos.js';
 
 export const TIPOS = {
   gym: 'Gym',
@@ -31,7 +32,7 @@ export function textoAsistencia(ev) {
 export function htmlEvento(ev) {
   const detalle = [hora(ev.hora_inicio), textoAsistencia(ev), ev.notas].filter(Boolean).join(' · ');
   return `
-    <span class="etiqueta etiqueta--${esc(ev.tipo)}">${esc(TIPOS[ev.tipo] ?? ev.tipo)}</span>
+    <span class="etiqueta etiqueta--${esc(ev.tipo)}">${iconoTipo(ev.tipo)}${esc(TIPOS[ev.tipo] ?? ev.tipo)}</span>
     ${detalle ? `<span class="evento__detalle">${esc(detalle)}</span>` : ''}`;
 }
 

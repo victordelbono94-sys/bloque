@@ -680,3 +680,121 @@ span.serie--hecha { opacity: 0.85; }
 }
 .motivo { margin: 8px 0 0; font-size: 14px; color: var(--tiza-2); }
 .motivo strong { color: var(--tiza); font-weight: 600; }
+
+/* =====================================================================
+   Íconos, mapa del cuerpo, plan de hoy y semáforo
+   ===================================================================== */
+.icono { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.etiqueta { gap: 5px; }
+.etiqueta .icono { width: 14px; height: 14px; margin-left: -2px; }
+.chip--icono { display: inline-flex; align-items: center; gap: 6px; }
+.enlace-chico { font-size: 14px; font-weight: 600; text-decoration: none; padding: 8px 0 8px 12px; }
+
+/* Mapa del cuerpo: bloques apagados, y los que se trabajan en volt. */
+.mapa { flex-shrink: 0; display: block; }
+.mapa rect { transition: fill 0.3s ease; }
+.mapa__neutro { fill: var(--grafito-2); }
+.mapa__off { fill: var(--linea); opacity: 0.7; }
+.mapa__on { fill: var(--volt); }
+@keyframes encender { from { fill: var(--linea); } to { fill: var(--volt); } }
+#app[data-anim] .mapa__on { animation: encender 0.6s var(--suave) 0.25s both; }
+.zonas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.zona { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: rgba(198, 244, 50, 0.12); color: var(--volt); }
+
+/* Rutinas en Entreno */
+.rutina-tarjeta { display: flex; align-items: center; gap: 14px; }
+.rutina-tarjeta__texto { flex: 1; min-width: 0; }
+.rutina-tarjeta__prox { margin: 8px 0 0; font-size: 13px; }
+.rutina-tarjeta--hoy {
+  background: linear-gradient(135deg, rgba(198, 244, 50, 0.16), rgba(198, 244, 50, 0.03) 60%), var(--grafito);
+  box-shadow: inset 0 0 0 1.5px var(--volt);
+  padding: 20px 18px;
+}
+.rutina-tarjeta--hoy .tarjeta__titulo { font-size: 24px; }
+.sello-hoy {
+  display: inline-flex; align-items: center; gap: 7px; margin-bottom: 8px;
+  padding: 4px 11px 4px 9px; border-radius: 999px;
+  background: var(--volt); color: var(--asfalto);
+  font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.sello-hoy__punto { width: 7px; height: 7px; border-radius: 999px; background: var(--asfalto); animation: parpadeo 1.6s ease-in-out infinite; }
+@keyframes parpadeo { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.rutina-mapa { display: flex; align-items: center; gap: 18px; margin-bottom: 12px; }
+
+/* Plan de hoy: línea de tiempo */
+.plan { list-style: none; margin: 0; padding: 0; }
+.plan__item { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; padding: 10px 0; }
+.plan__item:not(:last-child)::before {
+  content: ''; position: absolute; left: 19px; top: 52px; bottom: -8px; width: 2px; border-radius: 2px; background: var(--grafito-2);
+}
+.plan__icono { width: 40px; height: 40px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: var(--grafito-2); color: var(--tiza); }
+.plan__icono .icono { width: 22px; height: 22px; }
+.plan__icono--gym { background: var(--volt); color: var(--asfalto); }
+.plan__icono--derby { background: var(--tiza); color: var(--asfalto); }
+.plan__icono--clase { background: #4A5066; }
+.plan__icono--descanso { background: transparent; box-shadow: inset 0 0 0 1px var(--linea); color: var(--gris); }
+.plan__cuerpo { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-top: 2px; }
+.plan__titulo { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.plan__titulo strong { font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 19px; }
+.plan__hora { font-family: var(--titulo); font-stretch: 112%; font-weight: 700; font-size: 16px; color: var(--tiza-2); font-variant-numeric: tabular-nums; }
+.plan__detalle { font-size: 14px; color: var(--gris); margin-top: -6px; }
+.plan__rutina {
+  display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 14px;
+  background: var(--asfalto); color: inherit; text-decoration: none;
+  transition: transform 0.14s var(--suave), background-color 0.2s ease;
+}
+.plan__rutina:active { transform: scale(0.98); }
+.plan__rutina-texto { flex: 1; min-width: 0; }
+.plan__rutina-texto strong { font-size: 15px; line-height: 1.25; display: block; }
+.plan__rutina .zonas { margin-top: 6px; }
+.plan__flecha { color: var(--gris); font-size: 22px; line-height: 1; }
+.plan__proximo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0 0; padding-top: 12px; border-top: 1px solid var(--grafito-2); font-size: 14px; }
+.plan__proximo .icono { color: var(--gris); }
+
+/* Semáforo protagonista */
+.semaforo {
+  display: flex; align-items: center; gap: 16px; padding: 16px; border-radius: 14px;
+  background: var(--grafito-2);
+  --c: var(--linea);
+}
+.semaforo--verde { --c: var(--verde); background: linear-gradient(120deg, rgba(46, 158, 91, 0.32), rgba(46, 158, 91, 0.08)); }
+.semaforo--ambar { --c: var(--ambar); background: linear-gradient(120deg, rgba(232, 163, 23, 0.32), rgba(232, 163, 23, 0.08)); }
+.semaforo--rojo { --c: var(--rojo); background: linear-gradient(120deg, rgba(214, 69, 69, 0.34), rgba(214, 69, 69, 0.08)); }
+.semaforo__luces { display: flex; flex-direction: column; gap: 5px; padding: 6px; border-radius: 12px; background: var(--asfalto); flex-shrink: 0; }
+.luz { display: block; width: 14px; height: 14px; border-radius: 999px; background: var(--grafito-2); }
+.luz--on.luz--verde { background: var(--verde); box-shadow: 0 0 12px 2px rgba(46, 158, 91, 0.75); }
+.luz--on.luz--ambar { background: var(--ambar); box-shadow: 0 0 12px 2px rgba(232, 163, 23, 0.75); }
+.luz--on.luz--rojo { background: var(--rojo); box-shadow: 0 0 12px 2px rgba(214, 69, 69, 0.75); }
+.luz--on { animation: brillar 2.4s ease-in-out infinite; }
+@keyframes brillar { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.3); } }
+.semaforo__estado { display: block; font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 24px; line-height: 1.1; letter-spacing: -0.01em; }
+.semaforo--vacio .semaforo__estado { color: var(--tiza-2); font-size: 20px; }
+.semaforo__motivo { margin: 6px 0 0; font-size: 14px; color: var(--tiza-2); line-height: 1.35; }
+.semaforo__motivo strong { color: var(--tiza); font-weight: 600; }
+
+/* Check-in ya hecho: dos medidores en una línea */
+.checkin-resumen { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; margin-top: 12px; }
+.medidor { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.medidor__nombre { color: var(--gris); }
+.medidor__barras { display: inline-flex; gap: 3px; }
+.medidor__barras i { width: 6px; height: 14px; border-radius: 2px; background: var(--grafito-2); }
+.medidor__barras i.on { background: var(--verde); }
+.medidor__barras i.on.n3 { background: var(--ambar); }
+.medidor__barras i.on.n4, .medidor__barras i.on.n5 { background: var(--rojo); }
+.medidor strong { font-variant-numeric: tabular-nums; }
+.checkin-resumen .boton--texto { margin-left: auto; min-height: 36px; }
+.checkin { margin-top: 14px; }
+.checkin:not([hidden]) { animation: entrar 0.3s var(--suave) both; }
+.campo legend .quieto { font-weight: 400; font-size: 13px; }
+
+/* Datos: grilla compacta de 3 × 2 */
+.datos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.dato { background: var(--asfalto); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dato__nombre { font-size: 12px; color: var(--gris); font-weight: 500; }
+.dato__valor { font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 20px; line-height: 1; white-space: nowrap; }
+.dato__valor .dato-unidad { font-size: 12px; margin-left: 2px; font-family: var(--texto); font-weight: 500; }
+.dato--alerta .dato__valor { color: var(--ambar); }
+.datos__pie { margin: 8px 0 0; font-size: 13px; color: var(--gris); }
+@media (prefers-reduced-motion: reduce) { .sello-hoy__punto, .luz--on { animation: none; } }
+.checkin[hidden] { display: none; }
+.pila > .tarjeta + .tarjeta { margin-top: 0; }
