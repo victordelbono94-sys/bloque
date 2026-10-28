@@ -1,5 +1,6 @@
 // Pantalla Semana: calendario compartido de gym, derby, clases y descanso.
 // Cada evento va para los dos por defecto ("Sant y yo"); "Solo" indica quién va.
+import { sincronizarAgenda } from '../nativo.js';
 import { sb, estado, datos, otraPersona } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from '../ui.js';
 import { hoyISO, sumarDias, inicioSemana, rangoSemana, diaCorto, numeroDia, diaLargo, hora } from '../fechas.js';
@@ -65,6 +66,7 @@ export async function vistaSemana(app) {
     </button>`;
 
   const recargar = () => vistaSemana(app);
+  sincronizarAgenda().catch(() => {}); // los avisos de la app siguen al plan
 
   app.querySelectorAll('[data-agregar]').forEach((b) =>
     b.addEventListener('click', () => dialogoEvento({ fecha: b.dataset.agregar }, rutinas, recargar)));

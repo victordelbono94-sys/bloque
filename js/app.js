@@ -5,10 +5,10 @@ import { vistaHoy } from './vistas/hoy.js';
 import { vistaSemana } from './vistas/semana.js';
 import { vistaCuerpo } from './vistas/cuerpo.js';
 import { vistaEntreno } from './vistas/entreno.js';
-import { vistaSesion } from './vistas/sesion.js';
+import { vistaSesion, vistaComenzar } from './vistas/sesion.js';
 import { vistaPerfil } from './vistas/perfil.js';
 import { estaInstalada, puedeSeguirEnNavegador, pantallaInstalar } from './instalar.js';
-import { enApp, loginEnApp, asegurarVinculo, desvincular, alEventoNativo } from './nativo.js';
+import { enApp, loginEnApp, asegurarVinculo, desvincular, alEventoNativo, sincronizarAgenda } from './nativo.js';
 
 const app = document.getElementById('app');
 const nav = document.getElementById('nav');
@@ -18,6 +18,7 @@ const RUTAS = {
   semana: vistaSemana,
   entreno: vistaEntreno,
   sesion: vistaSesion,
+  comenzar: vistaComenzar,
   cuerpo: vistaCuerpo,
   perfil: vistaPerfil,
 };
@@ -92,7 +93,7 @@ async function mostrarRuta() {
   const vista = RUTAS[nombre];
   nav.hidden = false;
   nav.querySelectorAll('.nav__item').forEach((a) => {
-    if (a.dataset.ruta === (nombre === 'sesion' ? 'entreno' : nombre)) a.setAttribute('aria-current', 'page');
+    if (a.dataset.ruta === (nombre === 'sesion' || nombre === 'comenzar' ? 'entreno' : nombre)) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
 
@@ -154,7 +155,10 @@ async function arrancar() {
     if (location.search || /access_token/.test(location.hash)) history.replaceState(null, '', location.pathname + '#/hoy');
     await mostrarRuta();
     // En la app: conectar este teléfono con la cuenta para traer los datos de la banda.
-    if (enApp) asegurarVinculo().catch((e) => console.error('vínculo con la app', e));
+    if (enApp) {
+      asegurarVinculo().catch((e) => console.error('vínculo con la app', e));
+      sincronizarAgenda().catch((e) => console.error('agenda para avisos', e));
+    }
   } catch (e) {
     avisoError(e);
     pantallaIngreso();

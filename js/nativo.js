@@ -74,3 +74,65 @@ export async function asegurarVinculo() {
     setTimeout(() => puente.pedirPermisos(), 800);
   }
 }
+
+// ---------- Gimnasio y avisos (app 1.0.N con avisos) ----------
+export const soportaAvisos = !!puente?.configurarAvisos;
+export const configurarAvisos = (c) => puente?.configurarAvisos?.(JSON.stringify(c));
+export const pedirNotificaciones = () => puente?.pedirNotificaciones?.();
+export const pedirUbicacion = () => puente?.pedirUbicacion?.();
+export const abrirAjustesApp = () => puente?.abrirAjustesApp?.();
+
+/** Ubicación actual: en la app la da Android; en el navegador, la web. */
+export function ubicacionActual() {
+  return new Promise((resolver, rechazar) => {
+    if (puente?.ubicacionActual) {
+      const quitar = alEventoNativo('ubicacion', (u) => {
+        quitar();
+        if (u?.lat != null) resolver(u);
+        else rechazar(new Error(u?.error === 'permiso' ? 'Falta el permiso de ubicación.' : 'No se pudo obtener la ubicación.'));
+      });
+      puente.ubicacionActual();
+      return;
+    }
+    if (!navigator.geolocation) return rechazar(new Error('Este navegador no da la ubicación.'));
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolver({ lat: p.coords.latitude, lng: p.coords.longitude, precision: Math.round(p.coords.accuracy) }),
+      () => rechazar(new Error('No se pudo obtener la ubicación. Revisa el permiso.')),
+      { enableHighAccuracy: true, timeout: 20000 },
+    );
+  });
+}
+
+/**
+ * Le pasa a la app los próximos gyms de esta persona y el lugar del gimnasio, para
+ * que avise al llegar, a la hora o cuando el reloj registre el entreno.
+ */
+export async function sincronizarAgenda() {
+  if (!puente?.programarAgenda || !estado.yo) return;
+  const hoy = new Date();
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const hasta = new Date(hoy); hasta.setDate(hasta.getDate() + 14);
+  const [eventos, lugares] = await Promise.all([
+    sb.from('calendario').select('id, fecha, hora_inicio, tipo, asistencia, persona_id, rutina_id')
+      .eq('hogar_id', estado.yo.hogar_id).eq('tipo', 'gym').gte('fecha', iso(hoy)).lte('fecha', iso(hasta)).then(datos),
+    sb.from('lugares').select('nombre, lat, lng, radio_m').eq('hogar_id', estado.yo.hogar_id).eq('tipo', 'gimnasio').limit(1).then(datos),
+  ]);
+  const mios = eventos.filter((e) => e.asistencia === 'juntos' || e.persona_id === estado.yo.id);
+  const rutinaIds = [...new Set(mios.map((e) => e.rutina_id).filter(Boolean))];
+  const [rutinas, sesiones] = await Promise.all([
+    rutinaIds.length ? sb.from('rutinas').select('id, nombre').in('id', rutinaIds).then(datos) : [],
+    mios.length ? sb.from('sesiones').select('calendario_id').in('calendario_id', mios.map((e) => e.id)).then(datos) : [],
+  ]);
+  const agenda = mios.map((e) => ({
+    id: e.id,
+    fecha: e.fecha,
+    hora: e.hora_inicio ? e.hora_inicio.slice(0, 5) : null,
+    titulo: rutinas.find((r) => r.id === e.rutina_id)?.nombre ?? 'Gym',
+    empezada: sesiones.some((s) => s.calendario_id === e.id),
+  }));
+  const l = lugares[0];
+  puente.programarAgenda(JSON.stringify({
+    agenda,
+    lugar: l ? { nombre: l.nombre, lat: l.lat, lng: l.lng, radio: l.radio_m } : null,
+  }));
+}

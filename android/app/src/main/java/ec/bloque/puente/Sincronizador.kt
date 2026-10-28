@@ -48,9 +48,10 @@ object Sincronizador {
         val ahora = Instant.now()
 
         val lector = Lector(context, hc, permisos)
+        val sesiones = lector.sesiones(desde, ahora)
         val cuerpo = JSONObject()
             .put("dias", lector.dias(desdeDia, hoy))
-            .put("sesiones", lector.sesiones(desde, ahora))
+            .put("sesiones", sesiones)
             .put("mediciones", lector.mediciones(desde.minus(4, ChronoUnit.DAYS), ahora))
 
         val respuesta = Api.sincronizar(codigo, cuerpo)
@@ -59,6 +60,9 @@ object Sincronizador {
         // Mediciones cargadas en Bloque que faltan en Health Connect.
         val escritas = escribirPendientes(context, hc, permisos, respuesta.optJSONArray("pendientes") ?: JSONArray())
         if (escritas.length() > 0) Api.sincronizar(codigo, JSONObject().put("escritas", escritas))
+
+        // ¿Grabaste fuerza en el reloj sin abrir el entreno en Bloque? Se ofrece anotar las series.
+        try { Avisos.alSincronizar(context, sesiones) } catch (e: Exception) { }
 
         ajustes.primeraHecha = true
         ajustes.ultimaSync = System.currentTimeMillis()

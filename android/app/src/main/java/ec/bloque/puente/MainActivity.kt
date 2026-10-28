@@ -1,5 +1,6 @@
 package ec.bloque.puente
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Intent
@@ -9,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.Settings
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.webkit.JavascriptInterface
@@ -21,11 +23,15 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.browser.customtabs.CustomTabColorSchemeParams
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.File
@@ -42,6 +48,8 @@ class MainActivity : ComponentActivity() {
         private const val RUTA = "/bloque"
         private const val REGRESO_LOGIN = "ec.bloque.puente"
         private const val SYNC_AL_ABRIR_MS = 15 * 60 * 1000L
+        const val EXTRA_RUTA = "ruta"
+        private val RUTA_VALIDA = Regex("^comenzar/[0-9a-f-]{36}$")
     }
 
     private val asfalto = Color.parseColor("#15171C")
@@ -52,6 +60,10 @@ class MainActivity : ComponentActivity() {
     private var hcDisponible = false
     private var sincronizando = false
     private lateinit var actualizador: Actualizador
+    private lateinit var pedirNotificaciones: ActivityResultLauncher<String>
+    private lateinit var pedirUbicacion: ActivityResultLauncher<Array<String>>
+    private lateinit var pedirUbicacionFondo: ActivityResultLauncher<String>
+    private var ubicacionPendiente = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,6 +75,21 @@ class MainActivity : ComponentActivity() {
         pedirPermisos = registerForActivityResult(PermissionController.createRequestPermissionResultContract()) {
             refrescarPermisos(despues = { if (it.isNotEmpty()) sincronizar() })
         }
+        pedirNotificaciones = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            // Si los avisos al llegar están activos, después de las notificaciones va la ubicación.
+            if (Avisos.config(this).optBoolean("llegada") && Avisos.estadoUbicacion(this) != "siempre") pedirUbicacionPrecisa()
+            else alCambiarAvisos()
+        }
+        pedirUbicacion = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            val estado = Avisos.estadoUbicacion(this)
+            if (ubicacionPendiente) { ubicacionPendiente = false; leerUbicacion() }
+            else if (estado == "en_uso" && Avisos.config(this).optBoolean("llegada") && Build.VERSION.SDK_INT >= 29) {
+                // Android pide «todo el tiempo» en un segundo paso.
+                pedirUbicacionFondo.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+            alCambiarAvisos()
+        }
+        pedirUbicacionFondo = registerForActivityResult(ActivityResultContracts.RequestPermission()) { alCambiarAvisos() }
 
         web = WebView(this).apply {
             setBackgroundColor(asfalto)
@@ -96,7 +123,7 @@ class MainActivity : ComponentActivity() {
         })
 
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
-        if (!recibirLogin(intent)) web.loadUrl(SITIO)
+        if (!recibirLogin(intent)) web.loadUrl(rutaDe(intent)?.let { "$SITIO#/$it" } ?: SITIO)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -106,17 +133,52 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        recibirLogin(intent)
+        if (!recibirLogin(intent)) rutaDe(intent)?.let { web.loadUrl("$SITIO#/$it") }
     }
 
     override fun onResume() {
         super.onResume()
+        Avisos.aplicar(this) // por si cambió un permiso en Ajustes
         actualizador.alVolver()
         actualizador.revisar()
         refrescarPermisos(despues = {
             val vieja = System.currentTimeMillis() - ajustes.ultimaSync > SYNC_AL_ABRIR_MS
             if (ajustes.codigo != null && tieneLectura() && vieja) sincronizar()
         })
+    }
+
+    /** Una notificación de Bloque abre una pantalla concreta (solo rutas conocidas). */
+    private fun rutaDe(intent: Intent?): String? =
+        intent?.getStringExtra(EXTRA_RUTA)?.takeIf { RUTA_VALIDA.matches(it) }
+
+    // ---------- Avisos y ubicación ----------
+
+    private fun alCambiarAvisos() {
+        Avisos.aplicar(this)
+        emitir("estado", estadoJson())
+    }
+
+    private fun pedirUbicacionPrecisa() {
+        pedirUbicacion.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun leerUbicacion() {
+        if (Avisos.estadoUbicacion(this) == "no") {
+            emitir("ubicacion", JSONObject().put("error", "permiso"))
+            return
+        }
+        try {
+            LocationServices.getFusedLocationProviderClient(this)
+                .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, CancellationTokenSource().token)
+                .addOnSuccessListener { loc ->
+                    if (loc == null) emitir("ubicacion", JSONObject().put("error", "sin_senal"))
+                    else emitir("ubicacion", JSONObject().put("lat", loc.latitude).put("lng", loc.longitude).put("precision", loc.accuracy.toInt()))
+                }
+                .addOnFailureListener { emitir("ubicacion", JSONObject().put("error", "sin_senal")) }
+        } catch (e: Exception) {
+            emitir("ubicacion", JSONObject().put("error", "sin_senal"))
+        }
     }
 
     // ---------- Login con Google ----------
@@ -202,6 +264,7 @@ class MainActivity : ComponentActivity() {
         .put("ultimoResultado", ajustes.ultimoResultado ?: JSONObject.NULL)
         .put("sincronizando", sincronizando)
         .put("version", versionApp())
+        .put("avisos", Avisos.estado(this))
 
     /** Avisa a la web: window.bloqueNativoEvento(tipo, datos). */
     private fun emitir(tipo: String, datos: JSONObject) {
@@ -289,6 +352,7 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface
         fun desvincular() {
             TrabajoSync.cancelar(this@MainActivity)
+            Avisos.limpiar(this@MainActivity)
             ajustes.desvincular()
             emitir("estado", estadoJson())
         }
@@ -324,6 +388,59 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface
         fun buscarActualizacion() {
             runOnUiThread { actualizador.revisar(forzar = true) }
+        }
+
+        @JavascriptInterface
+        fun programarAgenda(json: String) {
+            try { Avisos.guardarAgenda(this@MainActivity, json) } catch (e: Exception) { }
+        }
+
+        @JavascriptInterface
+        fun configurarAvisos(json: String) {
+            try { Avisos.guardarConfig(this@MainActivity, json) } catch (e: Exception) { }
+            emitir("estado", estadoJson())
+        }
+
+        @JavascriptInterface
+        fun pedirNotificaciones() {
+            runOnUiThread {
+                if (Build.VERSION.SDK_INT >= 33 && !Avisos.notificacionesPermitidas(this@MainActivity) &&
+                    checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    this@MainActivity.pedirNotificaciones.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else if (!Avisos.notificacionesPermitidas(this@MainActivity)) {
+                    // Ya se negó antes o están apagadas: se cambian en Ajustes.
+                    startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+                } else if (Avisos.config(this@MainActivity).optBoolean("llegada") && Avisos.estadoUbicacion(this@MainActivity) != "siempre") {
+                    pedirUbicacionPrecisa()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun pedirUbicacion() {
+            runOnUiThread {
+                when (Avisos.estadoUbicacion(this@MainActivity)) {
+                    "en_uso" -> if (Build.VERSION.SDK_INT >= 29) pedirUbicacionFondo.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                    "siempre" -> alCambiarAvisos()
+                    else -> pedirUbicacionPrecisa()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun ubicacionActual() {
+            runOnUiThread {
+                if (Avisos.estadoUbicacion(this@MainActivity) == "no") { ubicacionPendiente = true; pedirUbicacionPrecisa() }
+                else leerUbicacion()
+            }
+        }
+
+        @JavascriptInterface
+        fun abrirAjustesApp() {
+            runOnUiThread {
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+            }
         }
 
         @JavascriptInterface

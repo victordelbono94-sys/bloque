@@ -5,6 +5,12 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Instalar las actualizaciones de Bloque (Android lo pide una vez) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Avisos del gym: notificaciones, llegar al gimnasio y volver a programarlos al reiniciar -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Lectura: lo que registra la banda -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
@@ -69,6 +75,15 @@
                 <data android:scheme="ec.bloque.puente" android:host="auth" />
             </intent-filter>
         </activity>
+
+        <!-- Avisos: llegada al gimnasio y reinicio del teléfono -->
+        <receiver android:name=".GeocercaReceiver" android:exported="false" />
+        <receiver android:name=".ArranqueReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Le pasa el APK descargado al instalador de Android -->
         <provider

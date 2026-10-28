@@ -7,6 +7,8 @@ import { hoyISO } from '../fechas.js';
 import { cargarRutina, textoMeta, redondearPeso } from '../rutinas.js';
 import { textoSemaforo } from '../semaforo.js';
 import { abrirFicha, miniatura } from '../ficha.js';
+import { sincronizarAgenda } from '../nativo.js';
+import { emparejar, minutos } from '../actividades.js';
 
 const ESFUERZOS = [
   { valor: 6, texto: 'Fácil' },
@@ -16,7 +18,7 @@ const ESFUERZOS = [
 
 // ---------- Empezar o unirse ----------
 
-export async function empezarSesion(evento) {
+export async function empezarSesion(evento, { reemplazar = false } = {}) {
   const abiertas = datos(await sb.from('sesiones').select('id, terminados')
     .eq('calendario_id', evento.id).is('terminada_en', null).order('iniciada_en', { ascending: false }).limit(1));
   let id = abiertas[0]?.id;
@@ -29,7 +31,23 @@ export async function empezarSesion(evento) {
     }).select('id').single());
     id = nueva.id;
   }
-  location.hash = `#/sesion/${id}`;
+  sincronizarAgenda().catch(() => {}); // que la app no avise de un entreno ya empezado
+  if (reemplazar) location.replace(`#/sesion/${id}`);
+  else location.hash = `#/sesion/${id}`;
+}
+
+// Desde la notificación de la app («Comenzar»): abre o crea el entreno de ese gym.
+export async function vistaComenzar(app) {
+  const id = location.hash.split('/')[2];
+  app.innerHTML = '<p class="cargando">Abriendo el entreno…</p>';
+  const evento = /^[0-9a-f-]{36}$/.test(id ?? '')
+    ? datos(await sb.from('calendario').select('*').eq('id', id).maybeSingle())
+    : null;
+  if (!evento?.rutina_id) {
+    app.innerHTML = '<p class="vacio">Ese gym ya no tiene rutina o se borró.</p><a class="boton boton--sec" href="#/hoy">Ir a Hoy</a>';
+    return;
+  }
+  await empezarSesion(evento, { reemplazar: true });
 }
 
 // ---------- Estado de la pantalla ----------
@@ -74,6 +92,15 @@ export async function vistaSesion(app) {
     sb.from('estado_diario').select('*').eq('persona_id', estado.yo.id).eq('fecha', hoyISO()).maybeSingle().then(datos),
   ]);
 
+  // Lo que grabó el reloj para este entreno (cuando ya sincronizó).
+  let reloj = null;
+  if (evento) {
+    const desde = new Date(`${evento.fecha}T00:00:00`), hasta = new Date(`${evento.fecha}T23:59:59`);
+    const delDia = datos(await sb.from('sesiones_banda').select('tipo, inicio, fin, calorias, fc_promedio')
+      .eq('persona_id', estado.yo.id).gte('inicio', desde.toISOString()).lte('inicio', hasta.toISOString()));
+    reloj = emparejar([evento], delDia).pares.get(evento) ?? null;
+  }
+
   const participantes = !evento || evento.asistencia === 'juntos'
     ? estado.personas
     : estado.personas.filter((p) => p.id === evento.persona_id);
@@ -93,6 +120,12 @@ export async function vistaSesion(app) {
         <p class="subtitulo"><span id="transcurrido"></span> · ${esc(participantes.length > 1 ? `${participantes.filter((p) => p.id !== estado.yo.id).map((p) => p.nombre).join(', ')} y yo` : (participantes[0]?.id === estado.yo.id ? 'Solo yo' : `Solo ${participantes[0]?.nombre ?? ''}`))}</p>
       </div>
     </header>
+
+    ${reloj ? `
+      <p class="sesion-reloj">
+        <svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6" width="11" height="12" rx="3.5"/><path d="M9 6l.6-3h4.8l.6 3M9 18l.6 3h4.8l.6-3M12 9.5V12l1.6 1.2"/></svg>
+        <span><strong>Tu reloj registró:</strong> ${esc([`${minutos(reloj)} min`, reloj.calorias != null ? `${reloj.calorias} kcal` : null, reloj.fc_promedio ? `${reloj.fc_promedio} ppm promedio` : null].filter(Boolean).join(' · '))}</span>
+      </p>` : ''}
 
     ${sem && sem !== 'verde' ? `
       <div class="aviso-fijo aviso-fijo--${sem}">
