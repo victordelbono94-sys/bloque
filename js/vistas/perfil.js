@@ -1,6 +1,6 @@
 // Pantalla Perfil: mis datos, el equipo, exportar todo y cerrar sesión.
 import { sb, estado, datos, cargarPersonas } from '../db.js';
-import { esc, aviso, avisoError, abrirDialogo } from '../ui.js';
+import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
 import { hoyISO, fechaCorta } from '../fechas.js';
 import {
   enApp, APK, estadoNativo, pedirPermisos, sincronizarAhora, alEventoNativo, abrirExterno, guardarArchivo, asegurarVinculo, buscarActualizacion,
@@ -41,6 +41,15 @@ export async function vistaPerfil(app) {
 
     <form class="tarjeta pila" id="perfil" novalidate>
       <h2 class="seccion__titulo" style="margin:0">Mis datos</h2>
+      <div class="foto-perfil">
+        <span class="avatar avatar--grande" id="foto-actual">${cara(yo)}</span>
+        <div class="foto-perfil__botones">
+          <button type="button" class="boton boton--sec boton--chico" id="foto-subir">${yo.avatar_url ? 'Cambiar foto' : 'Subir foto'}</button>
+          ${fotoGoogle() && yo.avatar_url !== fotoGoogle() ? '<button type="button" class="boton boton--texto boton--chico" id="foto-google">Usar la de Google</button>' : ''}
+          ${yo.avatar_url ? '<button type="button" class="boton boton--texto boton--chico" id="foto-quitar">Quitar</button>' : ''}
+        </div>
+        <input type="file" id="foto-archivo" accept="image/*" hidden>
+      </div>
       <p class="ayuda">Se usan para calcular metas de calorías y el metabolismo.</p>
       <div class="campo">
         <label for="nombre">Nombre</label>
@@ -144,6 +153,7 @@ export async function vistaPerfil(app) {
   });
 
   conectarEquipo(app);
+  conectarFoto(app);
   conectarNativo(app);
   conectarGimnasio(app, gimnasio);
   conectarAvisos(app);
@@ -540,7 +550,7 @@ function htmlEquipo() {
       <ul class="miembros">
         ${estado.personas.map((p) => `
           <li class="miembro">
-            <span class="miembro__avatar" aria-hidden="true">${esc((p.nombre ?? '?').trim().charAt(0).toUpperCase())}</span>
+            <span class="miembro__avatar" aria-hidden="true">${cara(p)}</span>
             <span class="miembro__nombre">${esc(p.nombre)}${p.id === estado.yo.id ? ' <span class="quieto">(tú)</span>' : ''}</span>
             ${p.id === eq.admin_id ? '<span class="etiqueta etiqueta--mini">Admin</span>' : ''}
             ${admin && p.id !== estado.yo.id ? `<button type="button" class="boton boton--texto boton--chico miembro__quitar" data-quitar-miembro="${esc(p.id)}" aria-label="Quitar a ${esc(p.nombre)} del equipo">Quitar</button>` : ''}
@@ -651,5 +661,60 @@ function conectarEquipo(app) {
     confirmar('¿Salir del equipo?', texto, async () => {
       await salirDelEquipo(); await cambiarDeEquipo('Saliste del equipo.');
     }, { boton: 'Salir', peligro: true });
+  });
+}
+
+// ---------- Foto de perfil ----------
+const fotoGoogle = () => {
+  const m = estado.usuario?.user_metadata ?? {};
+  const url = m.avatar_url ?? m.picture;
+  return url?.startsWith('https://') ? url : null;
+};
+
+/** Recorta al centro en cuadrado, achica a 384 px y devuelve un JPEG. */
+async function fotoCuadrada(archivo) {
+  const img = await createImageBitmap(archivo);
+  const lado = Math.min(img.width, img.height);
+  const lienzo = document.createElement('canvas');
+  lienzo.width = lienzo.height = Math.min(384, lado);
+  lienzo.getContext('2d').drawImage(img, (img.width - lado) / 2, (img.height - lado) / 2, lado, lado, 0, 0, lienzo.width, lienzo.height);
+  return new Promise((ok) => lienzo.toBlob(ok, 'image/jpeg', 0.86));
+}
+
+function conectarFoto(app) {
+  const yo = estado.yo;
+  const guardar = async (url, mensaje) => {
+    datos(await sb.from('personas').update({ avatar_url: url }).eq('id', yo.id));
+    await cargarPersonas();
+    aviso(mensaje);
+    vistaPerfil(app);
+  };
+  const archivo = app.querySelector('#foto-archivo');
+  app.querySelector('#foto-subir').addEventListener('click', () => archivo.click());
+  archivo.addEventListener('change', async () => {
+    const f = archivo.files?.[0];
+    archivo.value = '';
+    if (!f) return;
+    const boton = app.querySelector('#foto-subir');
+    boton.disabled = true;
+    boton.textContent = 'Subiendo…';
+    try {
+      const blob = await fotoCuadrada(f);
+      const ruta = `${yo.id}/avatar.jpg`;
+      datos(await sb.storage.from('avatares').upload(ruta, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '3600' }));
+      const { data } = sb.storage.from('avatares').getPublicUrl(ruta);
+      await guardar(`${data.publicUrl}?v=${Date.now()}`, 'Foto actualizada.');
+    } catch (err) {
+      avisoError(err);
+      boton.disabled = false;
+      boton.textContent = 'Cambiar foto';
+    }
+  });
+  app.querySelector('#foto-google')?.addEventListener('click', () => guardar(fotoGoogle(), 'Listo: tu foto de Google.').catch(avisoError));
+  app.querySelector('#foto-quitar')?.addEventListener('click', async () => {
+    try {
+      await sb.storage.from('avatares').remove([`${yo.id}/avatar.jpg`]);
+      await guardar(null, 'Foto quitada.');
+    } catch (err) { avisoError(err); }
   });
 }

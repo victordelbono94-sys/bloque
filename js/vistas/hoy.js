@@ -1,6 +1,6 @@
 // Pantalla Hoy: qué toca, cómo está cada uno y su última medición.
 import { sb, estado, datos } from '../db.js';
-import { esc, num, aviso, avisoError, grupoChips, valorChips } from '../ui.js';
+import { esc, num, aviso, avisoError, grupoChips, valorChips, cara } from '../ui.js';
 import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia, fechaCorta, hora } from '../fechas.js';
 import { TIPOS, horaEfectiva, textoAsistencia, nombreEvento, iconoEvento } from '../eventos.js';
 import { iconoTipo, mapaCuerpo, chipsZonas } from '../iconos.js';
@@ -95,7 +95,7 @@ export async function vistaHoy(app) {
         <h1 class="titulo">Hoy</h1>
         <p class="subtitulo">${esc(diaLargo(hoy))}</p>
       </div>
-      <a class="avatar" href="#/perfil" aria-label="Perfil y ajustes">${esc((estado.yo.nombre ?? '?').trim().charAt(0).toUpperCase())}</a>
+      <a class="avatar" href="#/perfil" aria-label="Perfil y ajustes">${cara(estado.yo)}</a>
     </header>
 
     <section class="tarjeta" aria-labelledby="plan-hoy">

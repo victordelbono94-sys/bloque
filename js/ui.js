@@ -116,3 +116,10 @@ export function graficaLinea(puntos, { unidad = '', decimales = 1 } = {}) {
       <text x="${W - der}" y="${H - 6}" text-anchor="end">${fmt(puntos.at(-1).fecha)}</text>
     </svg>`;
 }
+
+// Contenido de un avatar: la foto de la persona (Google o subida) o su inicial si no hay o no carga.
+export function cara(p) {
+  const inicial = esc((p?.nombre ?? '?').trim().charAt(0).toUpperCase() || '?');
+  if (!p?.avatar_url) return inicial;
+  return `<img src="${esc(p.avatar_url)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async" onerror="this.parentNode.textContent='${inicial}'">`;
+}

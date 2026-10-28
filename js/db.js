@@ -36,11 +36,19 @@ export async function cargarPersonas() {
   const yo = datos(await sb.from('personas').select('*').eq('id', user.id).maybeSingle());
   estado.yo = yo;
   if (!yo) { estado.personas = []; estado.equipo = null; return; }
-
   const [todas, equipo] = await Promise.all([
     sb.from('personas').select('*').eq('hogar_id', yo.hogar_id).order('nombre').then(datos),
     sb.from('hogares').select('*').eq('id', yo.hogar_id).maybeSingle().then(datos),
   ]);
   estado.equipo = equipo;
   estado.personas = [yo, ...todas.filter((p) => p.id !== yo.id)];
+}
+
+/** Al crear la cuenta (una sola vez): la foto de Google como foto de perfil. */
+export async function fotoInicialDeGoogle() {
+  const m = estado.usuario?.user_metadata ?? {};
+  const url = m.avatar_url ?? m.picture;
+  if (!estado.yo || estado.yo.avatar_url || !url?.startsWith('https://')) return;
+  const { error } = await sb.from('personas').update({ avatar_url: url }).eq('id', estado.yo.id);
+  if (!error) estado.yo.avatar_url = url;
 }

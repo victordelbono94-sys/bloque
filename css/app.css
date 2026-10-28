@@ -1099,3 +1099,10 @@ dialog .selector-deporte { max-height: 46dvh; overflow: auto; padding-right: 4px
   align-self: flex-start; border: 0; background: none; padding: 0; cursor: pointer; color: var(--volt);
   font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 34px; letter-spacing: 0.22em;
 }
+
+/* Fotos de perfil */
+.avatar, .miembro__avatar { overflow: hidden; }
+.avatar img, .miembro__avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar--grande { width: 72px; height: 72px; border-radius: 22px; font-size: 32px; }
+.foto-perfil { display: flex; align-items: center; gap: 16px; }
+.foto-perfil__botones { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }

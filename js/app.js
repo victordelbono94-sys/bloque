@@ -1,5 +1,5 @@
 // Arranque de Bloque: sesión, equipo y navegación entre pantallas.
-import { sb, estado, cargarPersonas } from './db.js';
+import { sb, estado, cargarPersonas, fotoInicialDeGoogle } from './db.js';
 import { aviso, avisoError } from './ui.js';
 import { vistaHoy } from './vistas/hoy.js';
 import { vistaSemana } from './vistas/semana.js';
@@ -60,6 +60,7 @@ function pantallaPrimeraVez() {
   pantallaBienvenida(app, async (mensaje) => {
     history.replaceState(null, '', location.pathname + '#/hoy');
     await cargarPersonas();
+    await fotoInicialDeGoogle().catch(() => {});
     await mostrarRuta();
     aviso(mensaje);
   }, async () => { await sb.auth.signOut(); });
