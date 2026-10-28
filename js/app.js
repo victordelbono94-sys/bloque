@@ -7,6 +7,7 @@ import { vistaCuerpo } from './vistas/cuerpo.js';
 import { vistaEntreno } from './vistas/entreno.js';
 import { vistaSesion } from './vistas/sesion.js';
 import { vistaPerfil } from './vistas/perfil.js';
+import { estaInstalada, puedeSeguirEnNavegador, pantallaInstalar } from './instalar.js';
 
 const app = document.getElementById('app');
 const nav = document.getElementById('nav');
@@ -133,6 +134,11 @@ function iniciar() {
 }
 
 async function arrancar() {
+  // En el teléfono, Bloque solo funciona instalada como app.
+  if (!estaInstalada() && !puedeSeguirEnNavegador()) {
+    nav.hidden = true;
+    return pantallaInstalar(app, iniciar);
+  }
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) return pantallaIngreso();
