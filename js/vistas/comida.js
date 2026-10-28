@@ -246,6 +246,8 @@ async function analizarFoto(archivo) {
       sin_clave: 'Falta conectar Gemini (la clave gratis). Mientras tanto, busca o escanea.',
       limite: 'Gemini llegó al límite gratis por ahora. Prueba en un minuto.',
       imagen: 'La foto es muy pesada o no se pudo leer.',
+      gemini: 'Gemini está saturado en este momento. Prueba en un rato o búscalo a mano.',
+      sesion: 'Tu sesión se venció: vuelve a entrar a Bloque.',
     }[codigo] ?? 'No se pudo analizar la foto. Revisa la conexión.');
   }
   return data?.alimentos ?? [];
