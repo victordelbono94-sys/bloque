@@ -14,6 +14,9 @@ import android.provider.Settings
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -26,6 +29,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.browser.customtabs.CustomTabColorSchemeParams
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.core.content.FileProvider
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
@@ -64,6 +68,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var pedirUbicacion: ActivityResultLauncher<Array<String>>
     private lateinit var pedirUbicacionFondo: ActivityResultLauncher<String>
     private var ubicacionPendiente = false
+    private lateinit var pedirCamara: ActivityResultLauncher<String>
+    private lateinit var elegirArchivo: ActivityResultLauncher<Intent>
+    private var permisoWebPendiente: PermissionRequest? = null
+    private var archivoPendiente: ValueCallback<Array<Uri>>? = null
+    private var fotoCamara: Uri? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -90,6 +99,18 @@ class MainActivity : ComponentActivity() {
             alCambiarAvisos()
         }
         pedirUbicacionFondo = registerForActivityResult(ActivityResultContracts.RequestPermission()) { alCambiarAvisos() }
+        pedirCamara = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+            permisoWebPendiente?.let { if (ok) it.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else it.deny() }
+            permisoWebPendiente = null
+        }
+        elegirArchivo = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+            var uris = WebChromeClient.FileChooserParams.parseResult(r.resultCode, r.data)
+            // Foto sacada con la cámara: no vuelve en el intent, quedó en el archivo que le pasamos.
+            if (uris == null && r.resultCode == RESULT_OK && fotoCamara != null) uris = arrayOf(fotoCamara!!)
+            archivoPendiente?.onReceiveValue(uris)
+            archivoPendiente = null
+            fotoCamara = null
+        }
 
         web = WebView(this).apply {
             setBackgroundColor(asfalto)
@@ -102,6 +123,7 @@ class MainActivity : ComponentActivity() {
             settings.userAgentString = settings.userAgentString + " BloqueApp/" + versionApp()
             addJavascriptInterface(Puente(), "BloqueNativo")
             webViewClient = Cliente()
+            webChromeClient = Navegador()
         }
 
         // Android 15 dibuja detrás de las barras del sistema: se deja el espacio que ocupan.
@@ -330,6 +352,54 @@ class MainActivity : ComponentActivity() {
                    text-decoration:none;font-weight:bold">Reintentar</a></body></html>""",
                 "text/html", "utf-8", null,
             )
+        }
+    }
+
+    // ---------- Cámara y archivos para la web ----------
+    // La web pide la cámara para leer códigos de barras, y elige fotos de comidas.
+
+    private inner class Navegador : WebChromeClient() {
+        override fun onPermissionRequest(request: PermissionRequest) {
+            runOnUiThread {
+                val nuestra = request.origin?.host == HOST
+                if (!nuestra || PermissionRequest.RESOURCE_VIDEO_CAPTURE !in request.resources) { request.deny(); return@runOnUiThread }
+                if (checkSelfPermission(Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+                } else {
+                    permisoWebPendiente?.deny()
+                    permisoWebPendiente = request
+                    pedirCamara.launch(Manifest.permission.CAMERA)
+                }
+            }
+        }
+
+        override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
+            archivoPendiente?.onReceiveValue(null)
+            archivoPendiente = callback
+            val galeria = params.createIntent()
+            val imagenes = params.acceptTypes.any { it.startsWith("image") }
+            val intent = if (imagenes) {
+                // Galería o cámara, a elección.
+                // Android no deja abrir la cámara si Bloque declara el permiso y no lo tiene concedido.
+                val conPermiso = checkSelfPermission(Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                val camara = if (!conPermiso) null else try {
+                    val dir = File(cacheDir, "fotos").apply { mkdirs() }
+                    val archivo = File(dir, "comida-${System.currentTimeMillis()}.jpg")
+                    fotoCamara = FileProvider.getUriForFile(this@MainActivity, "$packageName.archivos", archivo)
+                    Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).putExtra(android.provider.MediaStore.EXTRA_OUTPUT, fotoCamara)
+                        .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                } catch (e: Exception) { null }
+                Intent.createChooser(galeria, "Foto de la comida").apply {
+                    if (camara != null) putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(camara))
+                }
+            } else galeria
+            return try {
+                elegirArchivo.launch(intent)
+                true
+            } catch (e: Exception) {
+                archivoPendiente = null
+                false
+            }
         }
     }
 

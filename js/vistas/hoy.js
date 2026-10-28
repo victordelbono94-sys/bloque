@@ -95,7 +95,7 @@ export async function vistaHoy(app) {
         <h1 class="titulo">Hoy</h1>
         <p class="subtitulo">${esc(diaLargo(hoy))}</p>
       </div>
-      <span class="wordmark" aria-hidden="true">b<span class="wordmark__bloque"></span></span>
+      <a class="avatar" href="#/perfil" aria-label="Perfil y ajustes">${esc((estado.yo.nombre ?? '?').trim().charAt(0).toUpperCase())}</a>
     </header>
 
     <section class="tarjeta" aria-labelledby="plan-hoy">

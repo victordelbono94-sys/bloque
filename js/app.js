@@ -7,6 +7,7 @@ import { vistaCuerpo } from './vistas/cuerpo.js';
 import { vistaEntreno } from './vistas/entreno.js';
 import { vistaSesion, vistaComenzar } from './vistas/sesion.js';
 import { vistaPerfil } from './vistas/perfil.js';
+import { vistaComida } from './vistas/comida.js';
 import { estaInstalada, puedeSeguirEnNavegador, pantallaInstalar } from './instalar.js';
 import { enApp, loginEnApp, asegurarVinculo, desvincular, alEventoNativo, sincronizarAgenda } from './nativo.js';
 
@@ -21,6 +22,7 @@ const RUTAS = {
   comenzar: vistaComenzar,
   cuerpo: vistaCuerpo,
   perfil: vistaPerfil,
+  comida: vistaComida,
 };
 
 if ('serviceWorker' in navigator) {
@@ -63,7 +65,7 @@ function pantallaEspera() {
   document.getElementById('salir').addEventListener('click', async () => { await sb.auth.signOut(); iniciar(); });
 }
 
-const ORDEN = ['hoy', 'semana', 'entreno', 'sesion', 'cuerpo', 'perfil'];
+const ORDEN = ['hoy', 'semana', 'entreno', 'sesion', 'comida', 'cuerpo', 'perfil'];
 let rutaAnterior = null;
 let navegacion = 0;
 let quitarAnimacion;

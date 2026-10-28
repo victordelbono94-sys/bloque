@@ -845,3 +845,76 @@ span.serie--hecha { opacity: 0.85; }
 .buscador__item:active { background: var(--grafito); }
 .buscador__item .quieto { font-size: 13px; }
 .buscador__vacio { margin: 0; padding: 12px 14px; font-size: 14px; }
+
+/* =====================================================================
+   Comida
+   ===================================================================== */
+.avatar { width: 44px; height: 44px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; background: var(--volt); color: var(--asfalto); font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 20px; text-decoration: none; flex-shrink: 0; }
+.avatar:active { transform: scale(0.94); }
+.boton--icono { min-width: 44px; padding: 0 12px; font-size: 20px; }
+.enlace-boton { background: none; border: 0; padding: 0; color: var(--volt); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
+.kcal { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.kcal__numero { font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 40px; line-height: 1; letter-spacing: -0.02em; }
+.kcal__texto { display: block; color: var(--tiza-2); font-size: 14px; margin-top: 4px; }
+.kcal__meta { font-size: 14px; text-align: right; }
+.kcal__barra, .macro__barra, .paquete__barra { height: 10px; border-radius: 999px; background: var(--asfalto); overflow: hidden; margin-top: 12px; }
+.kcal__barra span, .macro__barra span, .paquete__barra span { display: block; height: 100%; border-radius: inherit; background: var(--volt); transition: width 0.6s var(--suave); }
+.macros { display: grid; gap: 10px; margin-top: 16px; }
+.macro__fila { display: flex; justify-content: space-between; font-size: 14px; color: var(--tiza-2); }
+.macro__fila strong { color: var(--tiza); }
+.macro__barra { height: 6px; margin-top: 6px; }
+.macro__barra .m-prot { background: #7FD6FF; }
+.macro__barra .m-carb { background: var(--volt); }
+.macro__barra .m-gras { background: #FFB86B; }
+.notas-comida { list-style: none; margin: 16px 0 0; padding: 12px 14px; border-radius: 12px; background: rgba(198, 244, 50, 0.08); display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.4; }
+.notas-comida li { padding-left: 18px; position: relative; }
+.notas-comida li::before { content: ''; position: absolute; left: 2px; top: 7px; width: 7px; height: 7px; border-radius: 2px; background: var(--volt); }
+.dia-comida__pie { margin-top: 12px; }
+.dia-comida--otro { padding: 14px 18px; }
+.dia-comida--otro .kcal__barra { height: 6px; }
+
+.snacks { gap: 0; padding: 4px 18px; }
+.snack { padding: 14px 0; }
+.snack + .snack { border-top: 1px solid var(--grafito-2); }
+.snack__cabeza { display: flex; align-items: baseline; gap: 10px; }
+.snack__hora { font-family: var(--titulo); font-stretch: 112%; font-weight: 700; color: var(--volt); font-variant-numeric: tabular-nums; }
+.snack__opciones { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+
+.comida-fila { display: block; width: 100%; text-align: left; border: 0; color: inherit; cursor: pointer; font: inherit; }
+.pila > .comida-fila { margin: 0; }
+.comida-fila:active { transform: scale(0.98); }
+.comida-fila__texto { margin: 6px 0 8px; color: var(--tiza-2); font-size: 15px; }
+.comida-fila__porciones { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--gris); }
+.comida-fila__porciones strong { color: var(--tiza); }
+
+.paquete { display: block; width: 100%; border: 0; background: none; color: inherit; text-align: left; padding: 0; cursor: pointer; font: inherit; }
+.paquete__barra { height: 6px; margin-top: 8px; }
+
+/* Registrar comida */
+.ba { display: flex; flex-direction: column; gap: 10px; }
+.ba__fila { display: flex; gap: 8px; }
+.ba__fila input { flex: 1; min-height: 48px; padding: 10px 14px; border-radius: var(--radio-chico); border: 1px solid var(--linea); background: var(--asfalto); font-size: 16px; }
+.ba__res { display: flex; flex-direction: column; max-height: 300px; overflow-y: auto; border-radius: 12px; }
+.ba__res:empty { display: none; }
+.ba__grupo { margin: 8px 0 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gris); }
+.ba__item { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 0; border-radius: 10px; background: var(--asfalto); color: var(--tiza); text-align: left; cursor: pointer; font-size: 15px; margin-bottom: 6px; }
+.ba__item .quieto { font-size: 13px; }
+.ba__item:active { background: var(--grafito-2); }
+.ba__vacio { margin: 4px 0; font-size: 14px; }
+.ba__manual { padding: 14px; border-radius: 12px; background: var(--asfalto); }
+.item-comida { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--asfalto); }
+.item-comida__info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.item-comida__info .quieto { font-size: 13px; }
+.item-comida__atajos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip--mini { min-height: 30px; min-width: 0; padding: 0 10px; font-size: 13px; }
+.item-comida__gramos { display: flex; align-items: center; gap: 4px; color: var(--gris); font-size: 14px; }
+.item-comida__gramos input { width: 72px; min-height: 40px; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--linea); background: var(--grafito); text-align: right; font-size: 16px; }
+.item-comida__quitar { width: 36px; height: 36px; border: 0; border-radius: 10px; background: none; color: var(--gris); font-size: 22px; cursor: pointer; }
+.comida-total { font-size: 15px; }
+.comida-total:empty { display: none; }
+input[type="range"] { accent-color: var(--volt); width: 100%; min-height: 32px; }
+.escaner { position: relative; border-radius: 14px; overflow: hidden; background: #000; aspect-ratio: 4 / 3; }
+.escaner video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.escaner__linea { position: absolute; left: 10%; right: 10%; top: 50%; height: 2px; background: var(--volt); box-shadow: 0 0 12px var(--volt); animation: barrer 1.8s ease-in-out infinite alternate; }
+@keyframes barrer { from { transform: translateY(-60px); } to { transform: translateY(60px); } }

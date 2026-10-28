@@ -2,4 +2,6 @@
 <!-- Archivos que Bloque comparte con el instalador de Android: solo la actualización descargada. -->
 <paths>
     <cache-path name="actualizacion" path="actualizacion/" />
+    <!-- Fotos de comidas sacadas con la cámara desde Bloque -->
+    <cache-path name="fotos" path="fotos/" />
 </paths>

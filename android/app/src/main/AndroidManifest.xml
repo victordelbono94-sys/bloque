@@ -7,6 +7,9 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Avisos del gym: notificaciones, llegar al gimnasio y volver a programarlos al reiniciar -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Cámara: leer códigos de barras de productos y sacar fotos de comidas -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
@@ -38,6 +41,9 @@
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
 
     <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
         <package android:name="com.google.android.apps.healthdata" />
         <!-- Abrir el login de Google en una pestaña de Chrome -->
         <intent>
