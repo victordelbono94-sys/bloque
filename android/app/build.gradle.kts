@@ -54,5 +54,7 @@ dependencies {
     implementation("androidx.browser:browser:1.8.0")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    // play-services trae un fragment viejo; los permisos con registerForActivityResult piden 1.3 o más.
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }
