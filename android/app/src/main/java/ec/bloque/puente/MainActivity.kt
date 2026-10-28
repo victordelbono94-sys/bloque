@@ -1,310 +1,330 @@
 package ec.bloque.puente
 
+import android.annotation.SuppressLint
+import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import android.text.InputType
-import android.text.format.DateUtils
-import android.util.TypedValue
-import android.view.Gravity
-import android.view.View
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
+import android.os.Environment
+import android.provider.MediaStore
+import android.view.ViewGroup
+import android.view.WindowInsets
+import android.webkit.JavascriptInterface
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResultLauncher
+import androidx.browser.customtabs.CustomTabColorSchemeParams
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import org.json.JSONObject
+import java.io.File
 
+/**
+ * Bloque como app: muestra la web de Bloque a pantalla completa y le suma lo que
+ * una web no puede hacer: leer y escribir Health Connect, en primer y segundo plano.
+ */
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        const val SITIO = "https://victordelbono94-sys.github.io/bloque/"
+        private const val HOST = "victordelbono94-sys.github.io"
+        private const val RUTA = "/bloque"
+        private const val REGRESO_LOGIN = "ec.bloque.puente"
+        private const val SYNC_AL_ABRIR_MS = 15 * 60 * 1000L
+    }
+
     private val asfalto = Color.parseColor("#15171C")
-    private val grafito = Color.parseColor("#2A2D35")
-    private val tiza = Color.parseColor("#F4F2EC")
-    private val gris = Color.parseColor("#A9ADB8")
-    private val volt = Color.parseColor("#C6F432")
-    private val rojo = Color.parseColor("#FF8A80")
-
+    private lateinit var web: WebView
     private lateinit var ajustes: Ajustes
-    private lateinit var contenido: LinearLayout
     private lateinit var pedirPermisos: ActivityResultLauncher<Set<String>>
+    private var concedidos: Set<String> = emptySet()
+    private var hcDisponible = false
     private var sincronizando = false
-    private var mensaje: Pair<String, Boolean>? = null // texto, es error
 
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ajustes = Ajustes(this)
+        hcDisponible = HealthConnectClient.getSdkStatus(this) == HealthConnectClient.SDK_AVAILABLE
+
         pedirPermisos = registerForActivityResult(PermissionController.createRequestPermissionResultContract()) {
-            pintar()
-            if (it.isNotEmpty()) sincronizarAhora()
+            refrescarPermisos(despues = { if (it.isNotEmpty()) sincronizar() })
         }
 
-        contenido = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(28), dp(20), dp(28))
-        }
-        setContentView(ScrollView(this).apply {
+        web = WebView(this).apply {
             setBackgroundColor(asfalto)
-            isFillViewport = true
-            addView(contenido)
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = true
+            settings.setSupportMultipleWindows(false)
+            settings.userAgentString = settings.userAgentString + " BloqueApp/" + versionApp()
+            addJavascriptInterface(Puente(), "BloqueNativo")
+            webViewClient = Cliente()
+        }
+
+        // Android 15 dibuja detrás de las barras del sistema: se deja el espacio que ocupan.
+        val marco = FrameLayout(this).apply {
+            setBackgroundColor(asfalto)
+            addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            marco.setOnApplyWindowInsetsListener { v, insets ->
+                val b = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
+                v.setPadding(b.left, b.top, b.right, b.bottom)
+                WindowInsets.CONSUMED
+            }
+        }
+        setContentView(marco)
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (web.canGoBack()) web.goBack() else finish()
+            }
         })
 
-        if (intent?.action == "androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" ||
-            intent?.action == "android.intent.action.VIEW_PERMISSION_USAGE") {
-            pintarPrivacidad()
-            return
-        }
-        recibirEnlace(intent)
-        pintar()
+        if (savedInstanceState != null) web.restoreState(savedInstanceState)
+        if (!recibirLogin(intent)) web.loadUrl(SITIO)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        web.saveState(outState)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        recibirEnlace(intent)
-        pintar()
+        recibirLogin(intent)
     }
 
     override fun onResume() {
         super.onResume()
-        if (ajustes.codigo != null && !sincronizando) pintar()
+        refrescarPermisos(despues = {
+            val vieja = System.currentTimeMillis() - ajustes.ultimaSync > SYNC_AL_ABRIR_MS
+            if (ajustes.codigo != null && tieneLectura() && vieja) sincronizar()
+        })
     }
 
-    // bloque-puente://vincular?c=<código>
-    private fun recibirEnlace(intent: Intent?) {
-        val uri: Uri = intent?.data ?: return
-        if (uri.scheme != "bloque-puente") return
-        val codigo = uri.getQueryParameter("c")?.trim()
-        if (codigo.isNullOrEmpty() || codigo.length < 32) {
-            mensaje = "El enlace no tiene un código válido. Genera uno nuevo en Bloque." to true
-            return
-        }
-        vincular(codigo)
+    // ---------- Login con Google ----------
+    // Google no deja iniciar sesión dentro de una WebView: se abre en Chrome y vuelve
+    // por ec.bloque.puente://auth#access_token=…, que se le pasa a la web para que guarde la sesión.
+
+    private fun recibirLogin(intent: Intent?): Boolean {
+        val uri = intent?.data ?: return false
+        if (uri.scheme != REGRESO_LOGIN || uri.host != "auth") return false
+        val fragmento = uri.encodedFragment ?: uri.encodedQuery ?: ""
+        web.loadUrl("${SITIO}?auth=${System.currentTimeMillis()}#$fragmento")
+        return true
     }
 
-    private fun vincular(codigo: String) {
-        ajustes.desvincular()
-        ajustes.codigo = codigo
-        mensaje = "Teléfono vinculado. Ahora da los permisos de Health Connect." to false
-        TrabajoSync.programar(this)
+    private fun abrirEnChrome(url: String) {
+        try {
+            CustomTabsIntent.Builder()
+                .setDefaultColorSchemeParams(CustomTabColorSchemeParams.Builder().setToolbarColor(asfalto).build())
+                .setShowTitle(true)
+                .build()
+                .launchUrl(this, Uri.parse(url))
+        } catch (e: Exception) {
+            abrirAfuera(url)
+        }
     }
 
-    // ---------- Pantallas ----------
-
-    private fun pintar() {
-        contenido.removeAllViews()
-        contenido.addView(marca())
-
-        if (HealthConnectClient.getSdkStatus(this) != HealthConnectClient.SDK_AVAILABLE) {
-            contenido.addView(tarjeta(
-                titulo("Health Connect no está disponible"),
-                texto("Actualiza el teléfono o instala Health Connect desde Play Store y vuelve a abrir esta app."),
-            ))
-            return
+    private fun abrirAfuera(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (e: Exception) {
+            Toast.makeText(this, "No se pudo abrir el enlace", Toast.LENGTH_SHORT).show()
         }
+    }
 
-        mensaje?.let { (t, error) -> contenido.addView(aviso(t, error)) }
+    // ---------- Health Connect ----------
 
-        val codigo = ajustes.codigo
-        if (codigo == null) {
-            pintarSinVincular()
-            return
-        }
+    private fun tieneLectura() = concedidos.intersect(Permisos.lectura).isNotEmpty()
 
+    private fun refrescarPermisos(despues: (() -> Unit)? = null) {
+        if (!hcDisponible) { emitir("estado", estadoJson()); despues?.invoke(); return }
         lifecycleScope.launch {
-            val hc = HealthConnectClient.getOrCreate(this@MainActivity)
-            val concedidos = hc.permissionController.getGrantedPermissions()
-            val faltan = Permisos.todos - concedidos
-            pintarVinculado(concedidos.intersect(Permisos.lectura).isNotEmpty(), faltan.isNotEmpty())
-        }
-    }
-
-    private fun pintarSinVincular() {
-        contenido.addView(tarjeta(
-            titulo("Vincula este teléfono"),
-            texto("1. Abre Bloque → Perfil.\n2. Toca «Vincular teléfono».\n3. Se abre esta app ya vinculada a tu cuenta."),
-        ))
-        val campo = EditText(this).apply {
-            hint = "O pega el código acá"
-            setHintTextColor(gris)
-            setTextColor(tiza)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            background = redondeado(grafito, 12)
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-        }
-        contenido.addView(espacio(16))
-        contenido.addView(campo, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
-        contenido.addView(espacio(10))
-        contenido.addView(boton("Vincular con el código", principal = false) {
-            val c = campo.text.toString().trim()
-            if (c.length < 32) {
-                mensaje = "Ese código está incompleto." to true
-            } else {
-                vincular(c)
+            concedidos = try {
+                HealthConnectClient.getOrCreate(this@MainActivity).permissionController.getGrantedPermissions()
+            } catch (e: Exception) {
+                emptySet()
             }
-            pintar()
-        })
+            emitir("estado", estadoJson())
+            despues?.invoke()
+        }
     }
 
-    private fun pintarVinculado(tieneLectura: Boolean, faltanPermisos: Boolean) {
-        contenido.removeAllViews()
-        contenido.addView(marca())
-        mensaje?.let { (t, error) -> contenido.addView(aviso(t, error)) }
-
-        val nombre = ajustes.nombre
-        val ultima = ajustes.ultimaSync
-        contenido.addView(tarjeta(
-            titulo(if (nombre != null) "Hola, $nombre" else "Teléfono vinculado"),
-            texto(
-                if (ultima > 0) "Última sincronización: ${DateUtils.getRelativeTimeSpanString(ultima)}" +
-                    (ajustes.ultimoResultado?.let { "\n$it" } ?: "")
-                else "Todavía no sincronizó."
-            ),
-            texto("Se sincroniza sola cada hora, aunque la app esté cerrada.", gris, 14f),
-        ))
-        contenido.addView(espacio(16))
-
-        if (!tieneLectura || faltanPermisos) {
-            contenido.addView(tarjeta(
-                titulo(if (!tieneLectura) "Falta dar permisos" else "Faltan algunos permisos"),
-                texto(
-                    if (!tieneLectura) "Bloque necesita leer pasos, sueño, frecuencia cardiaca, entrenos y peso."
-                    else "Activa todos, incluido «Acceder a datos en segundo plano», para que se sincronice sola."
-                ),
-            ))
-            contenido.addView(espacio(10))
-            contenido.addView(boton("Dar permisos de Health Connect") { pedirPermisos.launch(Permisos.todos) })
-            contenido.addView(espacio(10))
-        }
-
-        if (tieneLectura) {
-            contenido.addView(boton(if (sincronizando) "Sincronizando…" else "Sincronizar ahora", principal = faltanPermisos.not()) {
-                sincronizarAhora()
-            }.apply { isEnabled = !sincronizando })
-        }
-
-        contenido.addView(espacio(28))
-        contenido.addView(boton("Desvincular este teléfono", principal = false, peligro = true) {
-            TrabajoSync.cancelar(this)
-            ajustes.desvincular()
-            mensaje = "Teléfono desvinculado." to false
-            pintar()
-        })
-    }
-
-    private fun sincronizarAhora() {
-        if (sincronizando) return
+    private fun sincronizar() {
+        if (sincronizando || ajustes.codigo == null) return
         sincronizando = true
-        mensaje = null
-        pintar()
+        emitir("estado", estadoJson())
         lifecycleScope.launch {
-            mensaje = try {
-                val r = Sincronizador.sincronizar(this@MainActivity)
-                "Listo: $r" to false
+            val r = JSONObject()
+            try {
+                r.put("ok", true).put("resumen", Sincronizador.sincronizar(this@MainActivity))
             } catch (e: NoVinculado) {
                 ajustes.desvincular()
                 TrabajoSync.cancelar(this@MainActivity)
-                "Este teléfono ya no está vinculado. Vincúlalo de nuevo desde Bloque." to true
+                r.put("ok", false).put("error", "no_vinculado")
             } catch (e: SecurityException) {
-                "Falta algún permiso de Health Connect." to true
+                r.put("ok", false).put("error", "permisos")
             } catch (e: Exception) {
-                "No se pudo sincronizar. Revisa la conexión e intenta de nuevo." to true
+                r.put("ok", false).put("error", "conexion")
             }
             sincronizando = false
-            pintar()
+            emitir("sync", r)
+            emitir("estado", estadoJson())
         }
     }
 
-    private fun pintarPrivacidad() {
-        contenido.removeAllViews()
-        contenido.addView(marca())
-        contenido.addView(tarjeta(
-            titulo("Cómo usa Bloque tus datos"),
-            texto(
-                "Bloque Puente lee de Health Connect tus pasos, calorías, sueño, frecuencia cardiaca, " +
-                    "entrenos y mediciones corporales, y los guarda en tu cuenta privada de Bloque " +
-                    "para planificar tus entrenamientos.\n\n" +
-                    "También escribe en Health Connect las mediciones que cargas en Bloque.\n\n" +
-                    "Solo tú y las personas de tu hogar en Bloque ven estos datos. No se venden ni se comparten con nadie más. " +
-                    "Puedes desvincular el teléfono o quitar los permisos cuando quieras."
-            ),
-        ))
+    private fun estadoJson(): JSONObject = JSONObject()
+        .put("hcDisponible", hcDisponible)
+        .put("vinculado", ajustes.codigo != null)
+        .put("personaId", ajustes.personaId ?: JSONObject.NULL)
+        .put("permisosLectura", tieneLectura())
+        .put("faltanPermisos", (Permisos.todos - concedidos).isNotEmpty())
+        .put("segundoPlano", HealthPermissionConstantes.SEGUNDO_PLANO in concedidos)
+        .put("ultimaSync", if (ajustes.ultimaSync > 0) ajustes.ultimaSync else JSONObject.NULL)
+        .put("ultimoResultado", ajustes.ultimoResultado ?: JSONObject.NULL)
+        .put("sincronizando", sincronizando)
+        .put("version", versionApp())
+
+    /** Avisa a la web: window.bloqueNativoEvento(tipo, datos). */
+    private fun emitir(tipo: String, datos: JSONObject) {
+        val js = "window.bloqueNativoEvento && window.bloqueNativoEvento(${JSONObject.quote(tipo)}, ${datos})"
+        runOnUiThread { if (::web.isInitialized) web.evaluateJavascript(js, null) }
     }
 
-    // ---------- Piezas de interfaz ----------
+    private fun versionApp(): Long = try {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
+    } catch (e: Exception) { 0L }
 
-    private fun marca() = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(0, 0, 0, dp(24))
-        addView(TextView(this@MainActivity).apply {
-            text = "bl"
-            setTextColor(tiza); textSize = 34f; typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
-        })
-        addView(View(this@MainActivity).apply { background = redondeado(volt, 4) }, LinearLayout.LayoutParams(dp(18), dp(18)).apply {
-            setMargins(dp(2), dp(8), dp(2), 0)
-        })
-        addView(TextView(this@MainActivity).apply {
-            text = "que"
-            setTextColor(tiza); textSize = 34f; typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
-        })
-        addView(TextView(this@MainActivity).apply {
-            text = "  puente"
-            setTextColor(gris); textSize = 18f
-        })
-    }
+    // ---------- Archivos (exportar datos) ----------
 
-    private fun tarjeta(vararg hijos: View) = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        background = redondeado(grafito, 16)
-        setPadding(dp(18), dp(18), dp(18), dp(18))
-        hijos.forEachIndexed { i, v -> if (i > 0) addView(espacio(8)); addView(v) }
-    }
-
-    private fun titulo(t: String) = TextView(this).apply {
-        text = t; setTextColor(tiza); textSize = 20f; typeface = Typeface.DEFAULT_BOLD
-    }
-
-    private fun texto(t: String, color: Int = tiza, tam: Float = 16f) = TextView(this).apply {
-        text = t; setTextColor(color); textSize = tam; setLineSpacing(0f, 1.2f)
-    }
-
-    private fun aviso(t: String, error: Boolean) = TextView(this).apply {
-        text = t
-        setTextColor(asfalto); textSize = 15f
-        background = redondeado(if (error) rojo else volt, 12)
-        setPadding(dp(14), dp(12), dp(14), dp(12))
-        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(16)
+    private fun guardarDescarga(nombre: String, contenido: String, tipo: String) {
+        try {
+            val bytes = contenido.toByteArray(Charsets.UTF_8)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val valores = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, nombre)
+                    put(MediaStore.Downloads.MIME_TYPE, tipo)
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+                val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, valores) ?: throw Exception()
+                contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                valores.clear(); valores.put(MediaStore.Downloads.IS_PENDING, 0)
+                contentResolver.update(uri, valores, null, null)
+            } else {
+                val dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: filesDir
+                File(dir, nombre).writeBytes(bytes)
+            }
+            runOnUiThread { Toast.makeText(this, "Guardado en Descargas: $nombre", Toast.LENGTH_LONG).show() }
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "No se pudo guardar el archivo", Toast.LENGTH_LONG).show() }
         }
     }
 
-    private fun boton(t: String, principal: Boolean = true, peligro: Boolean = false, alTocar: () -> Unit) = Button(this).apply {
-        text = t
-        isAllCaps = false
-        textSize = 16f
-        typeface = Typeface.DEFAULT_BOLD
-        stateListAnimator = null
-        setTextColor(when { peligro -> rojo; principal -> asfalto; else -> tiza })
-        background = redondeado(when { peligro -> asfalto; principal -> volt; else -> grafito }, 14)
-        minHeight = dp(52)
-        setOnClickListener { alTocar() }
-        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+    // ---------- Navegación ----------
+
+    private fun esNuestro(uri: Uri) = uri.scheme == "https" && uri.host == HOST && (uri.path ?: "").startsWith(RUTA)
+
+    private inner class Cliente : WebViewClient() {
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            val uri = request.url
+            if (esNuestro(uri)) return false
+            if (uri.scheme == REGRESO_LOGIN) { recibirLogin(Intent(Intent.ACTION_VIEW, uri)); return true }
+            // Todo lo demás (login, GitHub, enlaces externos) se abre fuera de la app.
+            if (uri.host?.endsWith("supabase.co") == true || uri.host?.contains("google") == true) abrirEnChrome(uri.toString())
+            else abrirAfuera(uri.toString())
+            return true
+        }
+
+        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+            if (!request.isForMainFrame) return
+            view.loadDataWithBaseURL(
+                null,
+                """<html><body style="margin:0;background:#15171C;color:#F4F2EC;font-family:sans-serif;display:flex;
+                   flex-direction:column;align-items:center;justify-content:center;height:100vh;text-align:center;padding:24px">
+                   <h2>Sin conexión</h2><p style="color:#A9ADB8">Bloque necesita internet para abrir la primera vez.</p>
+                   <a href="$SITIO" style="margin-top:16px;background:#C6F432;color:#15171C;padding:14px 22px;border-radius:14px;
+                   text-decoration:none;font-weight:bold">Reintentar</a></body></html>""",
+                "text/html", "utf-8", null,
+            )
+        }
     }
 
-    private fun espacio(alto: Int) = View(this).apply {
-        layoutParams = LinearLayout.LayoutParams(1, dp(alto))
-    }
+    // ---------- Lo que la web puede pedirle a la app ----------
+    // Solo la web de Bloque se carga en esta WebView (lo demás se abre afuera),
+    // así que solo ella llega a estos métodos.
 
-    private fun redondeado(color: Int, radio: Int) = GradientDrawable().apply {
-        setColor(color); cornerRadius = dp(radio).toFloat()
-    }
+    private inner class Puente {
+        @JavascriptInterface
+        fun estado(): String = estadoJson().toString()
 
-    private fun dp(v: Int) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), resources.displayMetrics).toInt()
+        @JavascriptInterface
+        fun vincular(codigo: String, personaId: String) {
+            if (codigo.length < 32) return
+            ajustes.desvincular()
+            ajustes.codigo = codigo
+            ajustes.personaId = personaId
+            TrabajoSync.programar(this@MainActivity)
+            runOnUiThread { refrescarPermisos(despues = { if (tieneLectura()) sincronizar() }) }
+        }
+
+        @JavascriptInterface
+        fun desvincular() {
+            TrabajoSync.cancelar(this@MainActivity)
+            ajustes.desvincular()
+            emitir("estado", estadoJson())
+        }
+
+        @JavascriptInterface
+        fun pedirPermisos() {
+            runOnUiThread {
+                if (!hcDisponible) {
+                    abrirAfuera("https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata")
+                } else {
+                    this@MainActivity.pedirPermisos.launch(Permisos.todos)
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun sincronizar() {
+            runOnUiThread { this@MainActivity.sincronizar() }
+        }
+
+        @JavascriptInterface
+        fun abrirLogin(url: String) {
+            val uri = Uri.parse(url)
+            if (uri.scheme == "https") runOnUiThread { abrirEnChrome(url) }
+        }
+
+        @JavascriptInterface
+        fun abrirExterno(url: String) {
+            val uri = Uri.parse(url)
+            if (uri.scheme == "https") runOnUiThread { abrirAfuera(url) }
+        }
+
+        @JavascriptInterface
+        fun guardarArchivo(nombre: String, contenido: String, tipo: String) {
+            val limpio = nombre.replace(Regex("[^A-Za-z0-9._-]"), "_").take(80)
+            guardarDescarga(limpio, contenido, tipo)
+        }
+    }
+}
+
+private object HealthPermissionConstantes {
+    val SEGUNDO_PLANO = androidx.health.connect.client.permission.HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND
 }

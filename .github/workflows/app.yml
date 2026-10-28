@@ -1,7 +1,7 @@
-name: App puente
+name: App Bloque
 
-# Compila Bloque Puente cada vez que cambia el código de la app y publica el APK
-# en la release "puente" (descarga directa desde el teléfono).
+# Compila la app Bloque cada vez que cambia su código nativo y publica el APK
+# en la release "app" (descarga directa desde el teléfono).
 on:
   push:
     branches: [main]
@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: puente
+  group: app-bloque
   cancel-in-progress: true
 
 jobs:
@@ -65,26 +65,26 @@ jobs:
           fi
 
       - name: Renombrar
-        run: cp android/app/build/outputs/apk/release/app-release.apk bloque-puente.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk bloque.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: bloque-puente
-          path: bloque-puente.apk
+          name: bloque
+          path: bloque.apk
           retention-days: 7
 
       - name: Publicar
         if: env.FIRMADA == 'si'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: puente
-          name: Bloque Puente
+          tag_name: app
+          name: Bloque
           make_latest: true
-          files: bloque-puente.apk
+          files: bloque.apk
           body: |
-            App puente de Bloque: sincroniza Health Connect (Xiaomi Smart Band, balanza) con Bloque.
+            La app Bloque para Android: entrenamientos, cuerpo y datos de la banda vía Health Connect.
 
-            **Instalar:** abre este enlace desde el teléfono y descarga `bloque-puente.apk`.
+            **Instalar:** abre este enlace desde el teléfono y descarga `bloque.apk`.
             Android va a pedir permiso para instalar apps de esta fuente: acéptalo una vez.
 
             Versión ${{ github.run_number }} · ${{ github.sha }}
