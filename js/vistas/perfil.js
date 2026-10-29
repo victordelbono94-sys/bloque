@@ -89,10 +89,18 @@ export async function vistaPerfil(app) {
     </section>
 
     <section class="seccion" aria-labelledby="gimnasio">
-      <h2 class="seccion__titulo" id="gimnasio">Gimnasio y avisos</h2>
+      <h2 class="seccion__titulo" id="gimnasio">Gimnasio</h2>
       <div class="tarjeta pila" id="gimnasio-tarjeta">${htmlGimnasio(gimnasio)}</div>
-      ${enApp ? `<div class="tarjeta pila" id="avisos-tarjeta" style="margin-top:12px">${htmlAvisos(estadoNativo(), gimnasio)}</div>` : ''}
     </section>
+
+    ${enApp ? `
+      <section class="seccion" aria-labelledby="t-notif">
+        <h2 class="seccion__titulo" id="t-notif">Notificaciones</h2>
+        <div class="tarjeta pila" id="avisos-tarjeta">
+          <p class="seccion__titulo" style="margin:0">Gym</p>
+          ${htmlAvisos(estadoNativo(), gimnasio)}
+        </div>
+      </section>` : ''}
 
     <section class="seccion" aria-labelledby="banda">
       <h2 class="seccion__titulo" id="banda">Banda y Health Connect</h2>
@@ -458,7 +466,7 @@ function htmlAvisos(e, gimnasio) {
     }
   }
   return `
-    ${sinNotif && (a.llegada || a.hora || a.reloj) ? `
+    ${sinNotif && (a.llegada || a.hora || a.reloj || a.despertar || a.agua || a.comidas) ? `
       <div class="aviso-falta aviso-falta--bloque">
         <p style="margin:0">Las notificaciones de Bloque están apagadas.</p>
         <button type="button" class="boton boton--chico" data-aviso="notificaciones">Permitir notificaciones</button>
@@ -468,7 +476,13 @@ function htmlAvisos(e, gimnasio) {
       <div class="chips" id="aviso-minutos" style="margin-left:34px">
         ${[0, 10, 30].map((m) => `<button type="button" class="chip" data-valor="${m}" aria-pressed="${(a.minutosAntes ?? 10) === m}">${m ? `${m} min antes` : 'A la hora'}</button>`).join('')}
       </div>` : '')}
-    ${fila('aviso-reloj', 'Cuando el reloj registre un entreno', 'Si grabaste fuerza en la banda y no abriste el entreno en Bloque, te ofrece anotar las series.', a.reloj)}`;
+    ${fila('aviso-reloj', 'Cuando el reloj registre un entreno', 'Si grabaste fuerza en la banda y no abriste el entreno en Bloque, te ofrece anotar las series.', a.reloj)}
+    <p class="seccion__titulo" style="margin:10px 0 0">Bienestar</p>
+    ${a.bienestar ? `
+      ${fila('aviso-despertar', 'Al despertar: ¿cómo amaneciste?', 'Una hora después de que la pulsera registra que te despertaste: cuánto dormiste y marcas tu cansancio desde la notificación.', a.despertar !== false)}
+      ${fila('aviso-agua', 'Recordatorios de agua', 'A media mañana, al almuerzo, a media tarde y en la noche, si todavía no llegas a tu meta.', a.agua)}
+      ${fila('aviso-comidas', 'Si no registraste el almuerzo o la cena', 'A las 14:30 y a las 21:00, solo si falta registrarlo.', a.comidas)}`
+    : '<p class="quieto" style="margin:0">Actualiza la app para activar los avisos de sueño, agua y comidas.</p>'}`;
 }
 
 function conectarAvisos(app) {
@@ -481,19 +495,23 @@ function conectarAvisos(app) {
       llegada: tarjeta.querySelector('#aviso-llegada').checked,
       hora: tarjeta.querySelector('#aviso-hora').checked,
       reloj: tarjeta.querySelector('#aviso-reloj').checked,
+      despertar: tarjeta.querySelector('#aviso-despertar')?.checked ?? true,
+      agua: tarjeta.querySelector('#aviso-agua')?.checked ?? false,
+      comidas: tarjeta.querySelector('#aviso-comidas')?.checked ?? false,
       minutosAntes: Number(tarjeta.querySelector('#aviso-minutos [aria-pressed="true"]')?.dataset.valor ?? estadoNativo()?.avisos?.minutosAntes ?? 10),
     });
     const guardar = (pedir) => {
       const c = leer();
       configurarAvisos(c);
       const a = estadoNativo()?.avisos ?? {};
-      if ((c.llegada || c.hora || c.reloj) && !a.notificaciones) pedirNotificaciones();
+      if ((c.llegada || c.hora || c.reloj || c.despertar || c.agua || c.comidas) && !a.notificaciones) pedirNotificaciones();
       else if (pedir === 'llegada' && c.llegada && a.ubicacion !== 'siempre') pedirUbicacion();
       sincronizarAgenda().catch(() => {});
     };
     tarjeta.querySelector('#aviso-llegada').addEventListener('change', () => guardar('llegada'));
     tarjeta.querySelector('#aviso-hora').addEventListener('change', () => guardar());
     tarjeta.querySelector('#aviso-reloj').addEventListener('change', () => guardar());
+    ['#aviso-despertar', '#aviso-agua', '#aviso-comidas'].forEach((id) => tarjeta.querySelector(id)?.addEventListener('change', () => guardar()));
     tarjeta.querySelectorAll('#aviso-minutos .chip').forEach((c) => c.addEventListener('click', () => {
       tarjeta.querySelectorAll('#aviso-minutos .chip').forEach((x) => x.setAttribute('aria-pressed', String(x === c)));
       guardar();
@@ -509,7 +527,7 @@ function conectarAvisos(app) {
   // Se repinta cuando la app avisa que cambió un permiso o un ajuste.
   const quitar = alEventoNativo('estado', (e) => {
     if (!document.body.contains(tarjeta)) return quitar();
-    tarjeta.innerHTML = htmlAvisos(e, gimnasioActual);
+    tarjeta.innerHTML = `<p class="seccion__titulo" style="margin:0">Gym</p>${htmlAvisos(e, gimnasioActual)}`;
     conectar();
   });
 }

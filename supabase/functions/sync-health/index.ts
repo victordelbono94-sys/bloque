@@ -70,6 +70,17 @@ Deno.serve(async (req) => {
 
   const resumen = { dias: 0, sesiones: 0, mediciones: 0, escritas: 0 };
 
+  // Respuesta desde la notificación «¿Cómo amaneciste?»: se guarda el cansancio del día
+  // (el semáforo se recalcula cuando se abre Hoy).
+  const checkin = cuerpo.checkin as Record<string, unknown> | undefined;
+  if (checkin && typeof checkin.fecha === 'string' && FECHA.test(checkin.fecha)) {
+    const cansancio = entero(checkin.cansancio, 1, 5);
+    if (cansancio !== null) {
+      await sb.from('estado_diario').upsert({ persona_id: persona, fecha: checkin.fecha, cansancio }, { onConflict: 'persona_id,fecha' });
+    }
+    return responder({ ok: true });
+  }
+
   // Resumen por día: pasos, calorías, sueño, frecuencia cardiaca en reposo.
   const dias = lista(cuerpo.dias, 400)
     .filter((d) => typeof d.fecha === 'string' && FECHA.test(d.fecha))
@@ -153,10 +164,44 @@ Deno.serve(async (req) => {
 
   await sb.from('dispositivos').update({ ultimo_sync: new Date().toISOString() }).eq('id', dispositivo.id);
 
+  // Lo de hoy, para los recordatorios del teléfono: qué comidas ya registró y cuánta agua lleva.
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil' }).format(new Date());
+  let hoyInfo: Record<string, unknown> | null = null;
+  try {
+    const { data: per } = await sb.from('personas').select('hogar_id').eq('id', persona).single();
+    const [{ data: comidas }, { data: agua }, { data: med }, { data: entrenos }] = await Promise.all([
+      sb.from('comidas').select('momento, comida_items(gramos, persona_id, alimento:alimentos(nombre)), porciones(persona_id, fraccion)')
+        .eq('hogar_id', per!.hogar_id).eq('fecha', hoy),
+      sb.from('hidratacion').select('ml').eq('persona_id', persona).eq('fecha', hoy),
+      sb.from('mediciones_corporales').select('peso_kg').eq('persona_id', persona).not('peso_kg', 'is', null).order('medido_en', { ascending: false }).limit(1),
+      sb.from('sesiones_banda').select('calorias').eq('persona_id', persona).gte('inicio', `${hoy}T05:00:00Z`),
+    ]);
+    const liquido = /^(agua|caf[eé]|t[eé]\b|infusi|leche|jugo|zumo|batido|smoothie|bebida|gaseosa|cola|soda|limonada|isot[oó]nic|electrol|caldo|sopa|colada)/i;
+    let ml = (agua ?? []).reduce((a, x) => a + Number(x.ml), 0);
+    const momentos = new Set<string>();
+    for (const c of comidas ?? []) {
+      // deno-lint-ignore no-explicit-any
+      const parte = (c.porciones as any[]).find((x) => x.persona_id === persona);
+      if (parte) momentos.add(c.momento as string);
+      // deno-lint-ignore no-explicit-any
+      for (const it of c.comida_items as any[]) {
+        if (!liquido.test(it.alimento?.nombre ?? '')) continue;
+        if (it.persona_id) { if (it.persona_id === persona) ml += Number(it.gramos); } else if (parte) ml += Number(it.gramos) * Number(parte.fraccion ?? 1);
+      }
+    }
+    const peso = Number(med?.[0]?.peso_kg ?? 0);
+    const ejercicio = (entrenos ?? []).reduce((a, x) => a + Number(x.calorias ?? 0), 0);
+    hoyInfo = {
+      fecha: hoy, momentos: [...momentos], agua_ml: Math.round(ml),
+      agua_meta: peso ? Math.round((peso * 35 + Math.min(1500, ejercicio * 0.8)) / 50) * 50 : 0,
+    };
+  } catch { /* sin «hoy»: los recordatorios avisan igual */ }
+
   return responder({
     // deno-lint-ignore no-explicit-any
     nombre: (dispositivo as any).personas?.nombre ?? null,
     resumen,
     pendientes: pendientes ?? [],
+    hoy: hoyInfo,
   });
 });

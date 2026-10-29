@@ -64,6 +64,9 @@ object Avisos {
             .put("hora", o.optBoolean("hora"))
             .put("reloj", o.optBoolean("reloj"))
             .put("minutosAntes", o.optInt("minutosAntes", 10).coerceIn(0, 120))
+            .put("despertar", o.optBoolean("despertar", true))
+            .put("agua", o.optBoolean("agua"))
+            .put("comidas", o.optBoolean("comidas"))
         prefs(c).edit().putString("config", limpio.toString()).apply()
         aplicar(c)
     }
@@ -136,6 +139,10 @@ object Avisos {
             .put("hora", cfg.optBoolean("hora"))
             .put("reloj", cfg.optBoolean("reloj"))
             .put("minutosAntes", cfg.optInt("minutosAntes", 10))
+            .put("despertar", cfg.optBoolean("despertar", true))
+            .put("agua", cfg.optBoolean("agua"))
+            .put("comidas", cfg.optBoolean("comidas"))
+            .put("bienestar", true)
     }
 
     // ---------- Programar ----------
@@ -145,6 +152,7 @@ object Avisos {
         val cfg = config(c)
         if (cfg.optBoolean("llegada")) registrarGeocerca(c) else quitarGeocerca(c)
         programarRecordatorios(c, if (cfg.optBoolean("hora")) cfg.optInt("minutosAntes", 10) else null)
+        try { Bienestar.programarRecordatorios(c) } catch (e: Exception) { }
     }
 
     private fun pendienteGeocerca(c: Context): PendingIntent {

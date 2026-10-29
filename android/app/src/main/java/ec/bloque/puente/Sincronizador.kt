@@ -63,6 +63,8 @@ object Sincronizador {
 
         // ¿Grabaste fuerza en el reloj sin abrir el entreno en Bloque? Se ofrece anotar las series.
         try { Avisos.alSincronizar(context, sesiones) } catch (e: Exception) { }
+        // ¿Ya te despertaste? Una hora después se pregunta cómo amaneciste; y se guarda lo de hoy para los recordatorios.
+        try { Bienestar.alSincronizar(context, cuerpo.getJSONArray("dias"), respuesta.optJSONObject("hoy")) } catch (e: Exception) { }
 
         ajustes.primeraHecha = true
         ajustes.ultimaSync = System.currentTimeMillis()

@@ -71,12 +71,16 @@ class Lector(private val context: Context, private val hc: HealthConnectClient, 
             val inicio = desde.minusDays(1).atStartOfDay(zona).toInstant()
             val fin = hasta.plusDays(1).atStartOfDay(zona).toInstant()
             val minutos = mutableMapOf<LocalDate, Long>()
+            val despertar = mutableMapOf<LocalDate, java.time.Instant>()
             for (s in leerTodo(SleepSessionRecord::class, inicio, fin)) {
                 val f = s.endTime.atZone(zona).toLocalDate()
                 if (f < desde || f > hasta) continue
                 minutos[f] = (minutos[f] ?: 0L) + Duration.between(s.startTime, s.endTime).toMinutes()
+                // A qué hora te despertaste (el final del último sueño del día): para el aviso de «cómo amaneciste».
+                if (despertar[f]?.isBefore(s.endTime) != false) despertar[f] = s.endTime
             }
             for ((f, m) in minutos) dia(f).put("sueno_min", m.coerceAtMost(1440))
+            for ((f, t) in despertar) dia(f).put("despertar", t.toString())
         }
 
         return JSONArray(porDia.values.filter { it.length() > 1 })

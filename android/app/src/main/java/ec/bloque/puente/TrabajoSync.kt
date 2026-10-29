@@ -10,7 +10,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
 
-/** Sincroniza cada hora en segundo plano, cuando hay conexión. */
+/** Sincroniza cada 30 minutos en segundo plano, cuando hay conexión (así el sueño llega al rato de despertar). */
 class TrabajoSync(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result = try {
@@ -30,7 +30,7 @@ class TrabajoSync(context: Context, params: WorkerParameters) : CoroutineWorker(
         private const val NOMBRE = "bloque-sync"
 
         fun programar(context: Context) {
-            val pedido = PeriodicWorkRequestBuilder<TrabajoSync>(1, TimeUnit.HOURS)
+            val pedido = PeriodicWorkRequestBuilder<TrabajoSync>(30, TimeUnit.MINUTES)
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(NOMBRE, ExistingPeriodicWorkPolicy.UPDATE, pedido)
