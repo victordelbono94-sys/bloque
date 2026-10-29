@@ -11,7 +11,8 @@ import { FOCOS, resumenRutinas } from '../rutinas.js';
 import { mapaCuerpo, chipsZonas } from '../iconos.js';
 import { ICONO_RELOJ, horaLocal, datosSesion } from './hoy.js';
 import { empezarSesion } from './sesion.js';
-import { cargarCumplimiento, proximoDiaLibre } from '../hecho.js';
+import { cargarCumplimiento, proximoDiaLibre, cargarSyncs } from '../hecho.js';
+import { asistentes, htmlAsistentes, esIndividual } from '../asistentes.js';
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const LAPIZ = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>';
@@ -25,14 +26,16 @@ export async function vistaSemana(app) {
   const hoy = hoyISO();
   const hogar = estado.yo.hogar_id;
 
-  const [eventos, rutinas, banda] = await Promise.all([
+  const [eventos, rutinas, bandaTodos, syncs] = await Promise.all([
     sb.from('calendario').select('*').eq('hogar_id', hogar).gte('fecha', lunes).lte('fecha', domingo)
       .order('fecha').order('hora_inicio', { nullsFirst: true }).then(datos),
     sb.from('rutinas').select('id, nombre, foco').eq('hogar_id', hogar).order('creada_en').then(datos),
-    sb.from('sesiones_banda').select('inicio, fin, tipo, calorias, calorias_estimadas, fc_promedio').eq('persona_id', estado.yo.id)
+    sb.from('sesiones_banda').select('persona_id, inicio, fin, tipo, calorias, calorias_estimadas, fc_promedio').in('persona_id', estado.personas.map((p) => p.id))
       .gte('inicio', new Date(`${lunes}T00:00:00`).toISOString())
       .lt('inicio', new Date(`${sumarDias(domingo, 1)}T00:00:00`).toISOString()).order('inicio').then(datos),
+    cargarSyncs(),
   ]);
+  const banda = bandaTodos.filter((s) => s.persona_id === estado.yo.id);
   eventos.sort((a, b) => a.fecha.localeCompare(b.fecha)
     || horaEfectiva(a).localeCompare(horaEfectiva(b))
     || ORDEN_TIPO[a.tipo] - ORDEN_TIPO[b.tipo]);
@@ -45,7 +48,7 @@ export async function vistaSemana(app) {
   ]);
 
   const cumplido = await cargarCumplimiento(eventos, estado.yo.id);
-  const ctx = { hoy, rutinas, sesiones, resumen, cumplido };
+  const ctx = { hoy, rutinas, sesiones, resumen, cumplido, bandaTodos, syncs };
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
   const esEstaSemana = lunes === inicioSemana(hoy);
 
@@ -173,7 +176,7 @@ function htmlDia(d, delDia, bandaDia, ctx) {
   const pasado = d < ctx.hoy, esHoy = d === ctx.hoy;
   const mios = delDia.filter((e) => e.asistencia === 'juntos' || e.persona_id === estado.yo.id);
   const { pares, sueltas } = emparejar(mios, bandaDia);
-  const pasos = delDia.map((e) => ({ orden: horaEfectiva(e), html: htmlEntreno(e, ctx, pares.get(e), { pasado, esHoy }) }));
+  const pasos = delDia.map((e) => ({ orden: horaEfectiva(e), html: htmlEntreno(e, ctx, pares.get(e), { pasado, esHoy, delDia }) }));
   const caminatas = sueltas.filter((s) => s.tipo === 'caminar');
   for (const s of sueltas.filter((x) => x.tipo !== 'caminar')) {
     pasos.push({ orden: horaLocal(s.inicio), html: htmlReloj(actividad(s.tipo).nombre, actividad(s.tipo).icono, horaLocal(s.inicio), datosSesion(s)) });
@@ -200,15 +203,19 @@ function htmlDia(d, delDia, bandaDia, ctx) {
 
 // Un entreno agendado. Tocar el título edita; la rutina abre sus ejercicios.
 // En días pasados se ve compacto: qué fue y si se hizo.
-function htmlEntreno(ev, { hoy, rutinas, sesiones, resumen, cumplido }, reloj, { pasado, esHoy }) {
+function htmlEntreno(ev, { hoy, rutinas, sesiones, resumen, cumplido, bandaTodos, syncs }, reloj, { pasado, esHoy, delDia }) {
+  // Derby y otros: cada uno va por su cuenta; se muestra quién fue según su reloj.
+  const individual = esIndividual(ev) && estado.personas.length > 1;
+  const quienes = individual ? asistentes(ev, delDia, bandaTodos, syncs) : null;
   const rutina = rutinas.find((r) => r.id === ev.rutina_id);
   const sesion = rutina ? (sesiones.find((s) => s.calendario_id === ev.id && !s.terminada_en) ?? sesiones.find((s) => s.calendario_id === ev.id)) : null;
   const cumple = cumplido(ev);
   const hecho = cumple === 'hecho';
   const voy = ev.asistencia === 'juntos' || ev.persona_id === estado.yo.id;
-  const detalle = [textoAsistencia(ev), ev.notas].filter(Boolean).join(' · ');
+  const detalle = [individual ? null : textoAsistencia(ev), ev.notas].filter(Boolean).join(' · ');
   let estadoTxt = '';
-  if (hecho) estadoTxt = '<span class="hecho">✓ Hecho</span>';
+  if (individual) estadoTxt = '';
+  else if (hecho) estadoTxt = '<span class="hecho">✓ Hecho</span>';
   else if (cumple === 'no_hecho') estadoTxt = ev.omitido ? '<span class="quieto">No fuiste</span>' : '<span class="no-hecho">No fuiste</span>';
 
   let extra = '';
@@ -239,7 +246,7 @@ function htmlEntreno(ev, { hoy, rutinas, sesiones, resumen, cumplido }, reloj, {
           </span>
           ${detalle || estadoTxt ? `<span class="plan__detalle">${[detalle ? esc(detalle) : '', estadoTxt].filter(Boolean).join(' · ')}</span>` : ''}
         </button>
-        ${reloj ? `<span class="plan__reloj">${ICONO_RELOJ}<span>Registrado · ${esc(datosSesion(reloj))}</span></span>` : ''}
+        ${individual ? htmlAsistentes(quienes) : reloj ? `<span class="plan__reloj">${ICONO_RELOJ}<span>Registrado · ${esc(datosSesion(reloj))}</span></span>` : ''}
         ${extra}
         ${cumple === 'no_hecho' && !ev.omitido && ev.tipo === 'gym' && ev.fecha >= sumarDias(hoy, -7)
           ? `<button type="button" class="boton boton--sec boton--chico" data-recuperar="${esc(ev.id)}">Recuperar este entreno</button>` : ''}

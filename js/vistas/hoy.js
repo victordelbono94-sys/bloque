@@ -8,7 +8,8 @@ import { resumenRutinas } from '../rutinas.js';
 import { actividad, emparejar, minutos } from '../actividades.js';
 import { calcularSemaforo, esDescanso, textoSemaforo } from '../semaforo.js';
 import { empezarSesion } from './sesion.js';
-import { cargarCumplimiento } from '../hecho.js';
+import { cargarCumplimiento, cargarSyncs } from '../hecho.js';
+import { asistentes, htmlAsistentes, esIndividual } from '../asistentes.js';
 import { recuperar } from './semana.js';
 
 export async function vistaHoy(app) {
@@ -59,6 +60,8 @@ export async function vistaHoy(app) {
     [p.id, await cargarCumplimiento([...pasados, ...todosAyer], p.id)])));
   const ayerDe = (personaId) => todosAyer.filter((e) => cumplidoDe[personaId](e) !== 'no_hecho');
   const deAyer = ayerDe(estado.yo.id);
+  const syncs = await cargarSyncs();
+  const quienesDe = (ev) => asistentes(ev, deHoy, entrenosBanda, syncs);
   // Gyms de la última semana que no hice y siguen sin recuperar.
   const pendientes = [...pasados, ...todosAyer].filter((e) => e.tipo === 'gym' && e.rutina_id && !e.omitido && cumplidoDe[estado.yo.id](e) === 'no_hecho');
 
@@ -120,7 +123,7 @@ export async function vistaHoy(app) {
         <a class="enlace-chico" href="#/semana">Ver semana ›</a>
       </div>
       ${deHoy.length || mia.entrenosHoy.length
-        ? `<ol class="plan">${lineaDeTiempo(deHoy, mia.entrenosHoy, rutinas, sesiones, resumen)}</ol>`
+        ? `<ol class="plan">${lineaDeTiempo(deHoy, mia.entrenosHoy, rutinas, sesiones, resumen, quienesDe)}</ol>`
         : `<p class="vacio" style="padding-top:4px">No hay nada agendado. ¿Qué hacen hoy?</p>
            <div class="chips" id="rapido">
              ${Object.entries(TIPOS).filter(([v]) => v !== 'otro').map(([v, t]) => `<button type="button" class="chip chip--icono" data-valor="${v}">${iconoTipo(v)}${t}</button>`).join('')}
@@ -161,10 +164,10 @@ export function datosSesion(s) {
 
 // Plan y reloj juntos, en orden de hora. Lo que el reloj registró y coincide con algo
 // agendado se marca en ese paso; lo demás aparece como actividad propia (las caminatas, juntas).
-function lineaDeTiempo(deHoy, entrenosHoy, rutinas, sesiones, resumen) {
+function lineaDeTiempo(deHoy, entrenosHoy, rutinas, sesiones, resumen, quienesDe) {
   const mios = deHoy.filter((e) => e.asistencia === 'juntos' || e.persona_id === estado.yo.id);
   const { pares, sueltas } = emparejar(mios, entrenosHoy);
-  const pasos = deHoy.map((e) => ({ orden: horaEfectiva(e), html: htmlPlan(e, rutinas, sesiones, resumen, pares.get(e)) }));
+  const pasos = deHoy.map((e) => ({ orden: horaEfectiva(e), html: htmlPlan(e, rutinas, sesiones, resumen, pares.get(e), quienesDe) }));
   const caminatas = sueltas.filter((s) => s.tipo === 'caminar');
   const otras = sueltas.filter((s) => s.tipo !== 'caminar');
   for (const s of otras) pasos.push({ orden: horaLocal(s.inicio), html: htmlActividad(actividad(s.tipo).nombre, actividad(s.tipo).icono, horaLocal(s.inicio), datosSesion(s)) });
@@ -194,9 +197,11 @@ function htmlActividad(nombre, icono, horaTxt, detalle) {
 }
 
 // Un evento del plan como paso de la línea de tiempo; el gym trae su rutina y el botón para entrenar.
-function htmlPlan(ev, rutinas, sesiones, resumen, reloj) {
+function htmlPlan(ev, rutinas, sesiones, resumen, reloj, quienesDe) {
   const rutina = rutinas.find((r) => r.id === ev.rutina_id);
-  const detalle = [textoAsistencia(ev), ev.notas].filter(Boolean).join(' · ');
+  // Derby y otros: cada uno va por su cuenta; se ve quién fue según su reloj.
+  const individual = esIndividual(ev) && estado.personas.length > 1;
+  const detalle = [individual ? null : textoAsistencia(ev), ev.notas].filter(Boolean).join(' · ');
   let extra = '';
   if (rutina) {
     const sesion = sesiones.find((s) => s.calendario_id === ev.id && !s.terminada_en) ?? sesiones.find((s) => s.calendario_id === ev.id);
@@ -230,7 +235,7 @@ function htmlPlan(ev, rutinas, sesiones, resumen, reloj) {
           ${ev.hora_inicio ? `<span class="plan__hora">${esc(hora(ev.hora_inicio))}</span>` : ''}
         </div>
         ${detalle ? `<span class="plan__detalle">${esc(detalle)}</span>` : ''}
-        ${reloj ? `<span class="plan__reloj">${ICONO_RELOJ}<span>Registrado · ${esc(datosSesion(reloj))}</span></span>` : ''}
+        ${individual ? htmlAsistentes(quienesDe(ev)) : reloj ? `<span class="plan__reloj">${ICONO_RELOJ}<span>Registrado · ${esc(datosSesion(reloj))}</span></span>` : ''}
         ${extra}
       </div>
     </li>`;

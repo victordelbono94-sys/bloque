@@ -135,3 +135,29 @@ export function emparejar(eventos, sesiones) {
 export function nombresSesiones(sesiones) {
   return [...new Set(sesiones.map((s) => actividad(s.tipo).nombre.toLowerCase()))];
 }
+
+// ---------- Entrenos individuales (derby, otros): cada uno va o no por su cuenta ----------
+// El gym se hace juntos y se registra en la app; el derby y los «otro» los registra el reloj de cada uno.
+export const esIndividual = (ev) => ['derby', 'otro', 'clase'].includes(ev?.tipo);
+const DURACION_MIN = { derby: 120, otro: 60, clase: 60 };
+
+/** Cuándo termina (aprox.) un evento: su hora + duración típica; sin hora, al final del día. */
+export function finEvento(ev) {
+  if (!ev.hora_inicio) return new Date(`${ev.fecha}T23:59:59`);
+  return new Date(new Date(`${ev.fecha}T${ev.hora_inicio.slice(0, 5)}:00`).getTime() + (DURACION_MIN[ev.tipo] ?? 60) * 60000);
+}
+
+/**
+ * ¿Fue esta persona a un entreno individual?
+ * 'fue' si su reloj tiene un entreno que coincide; 'no_fue' si el día ya pasó, o si su reloj sincronizó
+ * más de una hora después del final y no hay nada; si no, 'pendiente'.
+ */
+export function asistenciaIndividual(ev, sesion, ultimoSync, ahora = new Date()) {
+  if (sesion) return 'fue';
+  const fin = finEvento(ev);
+  if (ahora < fin) return 'pendiente';
+  const diaPasado = new Date(`${ev.fecha}T23:59:59`) < ahora;
+  if (diaPasado) return 'no_fue';
+  if (ultimoSync && new Date(ultimoSync).getTime() > fin.getTime() + 3600e3) return 'no_fue';
+  return 'pendiente';
+}

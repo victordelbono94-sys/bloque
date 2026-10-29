@@ -2,8 +2,18 @@
 // Hecho: se tocó «Terminar mi entreno», se completó la mayoría de las series, o el reloj lo registró.
 // No hecho: el día ya pasó y no hay nada de eso. Hoy y lo que viene quedan «pendiente».
 import { sb, datos } from './db.js';
-import { emparejar } from './actividades.js';
+import { emparejar, esIndividual, asistenciaIndividual } from './actividades.js';
 import { hoyISO } from './fechas.js';
+
+/** Última sincronización del reloj de cada persona del equipo: { personaId: fecha }. */
+let syncsCache = null;
+export async function cargarSyncs() {
+  if (syncsCache && Date.now() - syncsCache.t < 60000) return syncsCache.v;
+  const { data } = await sb.rpc('ultima_sync_equipo');
+  const v = Object.fromEntries((data ?? []).map((x) => [x.persona_id, x.ultimo_sync]));
+  syncsCache = { t: Date.now(), v };
+  return v;
+}
 
 /**
  * Carga lo necesario para saber qué se cumplió de una lista de eventos.
@@ -13,7 +23,7 @@ export async function cargarCumplimiento(eventos, personaId) {
   const hoy = hoyISO();
   const conRutina = eventos.filter((e) => e.rutina_id);
   const fechas = eventos.map((e) => e.fecha).sort();
-  const [sesiones, metas, banda] = await Promise.all([
+  const [sesiones, metas, banda, syncs] = await Promise.all([
     conRutina.length ? sb.from('sesiones').select('id, calendario_id, terminados').in('calendario_id', conRutina.map((e) => e.id)).then(datos) : [],
     conRutina.length
       ? sb.from('metas_ejercicio').select('persona_id, series, item:rutina_ejercicios!inner(rutina_id)')
@@ -24,6 +34,7 @@ export async function cargarCumplimiento(eventos, personaId) {
         .gte('inicio', new Date(`${fechas[0]}T00:00:00`).toISOString())
         .lt('inicio', new Date(`${fechas.at(-1)}T23:59:59`).toISOString()).then(datos)
       : [],
+    cargarSyncs(),
   ]);
   const idsSesion = sesiones.map((s) => s.id);
   const mias = idsSesion.length
@@ -48,6 +59,8 @@ export async function cargarCumplimiento(eventos, personaId) {
     const total = planeadas(ev.rutina_id);
     const completo = hechas > 0 && hechas >= Math.max(1, Math.ceil(total * 0.6));
     if (terminado || completo || delReloj.has(ev.id)) return 'hecho';
+    // Derby y otros: cada uno por su reloj; se sabe que no fue cuando su reloj ya sincronizó después.
+    if (esIndividual(ev)) return asistenciaIndividual(ev, null, syncs[personaId]) === 'no_fue' ? 'no_hecho' : 'pendiente';
     return ev.fecha < hoy ? 'no_hecho' : 'pendiente';
   };
 }
