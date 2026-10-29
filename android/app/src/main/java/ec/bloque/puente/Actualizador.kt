@@ -28,7 +28,7 @@ class Actualizador(private val activity: ComponentActivity, private val versionA
 
     companion object {
         private const val BASE = "https://github.com/victordelbono94-sys/bloque/releases/download/app/"
-        private const val CADA_MS = 6 * 60 * 60 * 1000L
+        private const val CADA_MS = 60 * 60 * 1000L
     }
 
     private val prefs = activity.getSharedPreferences("bloque_actualizacion", Context.MODE_PRIVATE)
@@ -36,7 +36,7 @@ class Actualizador(private val activity: ComponentActivity, private val versionA
     private var instalarAlVolver = false
     private var dialogoAbierto = false
 
-    /** Revisa si hay versión nueva (como máximo cada 6 horas, salvo que se fuerce). */
+    /** Revisa si hay versión nueva (como máximo cada hora, salvo que se fuerce). Actualizar es obligatorio. */
     fun revisar(forzar: Boolean = false) {
         val ahora = System.currentTimeMillis()
         if (!forzar && ahora - prefs.getLong("ultima_revision", 0L) < CADA_MS) return
@@ -77,10 +77,10 @@ class Actualizador(private val activity: ComponentActivity, private val versionA
             .setTitle("Hay una actualización de Bloque")
             .setMessage(
                 (novedades?.let { "$it\n\n" } ?: "") +
-                    "Se instala encima de la actual: no se pierde nada."
+                    "Hace falta instalarla para seguir usando Bloque. Se instala encima de la actual: no se pierde nada."
             )
+            .setCancelable(false)
             .setPositiveButton("Actualizar") { _, _ -> descargar() }
-            .setNegativeButton("Más tarde", null)
             .setOnDismissListener { dialogoAbierto = false }
             .show()
     }

@@ -98,6 +98,8 @@ jobs:
           body: |
             La app Bloque para Android: entrenamientos, cuerpo y datos de la banda vía Health Connect.
 
+            versionCode: ${{ env.VERSION_CODE }}
+
             **Instalar:** abre este enlace desde el teléfono y descarga `bloque.apk`.
             Android va a pedir permiso para instalar apps de esta fuente: acéptalo una vez.
 

@@ -14,7 +14,11 @@ export const TIPOS = {
 
 // «Otro» se muestra con su actividad (Caminata, Escalada…).
 export function nombreEvento(ev) {
-  if (ev.tipo === 'otro') return ev.actividad ? actividad(ev.actividad).nombre : 'Otro';
+  if (ev.tipo === 'otro') {
+    // Un deporte sin actividad propia (rugby, boxeo…) se muestra con su nombre, guardado en las notas.
+    if ((!ev.actividad || ev.actividad === 'otro') && ev.notas) return ev.notas;
+    return ev.actividad ? actividad(ev.actividad).nombre : 'Otro';
+  }
   return TIPOS[ev.tipo] ?? ev.tipo;
 }
 export function iconoEvento(ev) {
@@ -29,8 +33,9 @@ export function horaEfectiva(ev) {
 
 // "Sant y yo" (o "Victor y yo" para Sant).
 export function textoJuntos() {
-  const otro = otraPersona();
-  return otro ? `${otro.nombre} y yo` : 'Juntos';
+  const otros = estado.personas.filter((p) => p.id !== estado.yo?.id);
+  if (!otros.length) return '';
+  return otros.length === 1 ? `${otros[0].nombre} y yo` : 'Todo el equipo';
 }
 
 export function textoAsistencia(ev) {

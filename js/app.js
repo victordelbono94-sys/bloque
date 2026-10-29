@@ -9,7 +9,9 @@ import { vistaSesion, vistaComenzar } from './vistas/sesion.js';
 import { vistaPerfil } from './vistas/perfil.js';
 import { vistaComida } from './vistas/comida.js';
 import { pantallaBienvenida, vistaUnirme } from './vistas/bienvenida.js';
+import { vistaCompletar } from './vistas/completar.js';
 import { recordarInvitacion, invitacionPendiente } from './equipo.js';
+import { vigilarActualizaciones } from './actualizar.js';
 import { estaInstalada, puedeSeguirEnNavegador, pantallaInstalar } from './instalar.js';
 import { enApp, loginEnApp, asegurarVinculo, desvincular, alEventoNativo, sincronizarAgenda } from './nativo.js';
 
@@ -26,6 +28,7 @@ const RUTAS = {
   perfil: vistaPerfil,
   comida: vistaComida,
   unirme: vistaUnirme,
+  completar: vistaCompletar,
 };
 
 // Un link de invitación (#/unirme/CODIGO) se recuerda antes de iniciar sesión.
@@ -58,7 +61,8 @@ function pantallaIngreso() {
 function pantallaPrimeraVez() {
   nav.hidden = true;
   pantallaBienvenida(app, async (mensaje) => {
-    history.replaceState(null, '', location.pathname + '#/hoy');
+    // Recién creada la cuenta: directo al asistente para completar el perfil y armar el plan.
+    history.replaceState(null, '', location.pathname + '#/completar');
     await cargarPersonas();
     await fotoInicialDeGoogle().catch(() => {});
     await mostrarRuta();
@@ -189,3 +193,4 @@ alEventoNativo('sync', (r) => {
 });
 
 iniciar();
+vigilarActualizaciones();

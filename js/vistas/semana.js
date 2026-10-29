@@ -332,7 +332,7 @@ function dialogoEvento(ev, rutinas, alGuardar) {
   const actividadEl = d.querySelector('#actividad');
   const campoActividad = d.querySelector('#campo-actividad');
   const mostrarAsistencia = (t) => {
-    campoAsistencia.hidden = t === 'descanso';
+    campoAsistencia.hidden = t === 'descanso' || estado.personas.length < 2;
     campoRutina.hidden = t !== 'gym';
     campoActividad.hidden = t !== 'otro';
   };

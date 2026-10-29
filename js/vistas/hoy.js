@@ -9,6 +9,8 @@ import { actividad, emparejar, minutos } from '../actividades.js';
 import { calcularSemaforo, esDescanso, textoSemaforo } from '../semaforo.js';
 import { empezarSesion } from './sesion.js';
 import { cargarCumplimiento, cargarSyncs } from '../hecho.js';
+import { queFalta } from '../plan.js';
+import { abrirDialogo } from '../ui.js';
 import { asistentes, htmlAsistentes, esIndividual } from '../asistentes.js';
 import { recuperar } from './semana.js';
 
@@ -60,7 +62,7 @@ export async function vistaHoy(app) {
     [p.id, await cargarCumplimiento([...pasados, ...todosAyer], p.id)])));
   const ayerDe = (personaId) => todosAyer.filter((e) => cumplidoDe[personaId](e) !== 'no_hecho');
   const deAyer = ayerDe(estado.yo.id);
-  const syncs = await cargarSyncs();
+  const [syncs, falta] = await Promise.all([cargarSyncs(), queFalta().catch(() => [])]);
   const quienesDe = (ev) => asistentes(ev, deHoy, entrenosBanda, syncs);
   // Gyms de la última semana que no hice y siguen sin recuperar.
   const pendientes = [...pasados, ...todosAyer].filter((e) => e.tipo === 'gym' && e.rutina_id && !e.omitido && cumplidoDe[estado.yo.id](e) === 'no_hecho');
@@ -112,6 +114,13 @@ export async function vistaHoy(app) {
       <a class="avatar" href="#/perfil" aria-label="Perfil y ajustes">${cara(estado.yo)}</a>
     </header>
 
+    ${falta.length ? `
+      <a class="tarjeta completar-aviso" href="#/completar">
+        <span class="completar-aviso__icono" aria-hidden="true">✦</span>
+        <span><strong>Completa tu perfil</strong><span class="quieto">${falta.includes('plan') ? 'Faltan datos para armar tus rutinas y tu agenda.' : 'Faltan datos para calcular bien tus calorías.'} Toma 2 minutos.</span></span>
+        <span class="plan__flecha" aria-hidden="true">›</span>
+      </a>` : ''}
+
     <section class="tarjeta" aria-labelledby="plan-hoy">
       ${pendientes.map((e) => `
         <div class="pendiente">
@@ -140,6 +149,7 @@ export async function vistaHoy(app) {
 
   conectarCheckIn(app, contexto, estados.find((e) => e.persona_id === estado.yo.id));
   conectarRapido(app, hoy);
+  if (falta.length) avisarPerfil(falta);
   app.querySelectorAll('[data-recuperar]').forEach((b) => b.addEventListener('click', () =>
     recuperar(pendientes.find((e) => e.id === b.dataset.recuperar), rutinas, () => vistaHoy(app))));
   app.querySelectorAll('[data-empezar]').forEach((b) => b.addEventListener('click', async () => {
@@ -407,4 +417,21 @@ function htmlDatos(med, b) {
         </div>`).join('')}
     </div>
     ${pie.length ? `<p class="datos__pie">${esc(pie.join(' · '))}</p>` : ''}`;
+}
+
+// Una vez por sesión: si falta el perfil, se ofrece ir al asistente.
+function avisarPerfil(falta) {
+  try { if (sessionStorage.getItem('bloque-aviso-perfil')) return; sessionStorage.setItem('bloque-aviso-perfil', '1'); } catch { /* nada */ }
+  const d = abrirDialogo(`
+    <div class="dialogo">
+      <h2 class="tarjeta__titulo">Terminemos tu perfil</h2>
+      <p style="margin:0">${falta.includes('plan')
+        ? 'Todavía no tienes rutinas ni agenda. Con unos datos (tu cuerpo, objetivo, deporte y días de gym) Bloque arma todo por ti.'
+        : 'Faltan algunos datos (tu cuerpo u objetivo) para calcular bien tus calorías y tus entrenos.'}</p>
+      <div class="dialogo__pie">
+        <button type="button" class="boton boton--sec" data-cerrar>Después</button>
+        <a class="boton" href="#/completar" id="ir-completar">Completar ahora</a>
+      </div>
+    </div>`, 'Completar perfil');
+  d.querySelector('#ir-completar').addEventListener('click', () => d.close());
 }
