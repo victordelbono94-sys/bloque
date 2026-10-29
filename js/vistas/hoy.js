@@ -8,6 +8,8 @@ import { resumenRutinas } from '../rutinas.js';
 import { actividad, emparejar, minutos } from '../actividades.js';
 import { calcularSemaforo, esDescanso, textoSemaforo } from '../semaforo.js';
 import { empezarSesion } from './sesion.js';
+import { cargarCumplimiento } from '../hecho.js';
+import { recuperar } from './semana.js';
 
 export async function vistaHoy(app) {
   const hoy = hoyISO();
@@ -25,7 +27,7 @@ export async function vistaHoy(app) {
       .in('persona_id', ids).order('medido_en', { ascending: false }).limit(40).then(datos),
     sb.from('actividades_extra').select('*').in('persona_id', ids).eq('fecha', ayer).then(datos),
     sb.from('actividad_diaria').select('*').in('persona_id', ids).in('fecha', [ayer, hoy]).then(datos),
-    sb.from('sesiones_banda').select('persona_id, inicio, fin, tipo, calorias, fc_promedio')
+    sb.from('sesiones_banda').select('persona_id, inicio, fin, tipo, calorias, calorias_estimadas, fc_promedio')
       .in('persona_id', ids).gte('inicio', desdeAyer).order('inicio').then(datos),
   ]);
   // Datos de la banda por persona: hoy (pasos, calorías), anoche (sueño) y entrenos de ayer.
@@ -48,13 +50,22 @@ export async function vistaHoy(app) {
   eventos.sort((x, y) => x.fecha.localeCompare(y.fecha)
     || horaEfectiva(x).localeCompare(horaEfectiva(y))
     || ORDEN_TIPO[x.tipo] - ORDEN_TIPO[y.tipo]);
-  const deAyer = eventos.filter((e) => e.fecha === ayer);
   const deHoy = eventos.filter((e) => e.fecha === hoy);
+  // Lo de ayer que no se hizo no cansa: el semáforo de cada uno solo cuenta lo cumplido.
+  const pasados = datos(await sb.from('calendario').select('*').eq('hogar_id', hogar)
+    .gte('fecha', sumarDias(hoy, -7)).lt('fecha', ayer).eq('tipo', 'gym').not('rutina_id', 'is', null));
+  const todosAyer = eventos.filter((e) => e.fecha === ayer);
+  const cumplidoDe = Object.fromEntries(await Promise.all(estado.personas.map(async (p) =>
+    [p.id, await cargarCumplimiento([...pasados, ...todosAyer], p.id)])));
+  const ayerDe = (personaId) => todosAyer.filter((e) => cumplidoDe[personaId](e) !== 'no_hecho');
+  const deAyer = ayerDe(estado.yo.id);
+  // Gyms de la última semana que no hice y siguen sin recuperar.
+  const pendientes = [...pasados, ...todosAyer].filter((e) => e.tipo === 'gym' && e.rutina_id && !e.omitido && cumplidoDe[estado.yo.id](e) === 'no_hecho');
 
   // Rutinas del día y entrenos ya empezados.
   const proximo = eventos.find((e) => e.fecha > hoy && e.tipo !== 'descanso');
   const conRutina = deHoy.filter((e) => e.rutina_id);
-  const idsRutinas = [...new Set([...conRutina.map((e) => e.rutina_id), proximo?.rutina_id].filter(Boolean))];
+  const idsRutinas = [...new Set([...conRutina.map((e) => e.rutina_id), proximo?.rutina_id, ...pendientes.map((e) => e.rutina_id)].filter(Boolean))];
   const [rutinas, sesiones] = idsRutinas.length ? await Promise.all([
     sb.from('rutinas').select('id, nombre, foco').in('id', idsRutinas).then(datos),
     sb.from('sesiones').select('id, calendario_id, terminados, terminada_en').in('calendario_id', conRutina.map((e) => e.id)).then(datos),
@@ -70,7 +81,7 @@ export async function vistaHoy(app) {
   const semaforoDe = (personaId, est) => {
     const b = banda(personaId);
     return calcularSemaforo({
-      cansancio: est?.cansancio ?? null, dolor: est?.dolor_muscular ?? null, ayer: deAyer, hoy: deHoy,
+      cansancio: est?.cansancio ?? null, dolor: est?.dolor_muscular ?? null, ayer: ayerDe(personaId), hoy: deHoy,
       extrasAyer: extrasTodos.filter((x) => x.persona_id === personaId), personaId,
       suenoMin: b.suenoMin, bandaAyer: b.entrenosAyer, bandaHoy: b.entrenosHoy,
     });
@@ -99,6 +110,11 @@ export async function vistaHoy(app) {
     </header>
 
     <section class="tarjeta" aria-labelledby="plan-hoy">
+      ${pendientes.map((e) => `
+        <div class="pendiente">
+          <span class="pendiente__texto"><strong>${esc(rutinas.find((r) => r.id === e.rutina_id)?.nombre ?? 'Gym')}</strong> quedó pendiente del ${esc(diaCorto(e.fecha))} ${numeroDia(e.fecha)}</span>
+          <button type="button" class="boton boton--chico" data-recuperar="${esc(e.id)}">Recuperar</button>
+        </div>`).join('')}
       <div class="fila fila--entre" style="margin-bottom:6px">
         <h2 class="seccion__titulo" id="plan-hoy" style="margin:0">Plan de hoy</h2>
         <a class="enlace-chico" href="#/semana">Ver semana ›</a>
@@ -121,6 +137,8 @@ export async function vistaHoy(app) {
 
   conectarCheckIn(app, contexto, estados.find((e) => e.persona_id === estado.yo.id));
   conectarRapido(app, hoy);
+  app.querySelectorAll('[data-recuperar]').forEach((b) => b.addEventListener('click', () =>
+    recuperar(pendientes.find((e) => e.id === b.dataset.recuperar), rutinas, () => vistaHoy(app))));
   app.querySelectorAll('[data-empezar]').forEach((b) => b.addEventListener('click', async () => {
     b.disabled = true;
     try {
@@ -138,7 +156,7 @@ export const horaLocal = (iso) => new Date(iso).toLocaleTimeString('es-EC', { ho
 export function datosSesion(s) {
   const min = minutos(s);
   return [min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`,
-    s.calorias != null ? `${s.calorias} kcal` : null, s.fc_promedio ? `${s.fc_promedio} ppm` : null].filter(Boolean).join(' · ');
+    s.calorias != null ? `${s.calorias_estimadas ? '≈ ' : ''}${s.calorias} kcal` : null, s.fc_promedio ? `${s.fc_promedio} ppm` : null].filter(Boolean).join(' · ');
 }
 
 // Plan y reloj juntos, en orden de hora. Lo que el reloj registró y coincide con algo

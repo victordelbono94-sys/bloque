@@ -11,6 +11,7 @@ import { FOCOS, resumenRutinas } from '../rutinas.js';
 import { mapaCuerpo, chipsZonas } from '../iconos.js';
 import { ICONO_RELOJ, horaLocal, datosSesion } from './hoy.js';
 import { empezarSesion } from './sesion.js';
+import { cargarCumplimiento, proximoDiaLibre } from '../hecho.js';
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const LAPIZ = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>';
@@ -28,7 +29,7 @@ export async function vistaSemana(app) {
     sb.from('calendario').select('*').eq('hogar_id', hogar).gte('fecha', lunes).lte('fecha', domingo)
       .order('fecha').order('hora_inicio', { nullsFirst: true }).then(datos),
     sb.from('rutinas').select('id, nombre, foco').eq('hogar_id', hogar).order('creada_en').then(datos),
-    sb.from('sesiones_banda').select('inicio, fin, tipo, calorias, fc_promedio').eq('persona_id', estado.yo.id)
+    sb.from('sesiones_banda').select('inicio, fin, tipo, calorias, calorias_estimadas, fc_promedio').eq('persona_id', estado.yo.id)
       .gte('inicio', new Date(`${lunes}T00:00:00`).toISOString())
       .lt('inicio', new Date(`${sumarDias(domingo, 1)}T00:00:00`).toISOString()).order('inicio').then(datos),
   ]);
@@ -43,7 +44,8 @@ export async function vistaSemana(app) {
     resumenRutinas(rutinas.map((r) => r.id)),
   ]);
 
-  const ctx = { hoy, rutinas, sesiones, resumen };
+  const cumplido = await cargarCumplimiento(eventos, estado.yo.id);
+  const ctx = { hoy, rutinas, sesiones, resumen, cumplido };
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
   const esEstaSemana = lunes === inicioSemana(hoy);
 
@@ -104,7 +106,61 @@ export async function vistaSemana(app) {
       b.disabled = false;
     }
   }));
+  app.querySelectorAll('[data-recuperar]').forEach((b) => b.addEventListener('click', () =>
+    recuperar(eventos.find((e) => e.id === b.dataset.recuperar), rutinas, recargar)));
   app.querySelector('#copiar').addEventListener('click', () => copiarSemana(eventos, lunes));
+}
+
+// Un entreno que no se hizo: pasarlo a otro día (desde hoy) o dejarlo.
+export async function recuperar(ev, rutinas, alListo) {
+  const hoy = hoyISO();
+  const proximos = datos(await sb.from('calendario').select('*').eq('hogar_id', estado.yo.hogar_id)
+    .gte('fecha', hoy).lte('fecha', sumarDias(hoy, 7)));
+  const sugerido = proximoDiaLibre(proximos, hoy);
+  const nombre = rutinas.find((r) => r.id === ev.rutina_id)?.nombre ?? nombreEvento(ev);
+  const dias = Array.from({ length: 7 }, (_, i) => sumarDias(hoy, i));
+  const d = abrirDialogo(`
+    <div class="dialogo">
+      <h2 class="tarjeta__titulo">Recuperar ${esc(nombre)}</h2>
+      <p class="quieto" style="margin:-8px 0 0">Quedó pendiente del ${esc(diaLargo(ev.fecha).toLowerCase())}. ¿Qué día la hacen?</p>
+      <div class="dias-elegir">
+        ${dias.map((f) => {
+          const ese = proximos.filter((e) => e.fecha === f && !e.omitido);
+          const txt = ese.length ? ese.map((e) => nombreEvento(e)).join(' + ') : 'Libre';
+          return `<button type="button" class="dia-elegir" data-dia="${f}" aria-pressed="${f === sugerido}">
+            <strong>${f === hoy ? 'Hoy' : esc(DIAS[new Date(`${f}T12:00`).getDay()])} ${numeroDia(f)}</strong>
+            <span>${esc(txt)}</span>
+          </button>`;
+        }).join('')}
+      </div>
+      <div class="dialogo__pie">
+        <button type="button" class="boton boton--texto" id="omitir" style="margin-right:auto">No recuperar</button>
+        <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
+        <button type="button" class="boton" id="mover">Pasar ahí</button>
+      </div>
+    </div>`, 'Recuperar entreno');
+  let elegido = sugerido;
+  d.querySelectorAll('[data-dia]').forEach((b) => b.addEventListener('click', () => {
+    elegido = b.dataset.dia;
+    d.querySelectorAll('[data-dia]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+  d.querySelector('#mover').addEventListener('click', async (e) => {
+    e.currentTarget.disabled = true;
+    try {
+      datos(await sb.from('calendario').update({ fecha: elegido, omitido: false }).eq('id', ev.id));
+      d.close();
+      aviso(`${nombre} pasó al ${diaLargo(elegido).toLowerCase()}.`);
+      alListo();
+    } catch (err) { avisoError(err); e.currentTarget.disabled = false; }
+  });
+  d.querySelector('#omitir').addEventListener('click', async () => {
+    try {
+      datos(await sb.from('calendario').update({ omitido: true }).eq('id', ev.id));
+      d.close();
+      aviso('Listo, no se recupera.');
+      alListo();
+    } catch (err) { avisoError(err); }
+  });
 }
 
 const fechaLocal = (iso) => {
@@ -144,15 +200,16 @@ function htmlDia(d, delDia, bandaDia, ctx) {
 
 // Un entreno agendado. Tocar el título edita; la rutina abre sus ejercicios.
 // En días pasados se ve compacto: qué fue y si se hizo.
-function htmlEntreno(ev, { hoy, rutinas, sesiones, resumen }, reloj, { pasado, esHoy }) {
+function htmlEntreno(ev, { hoy, rutinas, sesiones, resumen, cumplido }, reloj, { pasado, esHoy }) {
   const rutina = rutinas.find((r) => r.id === ev.rutina_id);
   const sesion = rutina ? (sesiones.find((s) => s.calendario_id === ev.id && !s.terminada_en) ?? sesiones.find((s) => s.calendario_id === ev.id)) : null;
-  const hecho = sesion?.terminados?.includes(estado.yo.id);
+  const cumple = cumplido(ev);
+  const hecho = cumple === 'hecho';
   const voy = ev.asistencia === 'juntos' || ev.persona_id === estado.yo.id;
   const detalle = [textoAsistencia(ev), ev.notas].filter(Boolean).join(' · ');
   let estadoTxt = '';
   if (hecho) estadoTxt = '<span class="hecho">✓ Hecho</span>';
-  else if (pasado && ev.tipo !== 'descanso' && voy && !reloj) estadoTxt = '<span class="quieto">Sin registro</span>';
+  else if (cumple === 'no_hecho') estadoTxt = ev.omitido ? '<span class="quieto">No fuiste</span>' : '<span class="no-hecho">No fuiste</span>';
 
   let extra = '';
   if (rutina) {
@@ -184,6 +241,8 @@ function htmlEntreno(ev, { hoy, rutinas, sesiones, resumen }, reloj, { pasado, e
         </button>
         ${reloj ? `<span class="plan__reloj">${ICONO_RELOJ}<span>Registrado · ${esc(datosSesion(reloj))}</span></span>` : ''}
         ${extra}
+        ${cumple === 'no_hecho' && !ev.omitido && ev.tipo === 'gym' && ev.fecha >= sumarDias(hoy, -7)
+          ? `<button type="button" class="boton boton--sec boton--chico" data-recuperar="${esc(ev.id)}">Recuperar este entreno</button>` : ''}
       </div>
     </li>`;
 }

@@ -107,7 +107,13 @@ export async function vistaSesion(app) {
   // Yo primero; si el evento era "solo" de otro, igual puedo mirar.
   participantes.sort((a, b) => (a.id === estado.yo.id ? -1 : b.id === estado.yo.id ? 1 : 0));
 
-  actual = { sesion, rutina, items, participantes, series, sugerencias: {}, cambios: leerCambios(id) };
+  // La vez pasada de cada uno en estos ejercicios (para mostrarla y sugerir el peso).
+  const ejIds = [...new Set(items.flatMap((it) => [it.ejercicio.id, ...it.alternativas.map((a) => a.id)]))];
+  const previas = ejIds.length ? datos(await sb.from('series').select('sesion_id, persona_id, ejercicio_id, numero, reps, peso_kg, hecha_en')
+    .in('persona_id', participantes.map((p) => p.id)).in('ejercicio_id', ejIds).neq('sesion_id', id)
+    .order('hecha_en', { ascending: false }).limit(800)) : [];
+
+  actual = { sesion, rutina, items, participantes, series, previas, sugerencias: {}, cambios: leerCambios(id) };
   const yoParticipo = participantes.some((p) => p.id === estado.yo.id);
   const terminé = sesion.terminados.includes(estado.yo.id);
   const sem = miEstado?.semaforo;
@@ -187,6 +193,18 @@ function seriesDe(it, personaId) {
     .sort((a, b) => a.numero - b.numero);
 }
 
+// Series de la última sesión anterior en que esa persona hizo ese ejercicio.
+function ultimaVez(ejId, personaId) {
+  const suyas = actual.previas.filter((x) => x.ejercicio_id === ejId && x.persona_id === personaId);
+  if (!suyas.length) return [];
+  const sesionId = suyas[0].sesion_id; // vienen de la más nueva a la más vieja
+  return suyas.filter((x) => x.sesion_id === sesionId).sort((a, b) => a.numero - b.numero);
+}
+const kg = (n) => num(n, n % 1 ? 1 : 0);
+function textoUltima(lista, segundos) {
+  return lista.map((x) => `${x.reps}${segundos ? 's' : ''}${x.peso_kg != null ? `×${kg(Number(x.peso_kg))}` : ''}`).join(' · ');
+}
+
 function tarjetaEjercicio(it, i) {
   const mio = ejercicioDe(it, estado.yo.id);
   const cambiado = mio.id !== it.ejercicio.id;
@@ -219,11 +237,13 @@ function filaPersona(it, p) {
   const ej = ejercicioDe(it, p.id);
   const hechas = seriesDe(it, p.id);
   const planeadas = meta?.series ?? it.series_base;
-  const total = Math.max(planeadas, hechas.length);
+  // Cada casilla es su número de serie (si anotaste la 3 antes que la 1, la 3 queda en su lugar).
+  const mayor = hechas.reduce((a, x) => Math.max(a, x.numero), 0);
+  const total = Math.max(planeadas, mayor);
   const unidad = ej.unidad === 'segundos' ? 's' : '';
 
   const huecos = Array.from({ length: total }, (_, k) => {
-    const s = hechas[k];
+    const s = hechas.find((x) => x.numero === k + 1);
     const texto = s
       ? `${s.reps}${unidad}${s.peso_kg != null ? `×${num(s.peso_kg, s.peso_kg % 1 ? 1 : 0)}` : ''}`
       : String(k + 1);
@@ -232,17 +252,24 @@ function filaPersona(it, p) {
     return `<button type="button" class="${clase}" data-serie="${k + 1}" data-re="${esc(it.id)}" aria-label="Serie ${k + 1}${s ? `: ${texto}, editar` : ', registrar'}">${esc(texto)}</button>`;
   }).join('');
 
-  const extra = soyYo && hechas.length >= planeadas
-    ? `<button type="button" class="serie serie--extra" data-serie="${hechas.length + 1}" data-re="${esc(it.id)}" aria-label="Agregar una serie">+</button>` : '';
+  const llenas = Array.from({ length: total }, (_, k) => hechas.some((x) => x.numero === k + 1)).every(Boolean);
+  const extra = soyYo && llenas
+    ? `<button type="button" class="serie serie--extra" data-serie="${total + 1}" data-re="${esc(it.id)}" aria-label="Agregar una serie">+</button>` : '';
   const sugerencia = soyYo ? actual.sugerencias[it.id] : null;
   const pesoDefinir = meta && meta.peso_kg == null && ej.unidad === 'reps' && !hechas.length;
+  const antes = ultimaVez(ej.id, p.id);
+  // ¿La meta subió respecto de la vez pasada?
+  const maxAntes = Math.max(0, ...antes.map((x) => Number(x.peso_kg ?? 0)));
+  const repsAntes = Math.max(0, ...antes.map((x) => x.reps));
+  const sube = meta && antes.length && ((meta.peso_kg != null && Number(meta.peso_kg) > maxAntes) || (Number(meta.peso_kg ?? 0) >= maxAntes && meta.reps > repsAntes));
 
   return `
     <div class="fila fila--entre" style="gap:8px">
       <span class="meta-fila__nombre">${esc(soyYo ? 'Yo' : p.nombre)}</span>
-      <span class="quieto">${esc(textoMeta(meta, ej.unidad))}${pesoDefinir ? ' · elige tu peso' : ''}</span>
+      <span class="quieto">${sube ? '<span class="sube" title="Subió desde la vez pasada">↑</span> ' : ''}${esc(textoMeta(meta, ej.unidad))}${ej.por_lado ? ' · por lado' : ''}${pesoDefinir ? ' · elige tu peso' : ''}</span>
     </div>
     <div class="series" style="margin-top:6px">${huecos}${extra}</div>
+    ${antes.length ? `<p class="ultima">La vez pasada: ${esc(textoUltima(antes, ej.unidad === 'segundos'))}</p>` : ''}
     ${sugerencia ? `<p class="sugerencia">${esc(sugerencia)}</p>` : ''}`;
 }
 
@@ -354,16 +381,26 @@ function registrarSerie(app, it, numero) {
   const ultima = hechas.at(-1);
   const pesoSugerido = actual.sugerencias[`${it.id}:peso`];
   const reps = existente?.reps ?? meta?.reps ?? it.reps_base;
-  const peso = existente?.peso_kg ?? pesoSugerido ?? ultima?.peso_kg ?? meta?.peso_kg ?? '';
+  const antes = ultimaVez(ej.id, estado.yo.id);
+  const pesoAntes = antes.find((x) => x.numero === numero)?.peso_kg ?? antes.at(-1)?.peso_kg;
+  const peso = existente?.peso_kg ?? pesoSugerido ?? ultima?.peso_kg ?? meta?.peso_kg ?? pesoAntes ?? '';
+  const objetivoSeg = meta?.reps ?? it.reps_base;
   const esfuerzo = existente?.esfuerzo ?? 8;
 
   const d = abrirDialogo(`
     <form class="dialogo" novalidate>
       <h2 class="tarjeta__titulo">${esc(ej.nombre)}</h2>
-      <p class="quieto" style="margin:-8px 0 0">Serie ${numero}${meta ? ` · meta ${esc(textoMeta(meta, ej.unidad))}` : ''}</p>
+      <p class="quieto" style="margin:-8px 0 0">Serie ${numero}${meta ? ` · meta ${esc(textoMeta(meta, ej.unidad))}` : ''}${ej.por_lado ? ' · por lado' : ''}</p>
+      ${segundos ? `
+        <div class="crono" id="crono">
+          <span class="crono__fase" id="crono-fase">${ej.por_lado ? 'Lado derecho primero, después el izquierdo' : 'Cuando estés en posición'}</span>
+          <span class="crono__tiempo" id="crono-t">${relojTxt(objetivoSeg)}</span>
+          <div class="crono__barra"><span id="crono-barra"></span></div>
+          <button type="button" class="boton boton--bloque" id="crono-ir">▶ Empezar ${objetivoSeg} s${ej.por_lado ? ' por lado' : ''}</button>
+        </div>` : ''}
 
       <div class="campo">
-        <label for="reps">${segundos ? 'Segundos' : 'Repeticiones'}</label>
+        <label for="reps">${segundos ? 'Segundos' : 'Repeticiones'}${ej.por_lado ? ' (por lado)' : ''}</label>
         <div class="paso">
           <button type="button" class="paso__boton" data-paso="reps" data-delta="${segundos ? -5 : -1}" aria-label="Menos">−</button>
           <input id="reps" type="number" inputmode="numeric" min="0" max="${segundos ? 600 : 100}" value="${reps}">
@@ -395,6 +432,10 @@ function registrarSerie(app, it, numero) {
     </form>`, `Serie ${numero}`);
 
   grupoChips(d.querySelector('#esfuerzo'));
+  if (segundos) {
+    const crono = cronometro(d, { segundos: () => Number(d.querySelector('#reps').value) || objetivoSeg, porLado: !!ej.por_lado });
+    d.addEventListener('close', crono.parar);
+  }
   d.querySelectorAll('[data-paso]').forEach((b) => b.addEventListener('click', () => {
     const input = d.querySelector(`#${b.dataset.paso}`);
     const base = input.value === '' ? (b.dataset.paso === 'peso' ? 0 : 0) : Number(input.value);
@@ -427,8 +468,16 @@ function registrarSerie(app, it, numero) {
         const nueva = datos(await sb.from('series').update(fila).eq('id', existente.id).select().single());
         actual.series = actual.series.map((s) => (s.id === existente.id ? nueva : s));
       } else {
-        const nueva = datos(await sb.from('series').insert(fila).select().single());
-        actual.series.push(nueva);
+        const { data, error } = await sb.from('series').insert(fila).select().single();
+        if (error?.code === '23505') {
+          // Ya estaba (doble toque o la otra pestaña): se actualiza esa misma serie.
+          const nueva = datos(await sb.from('series').update(fila).eq('sesion_id', fila.sesion_id).eq('persona_id', fila.persona_id)
+            .eq('ejercicio_id', fila.ejercicio_id).eq('numero', numero).select().single());
+          actual.series = [...actual.series.filter((x) => x.id !== nueva.id), nueva];
+        } else {
+          if (error) throw error;
+          actual.series.push(data);
+        }
       }
       d.close();
       sugerir(it, { reps: r, peso: p, esfuerzo: esf, meta, segundos });
@@ -478,6 +527,88 @@ function sugerir(it, { reps, peso, esfuerzo, meta, segundos }) {
   }
   actual.sugerencias[it.id] = texto;
   actual.sugerencias[`${it.id}:peso`] = pesoSiguiente;
+}
+
+// ---------- Temporizador de ejercicios por tiempo ----------
+
+const relojTxt = (seg) => `${Math.floor(seg / 60)}:${String(Math.max(0, Math.ceil(seg)) % 60).padStart(2, '0')}`;
+
+// Pitidos cortos (cuenta regresiva) y uno largo al cambiar de fase. Sin sonido si el navegador no deja.
+let audio = null;
+function pitido(largo = false) {
+  try {
+    audio ??= new (window.AudioContext || window.webkitAudioContext)();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = largo ? 660 : 880;
+    g.gain.setValueAtTime(0.25, audio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + (largo ? 0.6 : 0.15));
+    o.connect(g).connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + (largo ? 0.6 : 0.15));
+  } catch { /* sin audio */ }
+  try { navigator.vibrate?.(largo ? [300] : [60]); } catch { /* sin vibración */ }
+}
+
+/**
+ * Cronómetro dentro del diálogo de la serie: 3 s para prepararse, el tiempo de la serie
+ * y, si es por lado, 5 s para cambiar y el otro lado. Al terminar (o al parar) anota los segundos.
+ */
+function cronometro(d, { segundos, porLado }) {
+  const $ = (q) => d.querySelector(q);
+  const boton = $('#crono-ir'), fase = $('#crono-fase'), tiempo = $('#crono-t'), barra = $('#crono-barra'), caja = $('#crono');
+  let fases = [], i = 0, inicioFase = 0, intervalo = null, ultimoPitido = null, bloqueo = null, logrado = 0;
+
+  const armar = () => {
+    const t = segundos();
+    fases = porLado
+      ? [{ t: 3, txt: 'Prepárate · lado derecho', tipo: 'prep' }, { t, txt: 'Lado derecho', tipo: 'trabajo' },
+        { t: 5, txt: 'Cambia de lado', tipo: 'cambio' }, { t, txt: 'Lado izquierdo', tipo: 'trabajo' }]
+      : [{ t: 3, txt: 'Prepárate', tipo: 'prep' }, { t, txt: '¡Aguanta!', tipo: 'trabajo' }];
+  };
+  const pintar = () => {
+    const f = fases[i];
+    const pasado = (Date.now() - inicioFase) / 1000;
+    const resta = f.t - pasado;
+    if (f.tipo === 'trabajo') logrado = Math.min(f.t, Math.floor(pasado));
+    tiempo.textContent = relojTxt(resta);
+    barra.style.transform = `scaleX(${Math.max(0, resta / f.t)})`;
+    const seg = Math.ceil(resta);
+    if (seg <= 3 && seg >= 1 && seg !== ultimoPitido) { ultimoPitido = seg; pitido(); }
+    if (resta <= 0) siguiente();
+  };
+  const entrar = (k) => {
+    i = k; inicioFase = Date.now(); ultimoPitido = null;
+    const f = fases[i];
+    fase.textContent = f.txt;
+    caja.dataset.fase = f.tipo;
+    if (k > 0) pitido(true);
+  };
+  const siguiente = () => {
+    if (fases[i].tipo === 'trabajo') logrado = fases[i].t;
+    if (i + 1 < fases.length) return entrar(i + 1);
+    terminar(true);
+  };
+  const terminar = (completo) => {
+    clearInterval(intervalo); intervalo = null;
+    bloqueo?.release?.().catch(() => {}); bloqueo = null;
+    if (completo) pitido(true);
+    delete caja.dataset.fase;
+    if (logrado > 0) $('#reps').value = String(logrado);
+    fase.textContent = completo ? '¡Listo! Elige cómo se sintió y guarda.' : `Paraste en ${logrado} s. Ajusta si hace falta y guarda.`;
+    tiempo.textContent = relojTxt(logrado || segundos());
+    barra.style.transform = 'scaleX(0)';
+    boton.textContent = '↻ Otra vez';
+  };
+  boton.addEventListener('click', async () => {
+    if (intervalo) return terminar(false);
+    armar(); logrado = 0;
+    try { bloqueo = await navigator.wakeLock?.request('screen'); } catch { /* sin bloqueo de pantalla */ }
+    boton.textContent = '■ Parar';
+    entrar(0);
+    pitido();
+    pintar();
+    intervalo = setInterval(pintar, 100);
+  });
+  return { parar: () => { clearInterval(intervalo); intervalo = null; bloqueo?.release?.().catch(() => {}); } };
 }
 
 // ---------- Temporizador de descanso ----------
@@ -551,15 +682,28 @@ function calcularAjustes() {
       ajustes.push({ it, meta, cambio: { peso_kg: punto }, texto: `punto de partida: ${num(punto, punto % 1 ? 1 : 0)} kg` });
       continue;
     }
-    const cargaCumplida = cumplio && hechas.every((s) => (s.peso_kg ?? 0) >= meta.peso_kg);
+    meta.peso_kg = Number(meta.peso_kg);
+    const cargaCumplida = cumplio && hechas.every((s) => Number(s.peso_kg ?? 0) >= meta.peso_kg);
     const sufrio = hechas.some((s) => s.esfuerzo === 10 && s.reps < meta.reps - 1);
+    const base = it.reps_base;
     if (cargaCumplida && esfuerzoMedio <= 8) {
-      const salto = meta.peso_kg >= 60 && /pierna|glúteo|cuádriceps|espalda/i.test(it.ejercicio.grupo_muscular) ? 5 : 2.5;
-      const nuevo = meta.peso_kg + salto;
-      ajustes.push({ it, meta, cambio: { peso_kg: nuevo }, texto: `${num(meta.peso_kg, meta.peso_kg % 1 ? 1 : 0)} → ${num(nuevo, nuevo % 1 ? 1 : 0)} kg` });
+      // Doble progresión: con pesos chicos (+2,5 kg es más del 12 %) primero se suben las reps
+      // hasta base + 4; después se sube el peso y las reps vuelven a la base.
+      const mancuerna = /mancuerna/i.test(it.ejercicio.nombre);
+      const salto = meta.peso_kg >= 60 && /pierna|glúteo|cuádriceps|espalda/i.test(it.ejercicio.grupo_muscular) ? 5 : mancuerna ? 2 : 2.5;
+      if (salto / meta.peso_kg > 0.12 && meta.reps < base + 4) {
+        const reps = meta.reps + 2;
+        ajustes.push({ it, meta, cambio: { reps }, texto: `${meta.reps} → ${reps} reps con ${kg(meta.peso_kg)} kg` });
+      } else {
+        const nuevo = meta.peso_kg + salto;
+        const reps = Math.min(meta.reps, base);
+        ajustes.push({ it, meta, cambio: { peso_kg: nuevo, reps }, texto: `${kg(meta.peso_kg)} → ${kg(nuevo)} kg${reps !== meta.reps ? ` · ${reps} reps` : ''}` });
+      }
     } else if (sufrio) {
       const nuevo = redondearPeso(meta.peso_kg * 0.95);
-      if (nuevo < meta.peso_kg) ajustes.push({ it, meta, cambio: { peso_kg: nuevo }, texto: `${num(meta.peso_kg, meta.peso_kg % 1 ? 1 : 0)} → ${num(nuevo, nuevo % 1 ? 1 : 0)} kg para consolidar` });
+      if (nuevo < meta.peso_kg) ajustes.push({ it, meta, cambio: { peso_kg: nuevo }, texto: `${kg(meta.peso_kg)} → ${kg(nuevo)} kg para consolidar` });
+    } else if (cumplio) {
+      ajustes.push({ it, meta, cambio: null, texto: `mismo peso: salió al límite, consolídalo` });
     }
   }
   return ajustes;
@@ -598,7 +742,7 @@ function terminar(app) {
   confirmar.addEventListener('click', async () => {
     confirmar.disabled = true;
     try {
-      for (const a of ajustes) datos(await sb.from('metas_ejercicio').update(a.cambio).eq('id', a.meta.id));
+      for (const a of ajustes.filter((x) => x.cambio)) datos(await sb.from('metas_ejercicio').update(a.cambio).eq('id', a.meta.id));
       const fresca = datos(await sb.from('sesiones').select('terminados').eq('id', actual.sesion.id).single());
       const terminados = [...new Set([...fresca.terminados, estado.yo.id])];
       const todos = actual.participantes.every((p) => terminados.includes(p.id));
@@ -609,7 +753,8 @@ function terminar(app) {
       try { localStorage.removeItem(claveCambios(actual.sesion.id)); } catch { /* nada */ }
       d.close();
       limpiar();
-      aviso(ajustes.length ? `¡Buen entreno! ${ajustes.length} metas actualizadas.` : '¡Buen entreno!');
+      const subidas = ajustes.filter((x) => x.cambio).length;
+      aviso(subidas ? `¡Buen entreno! ${subidas} metas actualizadas para la próxima.` : '¡Buen entreno!');
       location.hash = '#/hoy';
     } catch (err) {
       avisoError(err);
