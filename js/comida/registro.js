@@ -5,6 +5,7 @@ import { estado, otraPersona } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from '../ui.js';
 import { hoyISO } from '../fechas.js';
 import { macros, sumar } from '../alimentos.js';
+import { OBJETIVOS } from '../nutricion.js';
 import { panelBuscar } from './buscar.js';
 import {
   MOMENTOS, momentoPorHora, momentoSugerido, kc, g, cantidadTexto, gemini, fotoBase64, aAlimento, guardarComida, borrarComida,
@@ -100,6 +101,14 @@ export function abrirRegistro(ctx, op = {}) {
 
 
       <div class="comida-total" id="r-total"></div>
+      <div class="consejo" id="r-consejo" hidden>
+        <p class="consejo__meta" id="r-meta"></p>
+        <div class="consejo__fila">
+          <input id="r-pregunta" type="text" maxlength="200" placeholder="¿Y si agrego una lata de atún? ¿Me alcanza?" aria-label="Pregúntale a Gemini">
+          <button type="button" class="boton boton--sec boton--chico" id="r-preguntar">Preguntar</button>
+        </div>
+        <div id="r-respuesta"></div>
+      </div>
       <div class="dialogo__pie">
         ${editar ? '<button type="button" class="boton boton--peligro" id="r-borrar" style="margin-right:auto">Eliminar</button>' : ''}
         ${op.comida && !op.repetir ? '<button type="button" class="boton boton--sec" id="r-repetir">Repetir hoy</button>' : ''}
@@ -165,6 +174,7 @@ export function abrirRegistro(ctx, op = {}) {
       ? `<div class="total-personas">${porPersona.map(([id, m]) => `<span><strong>${id === estado.yo.id ? 'Yo' : esc(otro.nombre)}</strong> ${kc(m.kcal)} kcal · P ${Math.round(m.proteina)}</span>`).join('')}</div>`
       : `<strong>${kc(total.kcal)} kcal</strong> · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}`;
     $('#r-guardar').disabled = !items.length;
+    pintarMeta();
 
     const paso = (it) => Number(it.alimento.porcion_g) > 0 && Number(it.alimento.porcion_g) <= 250 ? Number(it.alimento.porcion_g) : 10;
     cont.querySelectorAll('[data-gramos]').forEach((inp) => inp.addEventListener('change', () => {
@@ -196,11 +206,77 @@ export function abrirRegistro(ctx, op = {}) {
     }));
   }
 
+  // ---------- ¿Con esto llego a la meta? ----------
+  // De quién se mira la meta: el otro si la comida es solo suya; si no, la mía.
+  const personaMeta = () => (quienAhora() === 'otro' && otro ? otro.id : estado.yo.id);
+  const balance = () => {
+    const pid = personaMeta();
+    const info = ctx.info?.find((x) => x.p.id === pid);
+    if (!info?.metas?.ok || fecha !== hoyISO()) return null;
+    const juntos = quienAhora() === 'juntos';
+    const este = juntos ? (porciones2(items, fracciones()).find(([id]) => id === pid)?.[1] ?? sumar([])) : sumar(items.map((it) => macros(it.alimento, it.gramos)));
+    // Si se está editando, lo comido ya incluye la versión anterior de esta comida.
+    const antes = op.comida && !op.repetir ? op.comida.porciones?.find((x) => x.persona_id === pid) : null;
+    const comido = {
+      kcal: info.comido.kcal - Number(antes?.kcal ?? 0), proteina: info.comido.proteina - Number(antes?.proteina_g ?? 0),
+      carbos: info.comido.carbos - Number(antes?.carbohidratos_g ?? 0), grasas: info.comido.grasas - Number(antes?.grasas_g ?? 0),
+    };
+    return { pid, info, este, comido, total: comido.kcal + este.kcal, falta: info.metas.kcal - comido.kcal - este.kcal };
+  };
+  const pintarMeta = () => {
+    const b = items.length ? balance() : null;
+    $('#r-consejo').hidden = !b;
+    if (!b) return;
+    const quienTxt = b.pid === estado.yo.id ? '' : ` (${b.info.p.nombre})`;
+    const prot = Math.round(b.comido.proteina + b.este.proteina);
+    $('#r-meta').innerHTML = b.falta > 50
+      ? `Con este plato llegas a <strong>${kc(b.total)}</strong> de ${kc(b.info.metas.kcal)} kcal hoy${esc(quienTxt)} · <strong class="consejo__falta">te faltan ${kc(b.falta)}</strong> · P ${prot}/${Math.round(b.info.metas.proteina)} g`
+      : `Con este plato llegas a <strong>${kc(b.total)}</strong> de ${kc(b.info.metas.kcal)} kcal${esc(quienTxt)}: <strong class="hecho">meta cumplida ✓</strong>`;
+  };
+  const aconsejar = async (pregunta = '') => {
+    const b = balance();
+    if (!b) return;
+    if (!pregunta && b.falta < 200) return; // ya está cerca: no hace falta gastar una consulta
+    const cont = $('#r-respuesta');
+    const boton = $('#r-preguntar');
+    boton.disabled = true;
+    cont.innerHTML = '<p class="quieto consejo__cargando">Gemini está pensando…</p>';
+    try {
+      const r = await gemini('consejo', {
+        texto: pregunta || undefined,
+        contexto: {
+          objetivo: OBJETIVOS[b.info.foco]?.nombre ?? b.info.foco,
+          meta_dia: { kcal: Math.round(b.info.metas.kcal), proteina_g: Math.round(b.info.metas.proteina), carbos_g: Math.round(b.info.metas.carbos), grasas_g: Math.round(b.info.metas.grasas) },
+          ya_comio_hoy: { kcal: Math.round(b.comido.kcal), proteina_g: Math.round(b.comido.proteina) },
+          este_plato: items.map((it) => { const m = macros(it.alimento, it.gramos); return { nombre: it.alimento.nombre, gramos: Math.round(it.gramos), kcal: Math.round(m.kcal), proteina_g: Math.round(m.proteina) }; }),
+          con_este_plato_queda: { kcal: Math.round(b.total), le_faltan_kcal: Math.round(b.falta) },
+          entrenos_hoy: (b.info.eventos ?? []).filter((e) => e.tipo !== 'descanso').map((e) => e.tipo),
+          despensa: (ctx.despensa ?? []).slice(0, 30).map((p) => p.alimento?.nombre).filter(Boolean),
+        },
+      });
+      cont.innerHTML = `
+        <p class="consejo__respuesta">${esc(r.respuesta)}</p>
+        ${r.sugerencias?.length ? `<div class="chips">${r.sugerencias.map((x, k) =>
+          `<button type="button" class="chip chip--mini chip--sugerencia" data-sug="${k}">+ ${esc(x.cantidad || `${Math.round(x.gramos)} g`)} ${esc(x.nombre.toLowerCase())} · ${kc(x.kcal * x.gramos / 100)} kcal</button>`).join('')}</div>` : ''}`;
+      cont.querySelectorAll('[data-sug]').forEach((btn) => btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const x = r.sugerencias[Number(btn.dataset.sug)];
+        agregar(await aAlimento(x), x.gramos, null, quienAhora() === 'juntos' ? b.pid : null);
+        btn.remove();
+      }));
+    } catch (err) {
+      cont.innerHTML = `<p class="quieto">${esc(err.message)}</p>`;
+    } finally { boton.disabled = false; }
+  };
+  $('#r-preguntar').addEventListener('click', () => { const q = $('#r-pregunta').value.trim(); $('#r-pregunta').value = ''; aconsejar(q || '¿Qué me falta para llegar a mi meta de hoy?'); });
+  $('#r-pregunta').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#r-preguntar').click(); } });
+
   const agregar = (alimento, gramos, paquete = null, persona = null) => { items.push({ alimento, gramos: Number(gramos) || 100, paquete, persona }); pintar(); };
 
-  // Escribir y que Gemini lo interprete.
+  // Escribir y que Gemini lo interprete. Si hay una foto lista, va la foto con el texto como agregado.
   const leer = async () => {
     const texto = $('#r-texto').value.trim();
+    if (fotoPendiente) return analizar(fotoPendiente, texto);
     if (!texto) return $('#r-texto').focus();
     const boton = $('#r-leer');
     boton.disabled = true;
@@ -228,6 +304,7 @@ export function abrirRegistro(ctx, op = {}) {
       }
       $('#r-texto').value = '';
       mensaje(ambos && deYo && deOtro ? 'Separé lo de cada uno. Toca «Yo», «Los dos» o el nombre para cambiar de quién es algo.' : null);
+      aconsejar();
     } catch (err) {
       mensaje(`${err.message} Mientras tanto, usa la lupa para buscarlo.`);
     } finally {
@@ -237,18 +314,34 @@ export function abrirRegistro(ctx, op = {}) {
   $('#r-leer').addEventListener('click', leer);
   $('#r-texto').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); leer(); } });
 
-  // Foto del plato.
-  const analizar = async (archivo) => {
-    mensaje('Mirando la foto con Gemini…');
+  // Foto del plato: queda lista y se puede sumar texto («le puse 100 g de mozzarella») antes de leerla.
+  let fotoPendiente = null;
+  const prepararFoto = (archivo) => {
+    fotoPendiente = archivo;
+    $('#r-leer').textContent = 'Leer foto';
+    $('#r-foto').classList.add('boton--foto-lista');
+    mensaje('📷 Foto lista. ¿Le agregaste algo que no se ve (queso, aceite, salsa…)? Escríbelo y toca «Leer foto».');
+    $('#r-texto').placeholder = 'Opcional: «le puse 100 g de mozzarella y 2 cucharadas de aceite de oliva»';
+    $('#r-texto').focus();
+  };
+  const analizar = async (archivo, extra = '') => {
+    const boton = $('#r-leer');
+    boton.disabled = true;
+    mensaje(extra ? 'Mirando la foto y lo que agregaste…' : 'Mirando la foto con Gemini…');
     try {
-      const r = await gemini('foto', { imagen: await fotoBase64(archivo), tipo: 'image/jpeg' });
+      const r = await gemini('foto', { imagen: await fotoBase64(archivo), tipo: 'image/jpeg', texto: extra || undefined });
       if (!r.alimentos?.length) { mensaje('No reconocí comida en la foto. Prueba más cerca o escríbelo.'); return; }
       for (const x of r.alimentos) agregar(await aAlimento(x), x.gramos);
+      fotoPendiente = null;
+      $('#r-texto').value = '';
+      $('#r-leer').textContent = 'Agregar';
+      $('#r-foto').classList.remove('boton--foto-lista');
       mensaje('Revisa las cantidades: Gemini las estima a ojo.');
-    } catch (err) { mensaje(err.message); }
+      aconsejar(); // ¿con esto llega a la meta?
+    } catch (err) { mensaje(err.message); } finally { boton.disabled = false; }
   };
   $('#r-foto').addEventListener('click', () => $('#r-archivo').click());
-  $('#r-archivo').addEventListener('change', () => { const f = $('#r-archivo').files?.[0]; $('#r-archivo').value = ''; if (f) analizar(f); });
+  $('#r-archivo').addEventListener('change', () => { const f = $('#r-archivo').files?.[0]; $('#r-archivo').value = ''; if (f) prepararFoto(f); });
 
   // Buscar, escanear o crear a mano.
   let buscadorListo = false;
@@ -315,7 +408,7 @@ export function abrirRegistro(ctx, op = {}) {
 
   pintar();
   if (op.texto) leer();
-  if (op.foto) analizar(op.foto);
+  if (op.foto) prepararFoto(op.foto);
   return d;
 }
 

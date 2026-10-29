@@ -1,8 +1,9 @@
 // Gemini (capa gratis) para la sección Comida. Modos:
-//   foto     → qué hay en el plato de la foto, con gramos estimados
+//   foto     → qué hay en el plato de la foto, con gramos estimados (y lo que agrega el texto)
 //   texto    → interpreta "3 huevos y un café con leche"
 //   despensa → productos de un texto de compras o de una foto (bolsas, alacena, ticket)
 //   ideas    → 3 comidas con lo que hay en la despensa y lo que le falta a la persona
+//   consejo  → cuánto le falta para la meta y qué agregar (o responde "¿si agrego X alcanza?")
 // La clave de Gemini vive solo en el servidor (secreto GEMINI_API_KEY o la tabla
 // privado.secretos) y solo responde a usuarios con sesión.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -20,7 +21,8 @@ const json = (cuerpo: unknown, estado = 200) =>
 const PORCIONES = `Porciones típicas en Ecuador si no dicen gramos: 1 huevo 50 g, 1 clara 33 g, 1 taza de café 240 g,
 1 vaso de leche 250 g, 1 taza de leche 240 g, 1 pan 50 g, 1 rebanada de pan de molde 30 g, 1 banana 120 g,
 1 manzana 180 g, 1 cucharada de azúcar 12 g, 1 cucharadita de azúcar 4 g, 1 cucharada de aceite 13 g,
-1 taza de arroz cocido 160 g, 1 plato de arroz 200 g, 1 porción de pollo 150 g, 1 yogur 170 g, 1 scoop de proteína 30 g.`;
+1 taza de arroz cocido 160 g, 1 plato de arroz 200 g, 1 porción de pollo 150 g, 1 yogur 170 g, 1 scoop de proteína 30 g,
+1 lata de atún escurrido 120 g, 1 cucharada de queso rallado 6 g.`;
 
 const NUTRIENTES = {
   kcal_100g: { type: "NUMBER" }, proteina_100g: { type: "NUMBER" },
@@ -109,7 +111,10 @@ const INSTRUCCIONES: Record<string, string> = {
 Identifica cada alimento por separado y estima los gramos que se ven (si hay varios platos, suma todo).
 Da valores nutricionales por 100 g tal como está servido. Nombres simples en español
 ("Arroz blanco cocido", "Pechuga de pollo cocida", "Plátano maduro frito"). En "cantidad" pon algo legible
-("1 plato", "2 presas"). Si no ves comida, lista vacía.`,
+("1 plato", "2 presas"). Si no ves comida, lista vacía.
+Si viene un texto, es lo que la persona agregó o aclara del plato (ej. "le puse 100 g de mozzarella y 2 cucharadas de aceite"):
+súmalo como alimentos aparte o corrige lo que ves (si dice "es arroz integral", cámbialo). Lo que dice el texto manda sobre la foto.
+${PORCIONES}`,
   texto: `Eres nutricionista. Interpreta lo que comieron o tomaron, en Ecuador. Puede ser una sola persona o dos.
 Separa cada alimento y di cuántos gramos comió CADA persona: gramos_yo (quien escribe) y gramos_otro (la otra persona);
 pon 0 si esa persona no lo comió. "Yo", "mi", "me" = quien escribe. "Él", "ella" o el nombre de la otra persona = la otra.
@@ -131,8 +136,33 @@ usando sobre todo lo que hay en su despensa (marca de_despensa=true en esos ingr
 y los entrenos (antes de entrenar: carbohidratos fáciles y poca grasa; después: proteína y carbohidratos).
 Da gramos de cada ingrediente para UNA persona y valores por 100 g. "por_que" en una línea; "pasos" en dos o tres frases.
 Todo en español de Ecuador.`,
+  consejo: `Eres nutricionista deportivo y hablas en español de Ecuador, directo y breve (máximo 3 frases).
+Ayudas a una persona a llegar a su meta de calorías y proteína del día. El contexto trae su meta, lo que ya comió hoy,
+el plato que está por registrar (con calorías), sus entrenos de hoy y lo que hay en su despensa.
+Si hace una pregunta ("¿si agrego una lata de atún alcanza?"), respóndela con números: cuánto sumaría y en cuánto quedaría frente a la meta.
+Si no pregunta nada, di cuánto le falta y qué agregar a este plato o como snack para llegar.
+En "sugerencias" pon 1 a 3 alimentos concretos para agregar (de la despensa si se puede; si no, comunes: arroz, pasta, pan, aceite de oliva,
+atún, huevo, plátano, maní, avena, leche), con gramos para UNA persona y valores por 100 g. Si preguntó por algo concreto, inclúyelo.
+Si ya llegó a la meta o se pasa, dilo y no sugieras nada.
+Respeta su objetivo: si es ganar peso, prioriza sumar calorías; si es bajar, prioriza proteína sin pasarse.
+${PORCIONES}`,
 };
-const ESQUEMAS: Record<string, unknown> = { foto: ESQ_ALIMENTOS, texto: ESQ_TEXTO, despensa: ESQ_DESPENSA, ideas: ESQ_IDEAS };
+const ESQ_CONSEJO = {
+  type: "OBJECT",
+  properties: {
+    respuesta: { type: "STRING" },
+    sugerencias: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { nombre: { type: "STRING" }, gramos: { type: "NUMBER" }, cantidad: { type: "STRING" }, ...NUTRIENTES },
+        required: ["nombre", "gramos", ...REQ_NUT],
+      },
+    },
+  },
+  required: ["respuesta"],
+};
+const ESQUEMAS: Record<string, unknown> = { foto: ESQ_ALIMENTOS, texto: ESQ_TEXTO, despensa: ESQ_DESPENSA, ideas: ESQ_IDEAS, consejo: ESQ_CONSEJO };
 
 // La clave: primero el secreto de la función; si no está, la tabla privada (solo service role).
 async function leerClave(): Promise<string | null> {
@@ -194,6 +224,14 @@ function limpiar(modo: string, d: Record<string, unknown>) {
       })),
     };
   }
+  if (modo === "consejo") {
+    return {
+      respuesta: texto(d.respuesta, 500),
+      sugerencias: lista(d.sugerencias, 3).map((a) => ({
+        nombre: texto(a.nombre, 120) || "Alimento", gramos: num(a.gramos, 1, 1000), cantidad: texto(a.cantidad, 40) || null, ...nutrientes(a),
+      })),
+    };
+  }
   if (modo === "texto") {
     const momentos = ["desayuno", "almuerzo", "merienda", "cena", "snack", "pre_entreno", "post_entreno"];
     return {
@@ -224,7 +262,7 @@ Deno.serve(async (req) => {
   const clave = await leerClave().catch(() => null);
   if (!clave) return json({ error: "sin_clave" }, 503);
 
-  const modo = ["foto", "texto", "despensa", "ideas"].includes(cuerpo.modo ?? "") ? cuerpo.modo! : "foto";
+  const modo = ["foto", "texto", "despensa", "ideas", "consejo"].includes(cuerpo.modo ?? "") ? cuerpo.modo! : "foto";
   const partes: Record<string, unknown>[] = [{ text: INSTRUCCIONES[modo] }];
   const imagen = cuerpo.imagen ?? "";
   if (imagen) {
@@ -237,15 +275,15 @@ Deno.serve(async (req) => {
     const yo = texto(cuerpo.personas?.yo, 40) || "quien escribe", otro = texto(cuerpo.personas?.otro, 40);
     partes.push({ text: otro ? `Quien escribe se llama ${yo}. La otra persona se llama ${otro}.` : `Quien escribe se llama ${yo}. No hay otra persona: gramos_otro siempre 0.` });
   }
-  if (escrito) partes.push({ text: `${modo === "texto" ? "Lo que comieron" : "Texto"}: ${escrito}` });
-  if (modo === "ideas") partes.push({ text: `Contexto: ${JSON.stringify(cuerpo.contexto ?? {}).slice(0, 6000)}` });
+  if (escrito) partes.push({ text: `${modo === "texto" ? "Lo que comieron" : modo === "consejo" ? "Pregunta" : modo === "foto" ? "Lo que agregó o aclara del plato" : "Texto"}: ${escrito}` });
+  if (modo === "ideas" || modo === "consejo") partes.push({ text: `Contexto: ${JSON.stringify(cuerpo.contexto ?? {}).slice(0, 6000)}` });
   if (modo === "foto" && !imagen) return json({ error: "imagen" }, 400);
   if (modo === "texto" && !escrito) return json({ error: "texto" }, 400);
   if (modo === "despensa" && !imagen && !escrito) return json({ error: "texto" }, 400);
 
   const pedido = {
     contents: [{ role: "user", parts: partes }],
-    generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMAS[modo], temperature: modo === "ideas" ? 0.7 : 0.2 },
+    generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMAS[modo], temperature: modo === "ideas" ? 0.7 : modo === "consejo" ? 0.4 : 0.2 },
   };
 
   let ultimoError = "";
