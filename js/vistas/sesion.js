@@ -93,12 +93,12 @@ export async function vistaSesion(app) {
   ]);
 
   // Lo que grabó el reloj para este entreno (cuando ya sincronizó).
-  let reloj = null;
+  let delReloj = null;
   if (evento) {
     const desde = new Date(`${evento.fecha}T00:00:00`), hasta = new Date(`${evento.fecha}T23:59:59`);
-    const delDia = datos(await sb.from('sesiones_banda').select('tipo, inicio, fin, calorias, fc_promedio')
+    const delDia = datos(await sb.from('sesiones_banda').select('tipo, inicio, fin, calorias, calorias_estimadas, fc_promedio')
       .eq('persona_id', estado.yo.id).gte('inicio', desde.toISOString()).lte('inicio', hasta.toISOString()));
-    reloj = emparejar([evento], delDia).pares.get(evento) ?? null;
+    delReloj = emparejar([evento], delDia).pares.get(evento) ?? null;
   }
 
   const participantes = !evento || evento.asistencia === 'juntos'
@@ -123,14 +123,20 @@ export async function vistaSesion(app) {
       <div>
         <a href="#/hoy" class="boton boton--texto" style="padding:0;min-height:32px">‹ Hoy</a>
         <h1 class="titulo">${esc(rutina.nombre)}</h1>
-        <p class="subtitulo"><span id="transcurrido"></span> · ${esc(participantes.length > 1 ? `${participantes.filter((p) => p.id !== estado.yo.id).map((p) => p.nombre).join(', ')} y yo` : (participantes[0]?.id === estado.yo.id ? 'Solo yo' : `Solo ${participantes[0]?.nombre ?? ''}`))}</p>
+        <p class="subtitulo">${esc(participantes.length > 1 ? `${participantes.filter((p) => p.id !== estado.yo.id).map((p) => p.nombre).join(', ')} y yo` : (participantes[0]?.id === estado.yo.id ? 'Solo yo' : `Solo ${participantes[0]?.nombre ?? ''}`))}</p>
       </div>
     </header>
 
-    ${reloj ? `
+    <div class="crono-sesion ${terminé ? 'crono-sesion--fin' : ''}" role="timer" aria-label="Tiempo de entreno">
+      <svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5M12 2.5V5"/></svg>
+      <span id="transcurrido">0:00</span>
+      <span class="crono-sesion__txt">${terminé ? 'terminaste' : 'entrenando'}</span>
+    </div>
+
+    ${delReloj ? `
       <p class="sesion-reloj">
         <svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6" width="11" height="12" rx="3.5"/><path d="M9 6l.6-3h4.8l.6 3M9 18l.6 3h4.8l.6-3M12 9.5V12l1.6 1.2"/></svg>
-        <span><strong>Tu reloj registró:</strong> ${esc([`${minutos(reloj)} min`, reloj.calorias != null ? `${reloj.calorias} kcal` : null, reloj.fc_promedio ? `${reloj.fc_promedio} ppm promedio` : null].filter(Boolean).join(' · '))}</span>
+        <span><strong>Tu reloj registró:</strong> ${esc([`${minutos(delReloj)} min`, delReloj.calorias != null ? `${delReloj.calorias_estimadas ? '≈ ' : ''}${delReloj.calorias} kcal` : null, delReloj.fc_promedio ? `${delReloj.fc_promedio} ppm promedio` : null].filter(Boolean).join(' · '))}</span>
       </p>` : ''}
 
     ${sem && sem !== 'verde' ? `
@@ -155,14 +161,18 @@ export async function vistaSesion(app) {
 
   conectar(app);
 
+  // Cronómetro en vivo desde que empezó el entreno (h:mm:ss); si ya terminaste, queda quieto.
+  const ultimaMia = series.filter((x) => x.persona_id === estado.yo.id).map((x) => x.hecha_en).sort().at(-1);
+  const fin = terminé ? new Date(sesion.terminada_en ?? ultimaMia ?? Date.now()).getTime() : null;
   const pintarReloj = () => {
     const el = app.querySelector('#transcurrido');
     if (!el) return;
-    const min = Math.max(0, Math.round((Date.now() - new Date(sesion.iniciada_en)) / 60000));
-    el.textContent = min < 1 ? 'Recién empieza' : `${min} min`;
+    const seg = Math.max(0, Math.floor(((fin ?? Date.now()) - new Date(sesion.iniciada_en)) / 1000));
+    const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), x = seg % 60;
+    el.textContent = h ? `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}` : `${m}:${String(x).padStart(2, '0')}`;
   };
   pintarReloj();
-  reloj = setInterval(pintarReloj, 30000);
+  if (!terminé) reloj = setInterval(pintarReloj, 1000);
 
   // Trae cada pocos segundos lo que registra el otro.
   if (participantes.length > 1) {

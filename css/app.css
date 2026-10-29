@@ -1172,3 +1172,14 @@ dialog .selector-deporte { max-height: 46dvh; overflow: auto; padding-right: 4px
 .consejo__cargando { margin: 0; font-size: 13px; }
 .chip--sugerencia { border-color: var(--volt); color: var(--volt); }
 .boton--foto-lista { box-shadow: inset 0 0 0 2px var(--volt); color: var(--volt); }
+
+/* Cronómetro del entreno: fijo arriba mientras se desplaza */
+.crono-sesion {
+  position: sticky; top: 8px; z-index: 5; display: flex; align-items: center; gap: 8px; width: fit-content; margin: 0 0 12px auto;
+  padding: 8px 14px; border-radius: 999px; background: var(--volt); color: var(--asfalto);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.crono-sesion .icono { width: 18px; height: 18px; }
+.crono-sesion #transcurrido { font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; min-width: 3.2em; }
+.crono-sesion__txt { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.75; }
+.crono-sesion--fin { background: var(--grafito-2); color: var(--tiza); }
