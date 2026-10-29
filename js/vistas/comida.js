@@ -80,22 +80,17 @@ async function vistaDia(app, fecha) {
     </header>
     ${pestanas('dia', fecha)}
 
-    <section class="ia-caja ia-caja--inicio" aria-label="Agregar comida">
-      <div class="ia-caja__cab">
-        <span class="ia-logo" aria-hidden="true">${ICONO_CHISPA}</span>
-        <div><strong>¿Qué comiste${esHoy ? '' : ' ese día'}?</strong><span>La IA lo anota: con una foto, escribiendo o las dos</span></div>
-      </div>
-      <form class="ia-inicio__fila" id="rapido">
-        <input id="rapido-texto" autocomplete="off" maxlength="400" placeholder="«2 huevos y un café con leche»" aria-label="Qué comiste">
-        <label class="boton boton--sec boton--chico boton--icono" aria-label="Sacar foto">${ICONO_FOTO}<input type="file" id="rapido-camara" accept="image/*" capture="environment" hidden></label>
-        <button type="submit" class="boton boton--ia boton--chico" aria-label="Agregar">${ICONO_CHISPA}</button>
+    <section class="ia-caja ia-inicio" aria-label="Agregar comida">
+      <span class="ia-inicio__marca">${ICONO_CHISPA} IA de Bloque</span>
+      <form class="ia-inicio__barra" id="rapido">
+        <input id="rapido-texto" autocomplete="off" maxlength="400" placeholder="¿Qué comiste${esHoy ? '' : ' ese día'}?" aria-label="Qué comiste">
+        <label class="ia-inicio__icono" aria-label="Sacar foto del plato">${ICONO_FOTO}<input type="file" id="rapido-camara" accept="image/*" capture="environment" hidden></label>
+        <button type="submit" class="ia-inicio__enviar" aria-label="Agregar con la IA">${ICONO_CHISPA}</button>
       </form>
-      ${habituales.length ? `
-        <p class="ia-inicio__titulo">Sueles comer a esta hora</p>
-        <div class="frecuentes">${habituales.map((f, i) => `<button type="button" class="chip chip--mini chip--habitual" data-habitual="${i}">+ ${esc(f.alimento.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, ''))} <span class="quieto">${esc(cantidadTexto(f.alimento, f.gramos))}</span></button>`).join('')}</div>`
-      : frec.length ? `
-        <div class="frecuentes">${frec.map((f, i) => `<button type="button" class="chip chip--mini" data-frec="${i}">+ ${esc(f.alimento.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, ''))}</button>`).join('')}</div>` : ''}
-      <button type="button" class="enlace-manual" id="rapido-manual">O agrégalo a mano</button>
+      <div class="ia-inicio__rapidos" aria-label="Agregar rápido">
+        <button type="button" class="chip chip--mini chip--buscar" id="rapido-manual">🔍 A mano</button>
+        ${(habituales.length ? habituales : frec).map((f, i) => `<button type="button" class="chip chip--mini" data-${habituales.length ? 'habitual' : 'frec'}="${i}">+ ${esc(f.alimento.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, ''))}</button>`).join('')}
+      </div>
     </section>
 
     ${htmlResumen(yo, true, esHoy)}

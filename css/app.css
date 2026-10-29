@@ -1403,3 +1403,25 @@ dialog.pantalla > .dialogo > h2:first-of-type { padding-right: 52px; }
 .anillo--kcal .anillo__valor { stroke: var(--volt); }
 .anillo--agua .anillo__valor { stroke: #5EE6C8; }
 .numero-hoy__fuego { width: 34px; height: 34px; flex-shrink: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: rgba(232, 163, 23, 0.16); font-size: 17px; }
+
+/* Caja de la IA en Comida: una sola barra, limpia */
+.ia-inicio { gap: 12px; padding: 14px 14px 12px; margin-bottom: 16px; border-radius: 22px; }
+.ia-inicio__marca {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
+  background: linear-gradient(90deg, #C6F432, #5EE6C8, #8A7CFF); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.ia-inicio__marca .icono { width: 15px; height: 15px; fill: #C6F432; stroke: none; }
+.ia-inicio__barra { display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 16px; border-radius: 999px; background: var(--asfalto); box-shadow: inset 0 0 0 1px var(--grafito-2); }
+.ia-inicio__barra:focus-within { box-shadow: inset 0 0 0 1.5px rgba(198, 244, 50, 0.6); }
+.ia-inicio__barra input { flex: 1; min-width: 0; height: 44px; border: 0; background: transparent; padding: 0; font-size: 16px; color: var(--tiza); box-shadow: none; }
+.ia-inicio__barra input:focus-visible { outline: none; }
+.ia-inicio__icono { width: 44px; height: 44px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; color: var(--tiza-2); cursor: pointer; flex-shrink: 0; }
+.ia-inicio__icono .icono { width: 22px; height: 22px; }
+.ia-inicio__enviar { width: 44px; height: 44px; border-radius: 999px; border: 0; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #C6F432, #5EE6C8); color: var(--asfalto); cursor: pointer; }
+.ia-inicio__enviar .icono { width: 20px; height: 20px; fill: currentColor; stroke: none; }
+.ia-inicio__enviar:active { transform: scale(0.92); }
+.ia-inicio__rapidos { display: flex; gap: 6px; overflow-x: auto; margin: 0 -14px; padding: 0 14px 2px; scrollbar-width: none; }
+.ia-inicio__rapidos::-webkit-scrollbar { display: none; }
+.ia-inicio__rapidos .chip { flex-shrink: 0; }
+/* El vaso de agua alineado con su texto */
+.agua-dia { align-items: flex-start; }
