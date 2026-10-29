@@ -1332,3 +1332,74 @@ dialog.pantalla > .dialogo > h2:first-of-type { padding-right: 52px; }
 .estirar__tiempo { font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 48px; color: var(--volt); font-variant-numeric: tabular-nums; }
 .estirar__actual[data-fase="cambio"] .estirar__tiempo { color: var(--ambar); }
 .estirar__como { margin: 0; font-size: 14px; color: var(--tiza-2); }
+
+/* Agua dentro del resumen del día: vaso con olas que sube al sumar */
+.agua-dia { display: flex; gap: 14px; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--grafito-2); }
+.vaso { position: relative; width: 44px; height: 76px; flex-shrink: 0; border-radius: 6px 6px 14px 14px; background: rgba(94, 230, 200, 0.07); box-shadow: inset 0 0 0 2px rgba(94, 230, 200, 0.35); overflow: hidden; }
+.vaso__agua { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, #5EE6C8, #2BA7D8); transition: height 1.1s cubic-bezier(0.22, 1.2, 0.36, 1); }
+.vaso__ola { position: absolute; left: 0; top: -9px; width: 200%; height: 10px; fill: #5EE6C8; animation: ola 3s linear infinite; }
+.vaso__ola--2 { top: -7px; fill: rgba(94, 230, 200, 0.55); animation-duration: 4.6s; animation-direction: reverse; }
+@keyframes ola { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.vaso__burbuja { position: absolute; bottom: 4px; width: 5px; height: 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.7); opacity: 0; }
+.vaso__burbuja:nth-child(3) { left: 8px; } .vaso__burbuja:nth-child(4) { left: 20px; width: 4px; height: 4px; } .vaso__burbuja:nth-child(5) { left: 30px; }
+@keyframes burbuja { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: 0.9; } 100% { transform: translateY(-60px); opacity: 0; } }
+.agua-dia--sube .vaso__ola { animation-duration: 0.9s; }
+.agua-dia--sube .vaso__ola--2 { animation-duration: 1.3s; }
+.agua-dia--sube .vaso__burbuja { animation: burbuja 1.1s ease-out both; }
+.agua-dia--sube .vaso__burbuja:nth-child(4) { animation-delay: 0.15s; }
+.agua-dia--sube .vaso__burbuja:nth-child(5) { animation-delay: 0.3s; }
+.agua-dia--sube .vaso { animation: vaso-pop 0.5s var(--resorte); }
+@keyframes vaso-pop { 40% { transform: scale(1.08); } }
+.agua-dia__texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.agua-dia__texto .macro__fila strong { color: #5EE6C8; }
+.agua-dia__estado { margin: 0; font-size: 13px; color: var(--tiza-2); }
+.agua-dia__botones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip--agua { border-color: rgba(94, 230, 200, 0.45); color: #9FF0DE; }
+
+/* Registro: compositor de la IA simple (texto + íconos + Leer) */
+.momento-pill { margin-left: auto; border: 0; border-radius: 999px; padding: 8px 12px; background: var(--grafito-2); color: var(--tiza); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.momento-pill[aria-expanded="true"] { box-shadow: inset 0 0 0 2px var(--volt); }
+.reg > .reg__momentos { margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--grafito-2); }
+.ia-caja--compacta { gap: 8px; padding: 12px; border-radius: 18px; }
+.ia-caja--compacta textarea { min-height: 52px; border: 0; background: transparent; padding: 6px 4px; font-size: 16px; resize: none; box-shadow: none; }
+.ia-caja--compacta textarea:focus-visible { outline: none; }
+.ia-comp__barra { display: flex; align-items: center; gap: 6px; }
+.ia-icono { width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: var(--grafito-2); color: var(--tiza); cursor: pointer; }
+.ia-icono .icono { width: 22px; height: 22px; }
+.ia-comp__leer { margin-left: auto; min-width: 96px; }
+.reg__rapidos { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px; scrollbar-width: none; }
+.reg__rapidos .chip { flex-shrink: 0; }
+.chip--buscar { gap: 4px; }
+.chip--buscar .icono { width: 15px; height: 15px; }
+.chip--ia { align-self: flex-start; gap: 5px; border-color: rgba(198, 244, 50, 0.45); color: var(--volt); }
+.chip--ia .icono { width: 14px; height: 14px; fill: currentColor; stroke: none; }
+.reg__titulo h2 { font-size: 18px; white-space: nowrap; }
+
+/* Lo que comieron: línea del día por momento, con quién comió qué */
+.comidas-dia { padding: 8px 16px; }
+.comida-momento__icono { background: var(--grafito-2); font-size: 20px; }
+.comida-momento__totales { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.persona-kcal { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--asfalto); font-size: 13px; color: var(--tiza-2); }
+.persona-kcal strong { color: var(--tiza); }
+.caras { display: inline-flex; flex-shrink: 0; }
+.caras__una { width: 24px; height: 24px; border-radius: 999px; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; background: var(--grafito-2); font-size: 11px; font-weight: 800; box-shadow: 0 0 0 2px var(--grafito); }
+.caras__una + .caras__una { margin-left: -8px; }
+.caras__una img { width: 100%; height: 100%; object-fit: cover; }
+.comida-renglon { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: none; color: inherit; font: inherit; padding: 6px 0; cursor: pointer; }
+.comida-renglon:active { opacity: 0.7; }
+.comida-renglon__texto { flex: 1; min-width: 0; font-size: 14px; color: var(--tiza-2); line-height: 1.4; }
+.comida-renglon__quien { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gris); }
+
+/* Hoy en números */
+.numeros-hoy { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; text-decoration: none; color: inherit; padding: 14px 12px; }
+.numero-hoy { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.numero-hoy > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.numero-hoy strong { font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 17px; line-height: 1.1; }
+.numero-hoy > span:last-child > span { font-size: 11px; color: var(--gris); line-height: 1.2; }
+.anillo { width: 34px; height: 34px; flex-shrink: 0; transform: rotate(-90deg); }
+.anillo circle { fill: none; stroke-width: 4; }
+.anillo__fondo { stroke: var(--grafito-2); }
+.anillo__valor { stroke-linecap: round; transition: stroke-dasharray 0.8s var(--suave); }
+.anillo--kcal .anillo__valor { stroke: var(--volt); }
+.anillo--agua .anillo__valor { stroke: #5EE6C8; }
+.numero-hoy__fuego { width: 34px; height: 34px; flex-shrink: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: rgba(232, 163, 23, 0.16); font-size: 17px; }

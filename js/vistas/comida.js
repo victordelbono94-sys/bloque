@@ -6,7 +6,7 @@ import { emparejar, esIndividual, asistenciaIndividual } from '../actividades.js
 import { cargarSyncs } from '../hecho.js';
 import { metaAgua, aguaDeComidas, cargarAgua, sumarAgua, borrarAgua, litros } from '../hidratacion.js';
 import { sb, estado, datos } from '../db.js';
-import { esc, aviso, avisoError, abrirDialogo } from '../ui.js';
+import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
 import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia } from '../fechas.js';
 import { calcularMetas, consejosDelDia, snacksDelDia, tendenciaPeso, OBJETIVOS } from '../nutricion.js';
 import { macros, sumar, cargarCatalogo } from '../alimentos.js';
@@ -98,8 +98,7 @@ async function vistaDia(app, fecha) {
       <button type="button" class="enlace-manual" id="rapido-manual">O agrégalo a mano</button>
     </section>
 
-    ${htmlResumen(yo, true)}
-    ${htmlAgua(yo, esHoy)}
+    ${htmlResumen(yo, true, esHoy)}
     ${info.slice(1).map((x) => htmlResumen(x, false)).join('')}
 
 
@@ -117,7 +116,7 @@ async function vistaDia(app, fecha) {
     <section class="seccion" aria-labelledby="t-comidas">
       <h2 class="seccion__titulo" id="t-comidas">${esHoy ? 'Lo que comieron hoy' : 'Lo que comieron'}</h2>
       ${d.comidas.length
-        ? `<div class="pila">${ordenar(d.comidas).map(htmlComida).join('')}</div>`
+        ? htmlComidasDia(ordenar(d.comidas))
         : `<p class="vacio">Todavía nada${esHoy ? ' hoy' : ''}. Escribe arriba lo que comiste.</p>`}
     </section>`;
 
@@ -128,13 +127,8 @@ async function vistaDia(app, fecha) {
     abrirRegistro(ctx, texto ? { texto } : {});
   });
   app.querySelector('#rapido-manual').addEventListener('click', () => abrirRegistro(ctx, {}));
-  app.querySelectorAll('[data-agua]').forEach((b) => b.addEventListener('click', async () => {
-    b.disabled = true;
-    try { await sumarAgua(Number(b.dataset.agua)); aviso(`+${b.dataset.agua} ml de agua 💧`); vistaDia(app, fecha); } catch (err) { avisoError(err); b.disabled = false; }
-  }));
-  app.querySelectorAll('[data-agua-borrar]').forEach((b) => b.addEventListener('click', async () => {
-    try { await borrarAgua(b.dataset.aguaBorrar); vistaDia(app, fecha); } catch (err) { avisoError(err); }
-  }));
+  conectarAgua(app, () => vistaDia(app, fecha));
+
   app.querySelectorAll('[data-habitual]').forEach((b) => b.addEventListener('click', () => {
     const f = habituales[Number(b.dataset.habitual)];
     abrirRegistro(ctx, { items: [{ alimento: f.alimento, gramos: f.gramos }] });
@@ -154,38 +148,78 @@ async function vistaDia(app, fecha) {
   app.querySelector('#ideas-btn')?.addEventListener('click', (e) => mostrarIdeas(ctx, app.querySelector('#ideas'), e.currentTarget));
 }
 
-function htmlComida(c) {
-  const quienDe = (id) => (id === estado.yo.id ? 'Yo' : estado.personas.find((p) => p.id === id)?.nombre ?? '');
-  // Un renglón por alimento: lo compartido, lo igual para los dos ("c/u") o cuánto comió cada uno.
-  const grupos = new Map();
-  for (const i of c.comida_items) {
-    const gr = grupos.get(i.alimento.id) ?? { alimento: i.alimento, compartido: 0, personas: new Map() };
-    if (i.persona_id) gr.personas.set(i.persona_id, (gr.personas.get(i.persona_id) ?? 0) + Number(i.gramos));
-    else gr.compartido += Number(i.gramos);
-    grupos.set(i.alimento.id, gr);
+const ICONO_MOMENTO = { desayuno: '☕', almuerzo: '🍽️', merienda: '🥪', cena: '🌙', snack: '🍎', pre_entreno: '⚡', post_entreno: '💪' };
+const persona = (id) => estado.personas.find((p) => p.id === id);
+const caras = (ids) => `<span class="caras">${ids.map((id) => `<span class="caras__una">${cara(persona(id))}</span>`).join('')}</span>`;
+
+// «3 huevos», «100 g de fideos cocidos».
+function linea(alimento, gramos) {
+  const t = cantidadTexto(alimento, gramos);
+  const nombre = alimento.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, '').toLowerCase();
+  return t.endsWith(' g') ? `${t} de ${nombre}` : t;
+}
+
+/**
+ * Lo que comieron, por momento del día (si los dos anotaron el desayuno por separado, se ve junto).
+ * En cada momento: qué fue compartido, qué comió cada uno, y las calorías de cada persona.
+ */
+function htmlComidasDia(comidas) {
+  const grupos = [];
+  for (const c of comidas) {
+    const g = grupos.find((x) => x.momento === c.momento) ?? (grupos.push({ momento: c.momento, comidas: [] }), grupos.at(-1));
+    g.comidas.push(c);
   }
-  const lineas = [...grupos.values()].map((gr) => {
-    const partes = [];
-    if (gr.compartido) partes.push(cantidadTexto(gr.alimento, gr.compartido));
-    const cada = [...gr.personas.entries()];
-    if (cada.length === 2 && Math.abs(cada[0][1] - cada[1][1]) < 1) partes.push(`${cantidadTexto(gr.alimento, cada[0][1])} c/u`);
-    else if (cada.length === 1) partes.push(`solo ${quienDe(cada[0][0]) === 'Yo' ? 'yo' : quienDe(cada[0][0])} ${cantidadTexto(gr.alimento, cada[0][1])}`);
-    else for (const [id, gramos] of cada) partes.push(`${quienDe(id)} ${cantidadTexto(gr.alimento, gramos)}`);
-    return `${gr.alimento.nombre} · ${partes.join(' · ')}`;
-  });
-  const total = sumar(c.comida_items.map((i) => macros(i.alimento, i.gramos)));
-  return `
-    <button type="button" class="tarjeta comida-fila" data-comida="${esc(c.id)}" aria-label="Editar ${esc(MOMENTOS[c.momento] ?? c.momento)}">
-      <div class="fila fila--entre">
-        <strong>${esc(MOMENTOS[c.momento] ?? c.momento)}${c.hora ? ` <span class="quieto">· ${esc(c.hora.slice(0, 5))}</span>` : ''}</strong>
-        <span class="comida-fila__kcal">${kc(total.kcal)} kcal</span>
-      </div>
-      <ul class="comida-fila__items">${lineas.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>
-      <div class="comida-fila__porciones">
-        ${c.porciones.map((x) => `<span>${esc(x.persona_id === estado.yo.id ? 'Yo' : (estado.personas.find((p) => p.id === x.persona_id)?.nombre ?? ''))} <strong>${kc(x.kcal ?? 0)}</strong> kcal · ${Math.round(x.proteina_g ?? 0)} g prot</span>`).join('')}
-        <span class="comida-fila__editar">Editar ›</span>
-      </div>
-    </button>`;
+  return `<div class="tarjeta comidas-dia"><ol class="plan">${grupos.map((g) => {
+    const horas = g.comidas.map((c) => c.hora?.slice(0, 5)).filter(Boolean).sort();
+    // Calorías por persona en este momento.
+    const porPersona = new Map();
+    for (const c of g.comidas) for (const x of c.porciones) {
+      const t = porPersona.get(x.persona_id) ?? { kcal: 0, prot: 0 };
+      t.kcal += Number(x.kcal ?? 0); t.prot += Number(x.proteina_g ?? 0);
+      porPersona.set(x.persona_id, t);
+    }
+    // Renglones por «dueño»: compartido entre varios, cada uno lo mismo (c/u) o de una persona.
+    const filas = new Map();
+    const sumarFila = (ids, texto, comidaId, cu = false) => {
+      const clave = `${cu ? 'cu' : ''}${[...ids].sort().join(',')}`;
+      const f = filas.get(clave) ?? { ids, lineas: [], comidaId, cu };
+      f.lineas.push(texto);
+      filas.set(clave, f);
+    };
+    for (const c of g.comidas) {
+      const comieron = c.porciones.map((x) => x.persona_id);
+      const propios = new Map();
+      for (const i of c.comida_items) {
+        if (i.persona_id) { (propios.get(i.persona_id) ?? propios.set(i.persona_id, []).get(i.persona_id)).push(linea(i.alimento, Number(i.gramos))); }
+        else sumarFila(comieron, linea(i.alimento, Number(i.gramos)), c.id);
+      }
+      const listas = [...propios.values()].map((l) => l.join('|'));
+      if (propios.size > 1 && listas.every((l) => l === listas[0])) {
+        for (const t of [...propios.values()][0]) sumarFila([...propios.keys()], t, c.id, true);
+      } else for (const [id, l] of propios) for (const t of l) sumarFila([id], t, c.id);
+    }
+    return `
+      <li class="plan__item comida-momento">
+        <span class="plan__icono comida-momento__icono" aria-hidden="true">${ICONO_MOMENTO[g.momento] ?? '🍴'}</span>
+        <div class="plan__cuerpo">
+          <div class="plan__titulo">
+            <strong>${esc(MOMENTOS[g.momento] ?? g.momento)}</strong>
+            <span class="plan__hora">${esc(horas.length > 1 && horas[0] !== horas.at(-1) ? `${horas[0]}–${horas.at(-1)}` : horas[0] ?? '')}</span>
+          </div>
+          <div class="comida-momento__totales">${[...porPersona.entries()].map(([id, t]) => `
+            <span class="persona-kcal" title="Proteína ${Math.round(t.prot)} g">${caras([id])}<strong>${kc(t.kcal)}</strong> kcal</span>`).join('')}</div>
+          ${[...filas.values()].map((f) => `
+            <button type="button" class="comida-renglon" data-comida="${esc(f.comidaId)}" aria-label="Editar ${esc(MOMENTOS[g.momento] ?? '')}">
+              ${caras(f.ids)}
+              <span class="comida-renglon__texto">
+                <span class="comida-renglon__quien">${esc(f.cu ? 'Cada uno' : f.ids.length > 1 ? 'Compartido' : (f.ids[0] === estado.yo.id ? 'Yo' : persona(f.ids[0])?.nombre ?? ''))}</span>
+                ${esc(f.lineas.join(' · '))}${f.cu ? ' <span class="quieto">(c/u)</span>' : ''}
+              </span>
+              <span class="plan__flecha" aria-hidden="true">›</span>
+            </button>`).join('')}
+        </div>
+      </li>`;
+  }).join('')}</ol></div>`;
 }
 
 // ---------- Ideas con Gemini ----------
@@ -517,35 +551,36 @@ function barra(nombre, valor, meta, clase) {
     </div>`;
 }
 
-// Hidratación: una botella que se llena, con botones rápidos.
+// Hidratación dentro del resumen del día: un vaso con agua que sube, y botones rápidos.
 function htmlAgua(x, esHoy) {
   const { meta, tomado, deComidas, entradas } = x.agua;
   const pct = Math.min(100, Math.round((tomado / meta) * 100));
   const falta = meta - tomado;
-  const entreno = (x.eventos ?? []).find((e) => ['derby', 'gym', 'otro'].includes(e.tipo));
-  const consejo = !esHoy ? '' : entreno
-    ? `Hoy entrenas: lleva ${entreno.tipo === 'derby' ? '~1 L para el derby (unos 500 ml por hora)' : '~500 ml al entreno'} y toma un vaso al terminar.`
-    : falta > 0 ? 'Un vaso cada hora o dos te deja al día.' : '';
+  const entreno = esHoy && (x.eventos ?? []).find((e) => ['derby', 'gym', 'otro'].includes(e.tipo));
   return `
-    <section class="tarjeta agua" aria-label="Hidratación">
-      <div class="agua__botella" aria-hidden="true"><span class="agua__nivel" style="height:${pct}%"></span><span class="agua__ola"></span></div>
-      <div class="agua__texto">
-        <p class="seccion__titulo" style="margin:0">Hidratación</p>
-        <p class="agua__cifra"><strong>${litros(tomado)}</strong> de ${litros(meta)}</p>
-        <p class="agua__estado ${falta <= 0 ? 'hecho' : ''}">${falta <= 0 ? 'Meta de agua cumplida ✓' : `Te falta ${litros(falta)}`}${deComidas ? ` · ${litros(deComidas)} de bebidas en comidas` : ''}</p>
-        ${consejo ? `<p class="ayuda" style="margin:2px 0 0">${esc(consejo)}</p>` : ''}
-        ${esHoy ? `
-          <div class="agua__botones">
-            <button type="button" class="chip chip--mini" data-agua="250">+ Vaso <span class="quieto">250</span></button>
-            <button type="button" class="chip chip--mini" data-agua="500">+ Botella <span class="quieto">500</span></button>
-            <button type="button" class="chip chip--mini" data-agua="750">+ Termo <span class="quieto">750</span></button>
-          </div>` : ''}
-        ${entradas.length ? `<div class="agua__lista">${entradas.slice(-4).map((e) => `<button type="button" class="agua__item" data-agua-borrar="${esc(e.id)}" aria-label="Borrar ${e.ml} ml">${e.hora ? esc(e.hora.slice(0, 5)) : ''} ${e.ml} ml${e.origen === 'entreno' ? ' · entreno' : ''} ×</button>`).join('')}</div>` : ''}
+    <div class="agua-dia" id="agua-dia" data-tomado="${tomado}" data-meta="${meta}">
+      <div class="vaso" aria-hidden="true">
+        <div class="vaso__agua" style="height:${pct}%">
+          <svg class="vaso__ola" viewBox="0 0 120 12" preserveAspectRatio="none"><path d="M0 6 Q15 0 30 6 T60 6 T90 6 T120 6 V12 H0Z"/></svg>
+          <svg class="vaso__ola vaso__ola--2" viewBox="0 0 120 12" preserveAspectRatio="none"><path d="M0 6 Q15 12 30 6 T60 6 T90 6 T120 6 V12 H0Z"/></svg>
+          <span class="vaso__burbuja"></span><span class="vaso__burbuja"></span><span class="vaso__burbuja"></span>
+        </div>
       </div>
-    </section>`;
+      <div class="agua-dia__texto">
+        <div class="macro__fila"><span>Agua</span><span><strong id="agua-tomado">${litros(tomado)}</strong> / ${litros(meta)}</span></div>
+        <p class="agua-dia__estado ${falta <= 0 ? 'hecho' : ''}" id="agua-estado">${falta <= 0 ? 'Meta de agua cumplida ✓' : `Te falta ${litros(falta)}`}${deComidas ? ` · ${litros(deComidas)} de bebidas` : ''}${entreno ? ` · ${entreno.tipo === 'derby' ? 'lleva ~1 L al derby' : 'lleva ~500 ml al entreno'}` : ''}</p>
+        ${esHoy ? `
+          <div class="agua-dia__botones">
+            <button type="button" class="chip chip--mini chip--agua" data-agua="250">+ Vaso</button>
+            <button type="button" class="chip chip--mini chip--agua" data-agua="500">+ Botella</button>
+            <button type="button" class="chip chip--mini chip--agua" data-agua="750">+ Termo</button>
+            ${entradas.length ? `<button type="button" class="chip chip--mini" data-agua-deshacer="${esc(entradas.at(-1).id)}" aria-label="Deshacer el último (${entradas.at(-1).ml} ml)">↶ ${entradas.at(-1).ml} ml</button>` : ''}
+          </div>` : ''}
+      </div>
+    </div>`;
 }
 
-function htmlResumen(x, esYo) {
+function htmlResumen(x, esYo, esHoy = true) {
   const { p, metas, comido } = x;
   if (!metas.ok) {
     return `
@@ -554,6 +589,7 @@ function htmlResumen(x, esYo) {
         <p class="quieto" style="margin:8px 0 0">Para calcular ${esYo ? 'tu meta' : 'su meta'} falta ${esc(unir(metas.falta))}.</p>
         ${esYo ? '<a class="boton boton--sec boton--chico" style="margin-top:12px" href="#/perfil">Completar perfil</a>' : `<p class="ayuda" style="margin-top:6px">${esc(p.nombre)} lo completa desde su Perfil y Cuerpo.</p>`}
         ${comido.kcal ? `<p class="quieto" style="margin:10px 0 0">Comido hoy: ${kc(comido.kcal)} kcal · ${g(comido.proteina)} de proteína</p>` : ''}
+        ${esYo ? htmlAgua(x, esHoy) : ''}
       </section>`;
   }
   const quedan = metas.kcal - comido.kcal;
@@ -582,6 +618,7 @@ function htmlResumen(x, esYo) {
         ${barra('Carbohidratos', comido.carbos, metas.carbos, 'm-carb')}
         ${barra('Grasas', comido.grasas, metas.grasas, 'm-gras')}
       </div>
+      ${htmlAgua(x, esHoy)}
       ${notas.length ? `<ul class="notas-comida">${notas.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
       <p class="ayuda dia-comida__pie">
         Gasto estimado ${kc(metas.gasto)} kcal (${metas.medido ? `entrenos según el reloj: ${kc(metas.medido)}` : `entrenos: ${kc(metas.ejercicio)}`})
@@ -722,4 +759,48 @@ function dialogoObjetivo(actual, alGuardar) {
       alGuardar();
     } catch (err) { avisoError(err); }
   });
+}
+
+// Sumar agua sin recargar: el vaso sube con olas y burbujas, y la cifra cuenta hacia arriba.
+function conectarAgua(app, recargar) {
+  const caja = app.querySelector('#agua-dia');
+  if (!caja) return;
+  const pintar = (tomado, animar) => {
+    const meta = Number(caja.dataset.meta);
+    caja.dataset.tomado = tomado;
+    caja.querySelector('.vaso__agua').style.height = `${Math.min(100, Math.round((tomado / meta) * 100))}%`;
+    const falta = meta - tomado;
+    const estado = caja.querySelector('#agua-estado');
+    estado.classList.toggle('hecho', falta <= 0);
+    estado.textContent = falta <= 0 ? 'Meta de agua cumplida ✓' : `Te falta ${litros(falta)}`;
+    if (!animar) { caja.querySelector('#agua-tomado').textContent = litros(tomado); return; }
+    caja.classList.remove('agua-dia--sube'); void caja.offsetWidth; caja.classList.add('agua-dia--sube');
+    const desde = Number(caja.dataset.antes ?? tomado), t0 = performance.now();
+    const contar = (t) => {
+      const k = Math.min(1, (t - t0) / 900);
+      caja.querySelector('#agua-tomado').textContent = litros(desde + (tomado - desde) * (1 - (1 - k) ** 3));
+      if (k < 1) requestAnimationFrame(contar);
+    };
+    requestAnimationFrame(contar);
+  };
+  caja.querySelectorAll('[data-agua]').forEach((b) => b.addEventListener('click', async () => {
+    const ml = Number(b.dataset.agua);
+    const antes = Number(caja.dataset.tomado);
+    caja.dataset.antes = antes;
+    pintar(antes + ml, true); // se ve al instante; si falla, se vuelve atrás
+    try {
+      await sumarAgua(ml);
+      try { navigator.vibrate?.(20); } catch { /* nada */ }
+      setTimeout(recargar, 1400); // para que aparezca «deshacer» con el último
+    } catch (err) { avisoError(err); pintar(antes, false); }
+  }));
+  caja.querySelector('[data-agua-deshacer]')?.addEventListener('click', async (e) => {
+    try { await borrarAgua(e.currentTarget.dataset.aguaDeshacer); recargar(); } catch (err) { avisoError(err); }
+  });
+}
+
+/** Para Hoy: lo que me falta comer y tomar hoy (meta, comido y agua). */
+export async function resumenComidaHoy() {
+  const d = await cargarDia(hoyISO());
+  return datosPersona(estado.yo, d);
 }

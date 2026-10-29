@@ -95,6 +95,8 @@ const ESQUELETO = `
 
 async function mostrarRuta() {
   if (!estado.yo) return;
+  // Al cambiar de pantalla, las hojas abiertas se cierran (no quedan flotando sobre otra sección).
+  document.querySelectorAll('dialog[open]').forEach((d) => d.close());
   const [nombreRuta, param] = location.hash.replace(/^#\/?/, '').split('/');
   const nombre = RUTAS[nombreRuta] ? nombreRuta : 'hoy';
   const vista = RUTAS[nombre];

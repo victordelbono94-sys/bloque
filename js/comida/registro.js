@@ -58,59 +58,71 @@ export function abrirRegistro(ctx, op = {}) {
         <button type="button" class="reg__cerrar" data-cerrar aria-label="Cerrar">${ICONO.x}</button>
         <div class="reg__titulo">
           <h2>${editar ? 'Editar comida' : 'Agregar comida'}</h2>
-          <span id="r-paso">${varios ? 'Paso 1 de 2 · qué comiste' : 'Qué comiste'}</span>
+          <span id="r-paso">${varios ? 'Paso 1 de 2' : ''}</span>
         </div>
+        <button type="button" class="momento-pill" id="r-momento-btn" aria-expanded="false" aria-label="Cambiar el momento"></button>
       </header>
+      <div class="chips chips--scroll reg__momentos" id="r-momento" aria-label="Momento" hidden>
+        ${Object.entries(MOMENTOS).map(([v, t]) => `<button type="button" class="chip chip--mini" data-valor="${v}">${t}</button>`).join('')}
+      </div>
       <div class="reg__cuerpo" id="r-cuerpo"></div>
       <footer class="reg__pie" id="r-pie"></footer>
     </div>`, editar ? 'Editar comida' : 'Agregar comida', { pantalla: true });
   const $ = (q) => d.querySelector(q);
+  const pintarMomento = () => {
+    $('#r-momento-btn').textContent = `${MOMENTOS[momento]} ▾`;
+    d.querySelectorAll('#r-momento [data-valor]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.valor === momento)));
+  };
+  pintarMomento();
+  $('#r-momento-btn').addEventListener('click', () => {
+    const fila = $('#r-momento');
+    fila.hidden = !fila.hidden;
+    $('#r-momento-btn').setAttribute('aria-expanded', String(!fila.hidden));
+  });
+  d.querySelectorAll('#r-momento [data-valor]').forEach((b) => b.addEventListener('click', () => {
+    momento = b.dataset.valor;
+    pintarMomento();
+    $('#r-momento').hidden = true;
+    pintarMeta();
+  }));
 
   // ---------- Paso 1: qué comiste ----------
+  const lista = ctx.habituales?.length ? ctx.habituales : (ctx.frecuentes ?? []);
   const pintarPaso1 = () => {
     paso = 1;
-    $('#r-paso').textContent = varios ? 'Paso 1 de 2 · qué comiste' : 'Qué comiste';
+    $('#r-paso').textContent = varios ? 'Paso 1 de 2' : '';
+    $('#r-momento-btn').hidden = false;
     $('#r-cuerpo').innerHTML = `
-      <div class="chips chips--scroll reg__momentos" id="r-momento" aria-label="Momento">
-        ${Object.entries(MOMENTOS).map(([v, t]) => `<button type="button" class="chip chip--mini" data-valor="${v}" aria-pressed="${v === momento}">${t}</button>`).join('')}
-      </div>
-
-      <section class="ia-caja" id="r-ia">
-        <div class="ia-caja__cab">
-          <span class="ia-logo" aria-hidden="true">${ICONO.chispa}</span>
-          <div><strong>IA de Bloque</strong><span>Saca una foto, cuéntale qué comiste, o las dos cosas</span></div>
-        </div>
+      <section class="ia-caja ia-caja--compacta" id="r-ia">
         <div class="ia-foto" id="r-foto" hidden>
           <img alt="Foto del plato">
           <button type="button" class="ia-foto__quitar" id="r-foto-quitar" aria-label="Quitar la foto">${ICONO.x}</button>
         </div>
-        <textarea id="r-texto" rows="2" maxlength="600" placeholder="«3 huevos en tortilla con 200 g de fideos y un café con leche»">${esc(op.texto ?? '')}</textarea>
-        <div class="ia-caja__botones">
-          <label class="boton boton--sec boton--chico ia-boton">${ICONO.camara}<span>Cámara</span><input type="file" id="r-camara" accept="image/*" capture="environment" hidden></label>
-          <label class="boton boton--sec boton--chico ia-boton">${ICONO.galeria}<span>Galería</span><input type="file" id="r-galeria" accept="image/*" hidden></label>
-          <button type="button" class="boton boton--ia" id="r-leer">${ICONO.chispa}<span>Leer</span></button>
+        <textarea id="r-texto" rows="2" maxlength="600" placeholder="Cuéntale a la IA qué comiste, o saca una foto">${esc(op.texto ?? '')}</textarea>
+        <div class="ia-comp__barra">
+          <label class="ia-icono" aria-label="Sacar foto">${ICONO.camara}<input type="file" id="r-camara" accept="image/*" capture="environment" hidden></label>
+          <label class="ia-icono" aria-label="Elegir de la galería">${ICONO.galeria}<input type="file" id="r-galeria" accept="image/*" hidden></label>
+          <button type="button" class="boton boton--ia boton--chico ia-comp__leer" id="r-leer">${ICONO.chispa}<span>Leer</span></button>
         </div>
         <p class="ia-estado" id="r-estado" hidden></p>
       </section>
 
-      <div class="reg__manual">
-        <button type="button" class="enlace-manual" id="r-buscar-abrir">${ICONO.buscar} O agrégalo a mano: buscar o escanear</button>
-        <div id="r-buscar" hidden></div>
-        ${(ctx.habituales?.length || ctx.frecuentes?.length) ? `
-          <div class="frecuentes" aria-label="Agregar rápido">
-            ${(ctx.habituales?.length ? ctx.habituales : ctx.frecuentes).map((f, i) => `<button type="button" class="chip chip--mini" data-frec="${i}">+ ${esc(nombreCorto(f.alimento))} <span class="quieto">${esc(cantidadTexto(f.alimento, f.gramos))}</span></button>`).join('')}
-          </div>` : ''}
+      <div class="frecuentes reg__rapidos" aria-label="Agregar rápido">
+        <button type="button" class="chip chip--mini chip--buscar" id="r-buscar-abrir">${ICONO.buscar} Buscar</button>
+        ${lista.map((f, i) => `<button type="button" class="chip chip--mini" data-frec="${i}">+ ${esc(nombreCorto(f.alimento))}</button>`).join('')}
       </div>
+      <div id="r-buscar" hidden></div>
 
       <div id="r-items" class="pila" style="gap:8px"></div>
       <div class="comida-total" id="r-total"></div>
       <div class="consejo" id="r-consejo" hidden>
         <div class="consejo__meta" id="r-meta"></div>
-        <div class="consejo__fila">
-          <input id="r-pregunta" type="text" maxlength="200" placeholder="¿Y si le pongo leche al café? ¿Una lata de atún?" aria-label="Pregúntale a la IA">
-          <button type="button" class="boton boton--sec boton--chico" id="r-preguntar">${ICONO.chispa}</button>
-        </div>
         <div id="r-respuesta"></div>
+        <button type="button" class="chip chip--mini chip--ia" id="r-preguntar-abrir">${ICONO.chispa} Preguntar a la IA</button>
+        <div class="consejo__fila" id="r-pregunta-fila" hidden>
+          <input id="r-pregunta" type="text" maxlength="200" placeholder="¿Le pongo leche al café? ¿Una lata de atún?" aria-label="Pregúntale a la IA">
+          <button type="button" class="boton boton--ia boton--chico" id="r-preguntar" aria-label="Preguntar">${ICONO.chispa}</button>
+        </div>
       </div>`;
     $('#r-pie').innerHTML = `
       ${editar ? '<button type="button" class="boton boton--peligro" id="r-borrar">Eliminar</button>' : ''}
@@ -267,7 +279,7 @@ export function abrirRegistro(ctx, op = {}) {
         const r = await gemini('texto', { texto, personas: { yo: estado.yo.nombre, otro: otro?.nombre ?? null } });
         const lista = r.alimentos ?? [];
         if (!lista.length) { mensaje('No entendí comida en eso. Prueba con otras palabras o agrégalo a mano.'); return; }
-        if (r.momento) { momento = r.momento; d.querySelectorAll('#r-momento [data-valor]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.valor === momento))); }
+        if (r.momento) { momento = r.momento; pintarMomento(); }
         // Si habla de los dos, cada cosa va a su dueño y en el paso 2 quedan elegidos ambos.
         const deYo = lista.some((x) => x.gramos_yo > 0), deOtro = otro && lista.some((x) => x.gramos_otro > 0);
         for (const x of lista) {
@@ -292,11 +304,10 @@ export function abrirRegistro(ctx, op = {}) {
   };
 
   const conectarPaso1 = () => {
-    d.querySelectorAll('#r-momento [data-valor]').forEach((b) => b.addEventListener('click', () => {
-      momento = b.dataset.valor;
-      d.querySelectorAll('#r-momento [data-valor]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-      pintarMeta();
-    }));
+    const texto = $('#r-texto');
+    const ajustar = () => { texto.style.height = 'auto'; texto.style.height = `${Math.min(160, texto.scrollHeight)}px`; };
+    texto.addEventListener('input', ajustar);
+    $('#r-preguntar-abrir').addEventListener('click', () => { $('#r-pregunta-fila').hidden = false; $('#r-preguntar-abrir').hidden = true; $('#r-pregunta').focus(); });
     $('#r-leer').addEventListener('click', leer);
     $('#r-texto').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); leer(); } });
     for (const id of ['#r-camara', '#r-galeria']) {
@@ -326,7 +337,6 @@ export function abrirRegistro(ctx, op = {}) {
       }
       if (!cont.hidden) cont.querySelector('#ba-q')?.focus();
     });
-    const lista = ctx.habituales?.length ? ctx.habituales : ctx.frecuentes;
     d.querySelectorAll('[data-frec]').forEach((b) => b.addEventListener('click', () => { const f = lista[Number(b.dataset.frec)]; agregar(f.alimento, f.gramos); }));
     $('#r-preguntar').addEventListener('click', () => { const q = $('#r-pregunta').value.trim(); $('#r-pregunta').value = ''; aconsejar(q || `¿Qué le agrego a este ${MOMENTOS[momento].toLowerCase()} para mi objetivo?`); });
     $('#r-pregunta').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#r-preguntar').click(); } });
@@ -349,7 +359,9 @@ export function abrirRegistro(ctx, op = {}) {
 
   const pintarPaso2 = () => {
     paso = 2;
-    $('#r-paso').textContent = 'Paso 2 de 2 · quién comió';
+    $('#r-paso').textContent = 'Paso 2 de 2';
+    $('#r-momento-btn').hidden = true;
+    $('#r-momento').hidden = true;
     const variosElegidos = quien.length > 1;
     $('#r-cuerpo').innerHTML = `
       <h3 class="reg__pregunta">¿Quién comió?</h3>

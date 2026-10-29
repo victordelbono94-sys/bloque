@@ -10,6 +10,8 @@ import { calcularSemaforo, esDescanso, textoSemaforo } from '../semaforo.js';
 import { empezarSesion } from './sesion.js';
 import { cargarCumplimiento, cargarSyncs } from '../hecho.js';
 import { queFalta } from '../plan.js';
+import { resumenComidaHoy } from './comida.js';
+import { litros } from '../hidratacion.js';
 import { abrirDialogo } from '../ui.js';
 import { asistentes, htmlAsistentes, esIndividual } from '../asistentes.js';
 import { recuperar } from './semana.js';
@@ -62,7 +64,7 @@ export async function vistaHoy(app) {
     [p.id, await cargarCumplimiento([...pasados, ...todosAyer], p.id)])));
   const ayerDe = (personaId) => todosAyer.filter((e) => cumplidoDe[personaId](e) !== 'no_hecho');
   const deAyer = ayerDe(estado.yo.id);
-  const [syncs, falta] = await Promise.all([cargarSyncs(), queFalta().catch(() => [])]);
+  const [syncs, falta, comidaHoy] = await Promise.all([cargarSyncs(), queFalta().catch(() => []), resumenComidaHoy().catch(() => null)]);
   const quienesDe = (ev) => asistentes(ev, deHoy, entrenosBanda, syncs);
   // Gyms de la última semana que no hice y siguen sin recuperar.
   const pendientes = [...pasados, ...todosAyer].filter((e) => e.tipo === 'gym' && e.rutina_id && !e.omitido && cumplidoDe[estado.yo.id](e) === 'no_hecho');
@@ -140,6 +142,8 @@ export async function vistaHoy(app) {
            </div>`}
       ${proximo ? `<p class="plan__proximo"><span class="quieto">Después</span> ${iconoEvento(proximo)} <strong>${esc(rutinaProxima?.nombre ?? nombreEvento(proximo))}</strong> <span class="quieto">${esc(diaCorto(proximo.fecha))} ${numeroDia(proximo.fecha)}${proximo.hora_inicio ? ` · ${esc(hora(proximo.hora_inicio))}` : ''}</span></p>` : ''}
     </section>
+
+    ${htmlNumerosHoy(comidaHoy, mia)}
 
     ${estado.personas.map((p, i) => `
       <section class="seccion" aria-labelledby="como-${i}">
@@ -435,3 +439,28 @@ function avisarPerfil(falta) {
     </div>`, 'Completar perfil');
   d.querySelector('#ir-completar').addEventListener('click', () => d.close());
 }
+
+// Hoy en números: lo que falta comer, lo que falta tomar y lo que quemaste según el reloj. Toca → Comida.
+function htmlNumerosHoy(x, banda) {
+  if (!x?.metas?.ok) return '';
+  const falta = Math.round(x.metas.kcal - x.comido.kcal);
+  const aguaFalta = x.agua.meta - x.agua.tomado;
+  const quemado = banda?.hoy?.calorias_activas ?? x.metas.medido ?? 0;
+  const anillo = (pct, clase) => `<svg class="anillo ${clase}" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15.5" class="anillo__fondo"/><circle cx="18" cy="18" r="15.5" class="anillo__valor" stroke-dasharray="${Math.round(Math.min(100, Math.max(0, pct)) * 0.974)} 100"/></svg>`;
+  return `
+    <a class="tarjeta numeros-hoy" href="#/comida" aria-label="Ver Comida">
+      <div class="numero-hoy">
+        ${anillo((x.comido.kcal / x.metas.kcal) * 100, 'anillo--kcal')}
+        <span><strong>${falta > 0 ? kc(falta) : '✓'}</strong><span>${falta > 0 ? 'kcal por comer' : 'meta de comida'}</span></span>
+      </div>
+      <div class="numero-hoy">
+        ${anillo((x.agua.tomado / x.agua.meta) * 100, 'anillo--agua')}
+        <span><strong>${aguaFalta > 0 ? litros(aguaFalta) : '✓'}</strong><span>${aguaFalta > 0 ? 'de agua' : 'agua al día'}</span></span>
+      </div>
+      <div class="numero-hoy">
+        <span class="numero-hoy__fuego" aria-hidden="true">🔥</span>
+        <span><strong>${kc(quemado)}</strong><span>kcal quemadas</span></span>
+      </div>
+    </a>`;
+}
+const kc = (n) => Math.round(n).toLocaleString('es-EC');
