@@ -1,5 +1,5 @@
 // Asistente para completar el perfil: cuerpo, reloj, objetivo, deporte y gym. Al final arma el plan
-// (rutinas y agenda) si el equipo todavía no tiene uno. Se abre al crear la cuenta o desde el aviso de Hoy.
+// (rutinas y agenda) si el hogar todavía no tiene uno. Se abre al crear la cuenta o desde el aviso de Hoy.
 import { sb, estado, datos, cargarPersonas } from '../db.js';
 import { esc, aviso, avisoError } from '../ui.js';
 import { hoyISO } from '../fechas.js';
@@ -104,7 +104,7 @@ export async function vistaCompletar(app) {
     } else if (paso === 'deporte') {
       cuerpo = `
         <h1 class="titulo">${esc(dep.nombre)}</h1>
-        <p class="subtitulo">¿Qué días entrenas${estado.personas.length > 1 ? ' (o entrenan en el equipo)' : ''} y a qué hora?</p>
+        <p class="subtitulo">¿Qué días entrenas${estado.personas.length > 1 ? ' (o entrenan en el hogar)' : ''} y a qué hora?</p>
         ${chipsDias('c-dias-dep', s.diasDeporte)}
         <div class="campo"><label for="c-hora-dep">Hora</label><input id="c-hora-dep" type="time" value="${esc(s.horaDeporte)}"></div>
         <p class="ayuda" style="margin:0">Esos días el gym va a ser más liviano${dep.liviano ? '' : ' si hace falta'}.</p>`;
@@ -122,9 +122,9 @@ export async function vistaCompletar(app) {
         <ul class="resumen-plan">
           <li><span>Objetivo</span><strong>${esc(obj)}</strong></li>
           ${pasos.includes('deporte') ? `<li><span>${esc(dep.nombre)}</span><strong>${esc(s.diasDeporte.map((d) => NOMBRE_DIA[d]).join(', ') || 'sin días')}</strong></li>` : ''}
-          ${pasos.includes('gym') ? `<li><span>Gym</span><strong>${s.diasGym.length} días: ${esc(s.diasGym.map((d) => NOMBRE_DIA[d].slice(0, 3)).join(', '))}</strong></li>` : '<li><span>Gym</span><strong>El plan de tu equipo</strong></li>'}
+          ${pasos.includes('gym') ? `<li><span>Gym</span><strong>${s.diasGym.length} días: ${esc(s.diasGym.map((d) => NOMBRE_DIA[d].slice(0, 3)).join(', '))}</strong></li>` : '<li><span>Gym</span><strong>El plan de tu hogar</strong></li>'}
         </ul>
-        <p class="subtitulo">${pasos.includes('gym') ? 'Armo tus rutinas con ejercicios del gym, las agendo por 4 semanas y calculo tus calorías.' : 'Te sumas a las rutinas de tu equipo y calculo tus calorías.'}</p>`;
+        <p class="subtitulo">${pasos.includes('gym') ? 'Armo tus rutinas con ejercicios del gym, las agendo por 4 semanas y calculo tus calorías.' : 'Te sumas a las rutinas de tu hogar y calculo tus calorías.'}</p>`;
     }
     app.innerHTML = `
       <section class="bienvenida asistente">

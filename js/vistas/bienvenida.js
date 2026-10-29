@@ -1,4 +1,4 @@
-// Primera vez en Bloque: tu nombre, cómo vas a usar la app (equipo nuevo, unirte o solo)
+// Primera vez en Bloque: tu nombre, cómo vas a usar la app (hogar nuevo, unirte o solo)
 // y tu deporte. Si llegaste con un link de invitación, va directo a unirte.
 import { estado } from '../db.js';
 import { esc, aviso, avisoError } from '../ui.js';
@@ -51,17 +51,17 @@ export function pantallaBienvenida(app, alTerminar, alSalir) {
           ${PUNTOS(1, total)}
           <h1 class="titulo">¿Cómo vas a usar Bloque?</h1>
           <div class="opciones">
-            ${opcion('equipo', '👥', 'Crear un equipo', 'Entrenas con otras personas: tu pareja, amigos o tu equipo. Comparten la semana, las rutinas y la comida.')}
-            ${opcion('unirme', '🔑', 'Unirme a un equipo', 'Alguien ya creó el equipo y te pasó un código.')}
-            ${opcion('solo', '🙋', 'Solo para mí', 'Un espacio personal. Más adelante puedes crear un equipo desde Perfil.')}
+            ${opcion('equipo', '👥', 'Crear un hogar', 'Vives o entrenas con otras personas (tu pareja, familia, amigos). Comparten la semana, las rutinas y la comida.')}
+            ${opcion('unirme', '🔑', 'Unirme a un hogar', 'Alguien ya creó el hogar y te pasó un código.')}
+            ${opcion('solo', '🙋', 'Solo para mí', 'Un espacio personal. Más adelante puedes crear un hogar desde Perfil.')}
           </div>
           <div class="campo" id="b-campo-codigo" ${s.modo === 'unirme' ? '' : 'hidden'}>
-            <label for="b-codigo">Código del equipo</label>
+            <label for="b-codigo">Código del hogar</label>
             <input id="b-codigo" class="input-codigo" type="text" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC123" value="${esc(s.codigo)}">
           </div>
           <div class="campo" id="b-campo-equipo" ${s.modo === 'equipo' ? '' : 'hidden'}>
-            <label for="b-equipo">Nombre del equipo</label>
-            <input id="b-equipo" type="text" maxlength="40" placeholder="Ej. Quindes Volcánicos" value="${esc(s.equipo)}">
+            <label for="b-equipo">Nombre del hogar</label>
+            <input id="b-equipo" type="text" maxlength="40" placeholder="Ej. Casa Del Bono" value="${esc(s.equipo)}">
           </div>
           <div class="fila" style="gap:10px;width:100%">
             <button type="button" class="boton boton--sec" id="b-atras">Atrás</button>
@@ -91,7 +91,7 @@ export function pantallaBienvenida(app, alTerminar, alSalir) {
         try {
           await unirmeEquipo(s.codigo, s.nombre);
           olvidarInvitacion();
-          await alTerminar('¡Listo! Ya estás en el equipo.');
+          await alTerminar('¡Listo! Ya estás en el hogar.');
         } catch (err) {
           avisoError(err);
           boton.disabled = false;
@@ -100,16 +100,16 @@ export function pantallaBienvenida(app, alTerminar, alSalir) {
       return;
     }
 
-    // Paso 2: deporte (equipo nuevo o solo).
+    // Paso 2: deporte (hogar nuevo o solo).
     app.innerHTML = `
       <section class="bienvenida">
         ${PUNTOS(2, 3)}
-        <h1 class="titulo">${s.modo === 'equipo' ? '¿Qué deporte hace el equipo?' : '¿Qué deporte haces?'}</h1>
+        <h1 class="titulo">${s.modo === 'equipo' ? '¿Qué deporte hacen?' : '¿Qué deporte haces?'}</h1>
         <p class="subtitulo">Con esto se arman los entrenos de gym que lo complementan y los días más livianos.</p>
         ${selectorDeporte(s.deporte)}
         <div class="fila bienvenida__pie">
           <button type="button" class="boton boton--sec" id="b-atras">Atrás</button>
-          <button type="button" class="boton" style="flex:1" id="b-crear" ${s.deporte ? '' : 'disabled'}>${s.modo === 'equipo' ? 'Crear equipo' : 'Empezar'}</button>
+          <button type="button" class="boton" style="flex:1" id="b-crear" ${s.deporte ? '' : 'disabled'}>${s.modo === 'equipo' ? 'Crear hogar' : 'Empezar'}</button>
         </div>
       </section>`;
     const leer = conectarDeporte(app, (v) => { s.deporte = v; app.querySelector('#b-crear').disabled = false; });
@@ -120,7 +120,7 @@ export function pantallaBienvenida(app, alTerminar, alSalir) {
       try {
         await crearEquipo(s.nombre, { nombre: s.equipo || null, personal: s.modo === 'solo', deporte: leer() ?? 'otro' });
         olvidarInvitacion();
-        await alTerminar(s.modo === 'equipo' ? 'Equipo creado. Invita a los demás desde Perfil.' : '¡Listo! Bienvenido a Bloque.');
+        await alTerminar(s.modo === 'equipo' ? 'Hogar creado. Invita a los demás desde Perfil.' : '¡Listo! Bienvenido a Bloque.');
       } catch (err) {
         avisoError(err);
         boton.disabled = false;
@@ -147,11 +147,11 @@ export async function vistaUnirme(app) {
   const conOtros = !estado.equipo?.personal && estado.personas.length > 1;
   app.innerHTML = `
     <section class="bienvenida">
-      <h1 class="titulo">${yaEstoy ? 'Ya estás en este equipo' : 'Te invitaron a un equipo'}</h1>
+      <h1 class="titulo">${yaEstoy ? 'Ya estás en este hogar' : 'Te invitaron a un hogar'}</h1>
       <p class="input-codigo input-codigo--grande">${esc(codigo)}</p>
       ${yaEstoy ? '' : `<p class="subtitulo">${conOtros
         ? `Vas a salir de «${esc(estado.equipo.nombre)}». Tus mediciones y entrenos van contigo.`
-        : 'Tus mediciones, entrenos y comidas van contigo al equipo nuevo.'}</p>`}
+        : 'Tus mediciones, entrenos y comidas van contigo al hogar nuevo.'}</p>`}
       <div class="fila" style="gap:10px;width:100%">
         <a class="boton boton--sec" href="#/hoy" style="${yaEstoy ? 'flex:1' : ''}">${yaEstoy ? 'Ir a Hoy' : 'Ahora no'}</a>
         ${yaEstoy ? '' : '<button type="button" class="boton" style="flex:1" id="u-unirme">Unirme</button>'}

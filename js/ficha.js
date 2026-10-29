@@ -78,7 +78,7 @@ export function abrirFicha(ej, { alternativas = [], alElegir = null, actualId = 
         ${alUsarEste ? '<button type="button" class="boton" id="usar-este">Usar este ejercicio</button>' : ''}
         <button type="button" class="boton boton--sec" data-cerrar>Cerrar</button>
       </div>
-    </div>`, `Cómo se hace ${ej.nombre}`);
+    </div>`, `Cómo se hace ${ej.nombre}`, { pantalla: true });
 
   d.querySelector('#video').addEventListener('click', () => abrirExterno(urlVideo(ej)));
   d.querySelector('#usar-este')?.addEventListener('click', () => { d.close(); alUsarEste(); });

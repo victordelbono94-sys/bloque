@@ -1,4 +1,4 @@
-// Pantalla Perfil: mis datos, el equipo, exportar todo y cerrar sesión.
+// Pantalla Perfil: mis datos, el hogar, exportar todo y cerrar sesión.
 import { sb, estado, datos, cargarPersonas } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
 import { hoyISO, fechaCorta } from '../fechas.js';
@@ -14,7 +14,7 @@ import {
 
 const NIVELES = { bajo: 'Bajo', moderado: 'Moderado', alto: 'Alto', muy_alto: 'Muy alto' };
 
-// Todo lo que se exporta. La seguridad por filas ya limita cada tabla al equipo.
+// Todo lo que se exporta. La seguridad por filas ya limita cada tabla al hogar.
 const TABLAS = [
   'hogares', 'personas', 'calendario', 'clases', 'actividades_extra', 'estado_diario', 'objetivos',
   'mediciones_corporales', 'actividad_diaria', 'sesiones_banda', 'maquinas', 'ejercicios',
@@ -84,7 +84,7 @@ export async function vistaPerfil(app) {
     </form>
 
     <section class="seccion" aria-labelledby="equipo">
-      <h2 class="seccion__titulo" id="equipo">${estado.equipo?.personal ? 'Tu espacio' : 'Equipo'}</h2>
+      <h2 class="seccion__titulo" id="equipo">${estado.equipo?.personal ? 'Tu espacio' : 'Hogar'}</h2>
       ${htmlEquipo()}
     </section>
 
@@ -118,7 +118,7 @@ export async function vistaPerfil(app) {
     <section class="seccion" aria-labelledby="datos">
       <h2 class="seccion__titulo" id="datos">Tus datos son tuyos</h2>
       <div class="tarjeta pila">
-        <p class="quieto" style="margin:0">Descarga una copia completa de los datos de tu equipo en cualquier momento.</p>
+        <p class="quieto" style="margin:0">Descarga una copia completa de los datos de tu hogar en cualquier momento.</p>
         <button type="button" class="boton boton--sec" id="exportar-json">Exportar todo (JSON)</button>
         <button type="button" class="boton boton--sec" id="exportar-csv">Exportar mediciones (CSV)</button>
       </div>
@@ -531,9 +531,9 @@ function htmlEquipo() {
           </div>
           <button type="button" class="boton boton--texto boton--chico" id="eq-deporte">Cambiar deporte</button>
         </div>
-        <p class="ayuda" style="margin:0">¿Entrenas con alguien? Crea un equipo para compartir la semana, las rutinas y la comida, o únete al de otra persona.</p>
+        <p class="ayuda" style="margin:0">¿Entrenas con alguien? Crea un hogar para compartir la semana, las rutinas y la comida, o únete al de otra persona.</p>
         <div class="grilla-2">
-          <button type="button" class="boton" id="eq-crear">Crear equipo</button>
+          <button type="button" class="boton" id="eq-crear">Crear hogar</button>
           <button type="button" class="boton boton--sec" id="eq-unirme">Tengo un código</button>
         </div>
       </div>`;
@@ -553,7 +553,7 @@ function htmlEquipo() {
             <span class="miembro__avatar" aria-hidden="true">${cara(p)}</span>
             <span class="miembro__nombre">${esc(p.nombre)}${p.id === estado.yo.id ? ' <span class="quieto">(tú)</span>' : ''}</span>
             ${p.id === eq.admin_id ? '<span class="etiqueta etiqueta--mini">Admin</span>' : ''}
-            ${admin && p.id !== estado.yo.id ? `<button type="button" class="boton boton--texto boton--chico miembro__quitar" data-quitar-miembro="${esc(p.id)}" aria-label="Quitar a ${esc(p.nombre)} del equipo">Quitar</button>` : ''}
+            ${admin && p.id !== estado.yo.id ? `<button type="button" class="boton boton--texto boton--chico miembro__quitar" data-quitar-miembro="${esc(p.id)}" aria-label="Quitar a ${esc(p.nombre)} del hogar">Quitar</button>` : ''}
           </li>`).join('')}
       </ul>
       <div class="invitar">
@@ -565,7 +565,7 @@ function htmlEquipo() {
           ${admin ? '<button type="button" class="boton boton--sec" id="eq-codigo">Renovar</button>' : '<button type="button" class="boton boton--sec" id="eq-copiar2">Copiar código</button>'}
         </div>
       </div>
-      <button type="button" class="boton boton--peligro" id="eq-salir">Salir del equipo</button>
+      <button type="button" class="boton boton--peligro" id="eq-salir">Salir del hogar</button>
     </div>`;
 }
 
@@ -585,7 +585,7 @@ function confirmar(titulo, texto, accion, { boton = 'Confirmar', peligro = false
   });
 }
 
-// Pedir un texto (nombre del equipo, código) con un diálogo simple.
+// Pedir un texto (nombre del hogar, código) con un diálogo simple.
 function pedirTexto(titulo, { etiqueta, valor = '', placeholder = '', codigo = false, ayuda = '', boton = 'Guardar', conDeporte = null }, accion) {
   const d = abrirDialogo(`
     <form class="dialogo" novalidate>
@@ -622,44 +622,44 @@ function conectarEquipo(app) {
   $('#eq-deporte')?.addEventListener('click', () => pedirTexto('Tu deporte', { conDeporte: eq.deporte }, async (_, deporte) => {
     await editarEquipo({ deporte }); await recargar('Deporte actualizado.');
   }));
-  $('#eq-crear')?.addEventListener('click', () => pedirTexto('Crear un equipo', {
-    etiqueta: 'Nombre del equipo', placeholder: 'Ej. Quindes Volcánicos', boton: 'Crear',
+  $('#eq-crear')?.addEventListener('click', () => pedirTexto('Crear un hogar', {
+    etiqueta: 'Nombre del hogar', placeholder: 'Ej. Casa Del Bono', boton: 'Crear',
     ayuda: 'Lo que ya registraste se queda. Después te damos un código para invitar a los demás.', conDeporte: eq.deporte,
   }, async (nombre, deporte) => {
     await convertirEnEquipo(nombre);
     if (deporte && deporte !== eq.deporte) await editarEquipo({ deporte });
-    await recargar('Equipo creado. Ya puedes invitar gente.');
+    await recargar('Hogar creado. Ya puedes invitar gente.');
   }));
-  $('#eq-unirme')?.addEventListener('click', () => pedirTexto('Unirme a un equipo', {
+  $('#eq-unirme')?.addEventListener('click', () => pedirTexto('Unirme a un hogar', {
     etiqueta: 'Código', placeholder: 'ABC123', codigo: true, boton: 'Unirme',
-    ayuda: 'Tus mediciones, entrenos y comidas van contigo al equipo.',
+    ayuda: 'Tus mediciones, entrenos y comidas van contigo al hogar.',
   }, async (codigo) => {
     if (codigo.length !== 6) throw Object.assign(new Error('El código tiene 6 letras o números.'), { code: 'P0001' });
-    await unirmeEquipo(codigo); await cambiarDeEquipo('¡Listo! Ya estás en el equipo.');
+    await unirmeEquipo(codigo); await cambiarDeEquipo('¡Listo! Ya estás en el hogar.');
   }));
-  $('#eq-editar')?.addEventListener('click', () => pedirTexto('Editar equipo', { etiqueta: 'Nombre', valor: eq.nombre, conDeporte: eq.deporte }, async (nombre, deporte) => {
-    await editarEquipo({ nombre, deporte }); await recargar('Equipo actualizado.');
+  $('#eq-editar')?.addEventListener('click', () => pedirTexto('Editar hogar', { etiqueta: 'Nombre', valor: eq.nombre, conDeporte: eq.deporte }, async (nombre, deporte) => {
+    await editarEquipo({ nombre, deporte }); await recargar('Hogar actualizado.');
   }));
   const copiarCodigo = () => copiar(eq.codigo, `Código ${eq.codigo} copiado.`);
   $('#eq-copiar')?.addEventListener('click', copiarCodigo);
   $('#eq-copiar2')?.addEventListener('click', copiarCodigo);
   $('#eq-compartir')?.addEventListener('click', () => compartirInvitacion(eq));
-  $('#eq-codigo')?.addEventListener('click', () => confirmar('Nuevo código', 'El código actual deja de funcionar. Quienes ya están en el equipo no se ven afectados.', async () => {
+  $('#eq-codigo')?.addEventListener('click', () => confirmar('Nuevo código', 'El código actual deja de funcionar. Quienes ya están en el hogar no se ven afectados.', async () => {
     await editarEquipo({ nuevoCodigo: true }); await recargar('Código nuevo listo.');
   }, { boton: 'Cambiar código' }));
   app.querySelectorAll('[data-quitar-miembro]').forEach((b) => b.addEventListener('click', () => {
     const p = estado.personas.find((x) => x.id === b.dataset.quitarMiembro);
-    confirmar(`¿Quitar a ${p.nombre}?`, `${esc(p.nombre)} deja de ver la semana, las rutinas y las comidas del equipo. Su cuenta sigue funcionando en un espacio personal, con sus mediciones y entrenos.`, async () => {
-      await quitarDelEquipo(p.id); await recargar(`${p.nombre} ya no está en el equipo.`);
+    confirmar(`¿Quitar a ${p.nombre}?`, `${esc(p.nombre)} deja de ver la semana, las rutinas y las comidas del hogar. Su cuenta sigue funcionando en un espacio personal, con sus mediciones y entrenos.`, async () => {
+      await quitarDelEquipo(p.id); await recargar(`${p.nombre} ya no está en el hogar.`);
     }, { boton: 'Quitar', peligro: true });
   }));
   $('#eq-salir')?.addEventListener('click', () => {
     const otros = estado.personas.length > 1;
     const texto = soyAdmin() && otros
-      ? `Dejas de ver lo del equipo y pasas a un espacio personal con tus mediciones y entrenos. El rol de admin pasa a quien lleva más tiempo en el equipo.`
-      : 'Dejas de ver lo del equipo y pasas a un espacio personal con tus mediciones y entrenos.';
-    confirmar('¿Salir del equipo?', texto, async () => {
-      await salirDelEquipo(); await cambiarDeEquipo('Saliste del equipo.');
+      ? `Dejas de ver lo del hogar y pasas a un espacio personal con tus mediciones y entrenos. El rol de admin pasa a quien lleva más tiempo en el hogar.`
+      : 'Dejas de ver lo del hogar y pasas a un espacio personal con tus mediciones y entrenos.';
+    confirmar('¿Salir del hogar?', texto, async () => {
+      await salirDelEquipo(); await cambiarDeEquipo('Saliste del hogar.');
     }, { boton: 'Salir', peligro: true });
   });
 }

@@ -12,7 +12,7 @@ import { macros, sumar, cargarCatalogo } from '../alimentos.js';
 import { panelBuscar } from '../comida/buscar.js';
 import { abrirRegistro } from '../comida/registro.js';
 import {
-  MOMENTOS, ORDEN_MOMENTO, kc, g, cantidadTexto, momentoPorHora, gemini, fotoBase64, aAlimento, frecuentes, normalizar,
+  MOMENTOS, ORDEN_MOMENTO, kc, g, cantidadTexto, momentoPorHora, gemini, fotoBase64, aAlimento, frecuentes, habitualesAhora, normalizar,
 } from '../comida/comun.js';
 
 const ICONO_FOTO = '<svg class="icono" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
@@ -56,13 +56,13 @@ const ordenar = (comidas) => [...comidas].sort((a, b) =>
 
 async function vistaDia(app, fecha) {
   const esHoy = fecha === hoyISO();
-  const [d, frec] = await Promise.all([cargarDia(fecha), frecuentes(10)]);
+  const [d, frec, habituales] = await Promise.all([cargarDia(fecha), frecuentes(10), esHoy ? habitualesAhora(6).catch(() => []) : []]);
   const personas = [...estado.personas].sort((a, b) => (a.id === estado.yo.id ? -1 : b.id === estado.yo.id ? 1 : 0));
   const info = personas.map((p) => datosPersona(p, d));
   const yo = info[0];
   const snacks = esHoy ? snacksDelDia(yo.eventos, yo.metas.ok ? yo.metas.peso : null) : [];
   const ctx = {
-    fecha, esHoy, info, despensa: d.despensa, frecuentes: frec,
+    fecha, esHoy, info, despensa: d.despensa, frecuentes: frec, habituales,
     recargar: (f) => { if (f && f !== fecha) location.hash = f === hoyISO() ? '#/comida' : `#/comida/${f}`; else vistaDia(app, fecha); },
   };
 
@@ -79,17 +79,22 @@ async function vistaDia(app, fecha) {
     </header>
     ${pestanas('dia', fecha)}
 
-    <section class="tarjeta rapido" aria-label="Registrar rápido">
-      <form class="rapido__fila" id="rapido">
-        <input id="rapido-texto" autocomplete="off" maxlength="400" placeholder="¿Qué comiste? «2 huevos y un café»" aria-label="Qué comiste">
-        <button type="submit" class="boton boton--chico" aria-label="Registrar">Agregar</button>
-        <button type="button" class="boton boton--sec boton--chico boton--icono" id="rapido-foto" aria-label="Foto del plato">${ICONO_FOTO}</button>
-        <input type="file" id="rapido-archivo" accept="image/*" hidden>
+    <section class="ia-caja ia-caja--inicio" aria-label="Agregar comida">
+      <div class="ia-caja__cab">
+        <span class="ia-logo" aria-hidden="true">${ICONO_CHISPA}</span>
+        <div><strong>¿Qué comiste${esHoy ? '' : ' ese día'}?</strong><span>La IA lo anota: con una foto, escribiendo o las dos</span></div>
+      </div>
+      <form class="ia-inicio__fila" id="rapido">
+        <input id="rapido-texto" autocomplete="off" maxlength="400" placeholder="«2 huevos y un café con leche»" aria-label="Qué comiste">
+        <label class="boton boton--sec boton--chico boton--icono" aria-label="Sacar foto">${ICONO_FOTO}<input type="file" id="rapido-camara" accept="image/*" capture="environment" hidden></label>
+        <button type="submit" class="boton boton--ia boton--chico" aria-label="Agregar">${ICONO_CHISPA}</button>
       </form>
-      ${frec.length ? `
-        <div class="frecuentes">
-          ${frec.map((f, i) => `<button type="button" class="chip chip--mini" data-frec="${i}">+ ${esc(f.alimento.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, ''))}</button>`).join('')}
-        </div>` : ''}
+      ${habituales.length ? `
+        <p class="ia-inicio__titulo">Sueles comer a esta hora</p>
+        <div class="frecuentes">${habituales.map((f, i) => `<button type="button" class="chip chip--mini chip--habitual" data-habitual="${i}">+ ${esc(f.alimento.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, ''))} <span class="quieto">${esc(cantidadTexto(f.alimento, f.gramos))}</span></button>`).join('')}</div>`
+      : frec.length ? `
+        <div class="frecuentes">${frec.map((f, i) => `<button type="button" class="chip chip--mini" data-frec="${i}">+ ${esc(f.alimento.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, ''))}</button>`).join('')}</div>` : ''}
+      <button type="button" class="enlace-manual" id="rapido-manual">O agrégalo a mano</button>
     </section>
 
     ${htmlResumen(yo, true)}
@@ -120,8 +125,12 @@ async function vistaDia(app, fecha) {
     const texto = app.querySelector('#rapido-texto').value.trim();
     abrirRegistro(ctx, texto ? { texto } : {});
   });
-  app.querySelector('#rapido-foto').addEventListener('click', () => app.querySelector('#rapido-archivo').click());
-  app.querySelector('#rapido-archivo').addEventListener('change', (e) => {
+  app.querySelector('#rapido-manual').addEventListener('click', () => abrirRegistro(ctx, {}));
+  app.querySelectorAll('[data-habitual]').forEach((b) => b.addEventListener('click', () => {
+    const f = habituales[Number(b.dataset.habitual)];
+    abrirRegistro(ctx, { items: [{ alimento: f.alimento, gramos: f.gramos }] });
+  }));
+  app.querySelector('#rapido-camara').addEventListener('change', (e) => {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (f) abrirRegistro(ctx, { foto: f });
@@ -309,7 +318,7 @@ async function vistaDespensa(app) {
       <h2 class="seccion__titulo" style="margin:0">Agregar lo que compraste</h2>
       <textarea id="dp-texto" rows="2" maxlength="1200" class="area" placeholder="Ej.: 2 fundas de fideos de 400 g, 1 kg de arroz, 30 huevos, 2 litros de leche"></textarea>
       <div class="fila" style="gap:8px;flex-wrap:wrap">
-        <button type="button" class="boton boton--chico" id="dp-leer">${ICONO_CHISPA} Agregar con Gemini</button>
+        <button type="button" class="boton boton--chico" id="dp-leer">${ICONO_CHISPA} Agregar con IA</button>
         <button type="button" class="boton boton--sec boton--chico" id="dp-foto">${ICONO_FOTO} Foto de las compras</button>
         <button type="button" class="boton boton--texto boton--chico" id="dp-manual">Buscar o escanear</button>
         <input type="file" id="dp-archivo" accept="image/*" hidden>
@@ -330,7 +339,7 @@ async function vistaDespensa(app) {
   const revision = app.querySelector('#dp-revision');
   const procesar = async (cuerpo, boton) => {
     boton.disabled = true;
-    revision.innerHTML = '<p class="quieto" style="margin:0">Gemini está leyendo…</p>';
+    revision.innerHTML = '<p class="quieto" style="margin:0">La IA está leyendo…</p>';
     try {
       const { productos = [] } = await gemini('despensa', cuerpo);
       if (!productos.length) { revision.innerHTML = '<p class="quieto" style="margin:0">No encontré comida ahí. Prueba de nuevo.</p>'; return; }
@@ -576,7 +585,7 @@ function dialogoPaquete(ctx) {
         <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
         <button type="submit" class="boton" id="guardar" disabled>Agregar</button>
       </div>
-    </form>`, 'Agregar a la despensa');
+    </form>`, 'Agregar a la despensa', { pantalla: true });
   panelBuscar(d.querySelector('#buscar'), {
     alElegir: (a) => {
       elegido = a;

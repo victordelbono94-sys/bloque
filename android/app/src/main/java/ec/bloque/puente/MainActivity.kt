@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
     private var permisoWebPendiente: PermissionRequest? = null
     private var archivoPendiente: ValueCallback<Array<Uri>>? = null
     private var fotoCamara: Uri? = null
+    private var camaraParaFoto: Intent? = null  // galería de respaldo mientras se pide el permiso de cámara
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -102,6 +103,12 @@ class MainActivity : ComponentActivity() {
         pedirCamara = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
             permisoWebPendiente?.let { if (ok) it.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else it.deny() }
             permisoWebPendiente = null
+            // Foto de comida pedida con la cámara: con permiso se abre la cámara; sin él, la galería.
+            camaraParaFoto?.let { galeria ->
+                camaraParaFoto = null
+                val intent = if (ok) intentCamara() ?: galeria else galeria
+                try { elegirArchivo.launch(intent) } catch (e: Exception) { archivoPendiente?.onReceiveValue(null); archivoPendiente = null }
+            }
         }
         elegirArchivo = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
             var uris = WebChromeClient.FileChooserParams.parseResult(r.resultCode, r.data)
@@ -142,7 +149,10 @@ class MainActivity : ComponentActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (web.canGoBack()) web.goBack() else finish()
+                // Primero la web: si hay una hoja abierta, la cierra ella y no se navega.
+                web.evaluateJavascript("window.bloqueAtras ? window.bloqueAtras() : false") { r ->
+                    if (r != "true") { if (web.canGoBack()) web.goBack() else finish() }
+                }
             }
         })
 
@@ -378,6 +388,16 @@ class MainActivity : ComponentActivity() {
             archivoPendiente = callback
             val galeria = params.createIntent()
             val imagenes = params.acceptTypes.any { it.startsWith("image") }
+            // «Sacar foto» (input con capture): directo a la cámara, pidiendo el permiso si hace falta.
+            if (imagenes && params.isCaptureEnabled) {
+                val conPermiso = checkSelfPermission(Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (!conPermiso) {
+                    camaraParaFoto = galeria
+                    pedirCamara.launch(Manifest.permission.CAMERA)
+                    return true
+                }
+                return try { elegirArchivo.launch(intentCamara() ?: galeria); true } catch (e: Exception) { archivoPendiente = null; false }
+            }
             val intent = if (imagenes) {
                 // Galería o cámara, a elección.
                 // Android no deja abrir la cámara si Bloque declara el permiso y no lo tiene concedido.
@@ -402,6 +422,15 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /** Cámara del teléfono guardando la foto en un archivo propio (la web la recibe al volver). */
+    private fun intentCamara(): Intent? = try {
+        val dir = File(cacheDir, "fotos").apply { mkdirs() }
+        val archivo = File(dir, "comida-${System.currentTimeMillis()}.jpg")
+        fotoCamara = FileProvider.getUriForFile(this, "$packageName.archivos", archivo)
+        Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).putExtra(android.provider.MediaStore.EXTRA_OUTPUT, fotoCamara)
+            .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+    } catch (e: Exception) { null }
 
     // ---------- Lo que la web puede pedirle a la app ----------
     // Solo la web de Bloque se carga en esta WebView (lo demás se abre afuera),

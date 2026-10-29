@@ -35,7 +35,7 @@ export function horaEfectiva(ev) {
 export function textoJuntos() {
   const otros = estado.personas.filter((p) => p.id !== estado.yo?.id);
   if (!otros.length) return '';
-  return otros.length === 1 ? `${otros[0].nombre} y yo` : 'Todo el equipo';
+  return otros.length === 1 ? `${otros[0].nombre} y yo` : 'Todo el hogar';
 }
 
 export function textoAsistencia(ev) {

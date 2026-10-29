@@ -43,9 +43,12 @@ function mensajeError(error) {
 const sinMovimiento = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // Abre un <dialog> con el HTML dado y devuelve el elemento. Se elimina al cerrarse.
-// close() anima la salida antes de cerrar de verdad.
-export function abrirDialogo(html, etiqueta) {
+// En el teléfono es una hoja que sube desde abajo: se cierra tocando afuera, deslizándola
+// hacia abajo desde arriba (o desde cualquier parte si ya está al tope) y con el gesto de atrás.
+export function abrirDialogo(html, etiqueta, { pantalla = false } = {}) {
   const d = document.createElement('dialog');
+  // pantalla: ocupa toda la pantalla (para lo que es mucho para una hoja), y entra desde abajo igual.
+  if (pantalla) d.classList.add('pantalla');
   d.setAttribute('aria-label', etiqueta);
   d.innerHTML = html;
   document.body.appendChild(d);
@@ -54,20 +57,67 @@ export function abrirDialogo(html, etiqueta) {
   let cerrando = false;
   d.close = () => {
     if (cerrando || !d.open) return;
-    if (sinMovimiento()) return cerrarDeVerdad();
     cerrando = true;
+    if (sinMovimiento()) return cerrarDeVerdad();
     d.classList.add('saliendo');
-    setTimeout(cerrarDeVerdad, 180);
+    setTimeout(cerrarDeVerdad, 200);
   };
   d.addEventListener('cancel', (e) => { e.preventDefault(); d.close(); }); // tecla Esc
-  d.addEventListener('click', (e) => { if (e.target === d) d.close(); }); // toque fuera
+  // Tocar afuera (el fondo): por coordenadas, porque en Android el toque al fondo no siempre llega como click.
+  d.addEventListener('pointerdown', (e) => {
+    const r = d.getBoundingClientRect();
+    if (e.clientY < r.top || e.clientY > r.bottom || e.clientX < r.left || e.clientX > r.right) d.close();
+  });
+  // Pantalla completa con contenido común: una X arriba para cerrar.
+  if (pantalla && !d.querySelector('.reg')) {
+    d.insertAdjacentHTML('afterbegin', '<button type="button" class="pantalla__cerrar" data-cerrar aria-label="Cerrar"><svg class="icono" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>');
+  }
   d.addEventListener('close', () => d.remove());
   d.querySelectorAll('[data-cerrar]').forEach((b) => b.addEventListener('click', () => d.close()));
   // El foco va al título, no al primer campo, para no abrir el teclado de golpe.
   const titulo = d.querySelector('h2');
   if (titulo) { titulo.tabIndex = -1; titulo.autofocus = true; titulo.style.outline = 'none'; }
   d.showModal();
+
+  arrastrarParaCerrar(d);
   return d;
+}
+
+// Deslizar la hoja hacia abajo para cerrarla (solo en pantallas de teléfono).
+function arrastrarParaCerrar(d) {
+  if (!matchMedia('(max-width: 600px)').matches) return;
+  let inicioY = 0, inicioT = 0, dy = 0, arrastrando = false, posible = false;
+  d.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    const r = d.getBoundingClientRect();
+    // Desde la zona de arriba (la manija y el título) siempre; desde el resto, solo si ya está al tope.
+    const desdeArriba = t.clientY - r.top < 64;
+    const enCampo = e.target.closest('input, textarea, select, .chips--scroll, .paso-mini');
+    posible = !enCampo && (desdeArriba || d.scrollTop <= 0);
+    inicioY = t.clientY; inicioT = Date.now(); dy = 0; arrastrando = false;
+  }, { passive: true });
+  d.addEventListener('touchmove', (e) => {
+    if (!posible) return;
+    dy = e.touches[0].clientY - inicioY;
+    if (!arrastrando && dy > 8 && d.scrollTop <= 0) arrastrando = true;
+    if (!arrastrando) return;
+    e.preventDefault();
+    d.style.transition = 'none';
+    d.style.transform = `translateY(${Math.max(0, dy)}px)`;
+  }, { passive: false });
+  d.addEventListener('touchend', () => {
+    if (!arrastrando) return;
+    const rapido = dy / Math.max(1, Date.now() - inicioT) > 0.6;
+    d.style.transition = 'transform 0.2s ease';
+    if (dy > Math.min(140, d.offsetHeight * 0.25) || (rapido && dy > 40)) {
+      d.style.transform = `translateY(${d.offsetHeight}px)`;
+      d.classList.add('sin-animacion');
+      setTimeout(() => d.close(), 180);
+    } else {
+      d.style.transform = '';
+    }
+    arrastrando = false;
+  });
 }
 
 // Botones tipo chip que se comportan como un grupo de opción única.
@@ -123,3 +173,12 @@ export function cara(p) {
   if (!p?.avatar_url) return inicial;
   return `<img src="${esc(p.avatar_url)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async" onerror="this.parentNode.textContent='${inicial}'">`;
 }
+
+// Gesto o botón de atrás de Android: la app nativa pregunta primero acá. Si hay una hoja abierta,
+// se cierra la de más arriba y no se navega.
+window.bloqueAtras = () => {
+  const abiertas = [...document.querySelectorAll('dialog[open]')];
+  if (!abiertas.length) return false;
+  abiertas.at(-1).close();
+  return true;
+};

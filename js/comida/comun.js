@@ -66,19 +66,19 @@ export function cantidadTexto(a, gramos) {
 // ---------- Gemini (función analizar-comida en el servidor) ----------
 export async function gemini(modo, cuerpo) {
   // Tope de espera: si Gemini no contesta en 70 s, se avisa en vez de quedarse trabado.
-  const espera = new Promise((_, no) => setTimeout(() => no(new Error('Gemini tardó demasiado. Prueba de nuevo o búscalo a mano.')), 70000));
+  const espera = new Promise((_, no) => setTimeout(() => no(new Error('La IA tardó demasiado. Prueba de nuevo o búscalo a mano.')), 70000));
   const { data, error } = await Promise.race([sb.functions.invoke('analizar-comida', { body: { modo, ...cuerpo } }), espera]);
   if (error) {
     let codigo = null;
     try { codigo = (await error.context?.json?.())?.error; } catch { /* sin detalle */ }
     throw new Error({
-      sin_clave: 'Falta conectar Gemini.',
-      limite: 'Gemini llegó al límite gratis por ahora. Prueba en un minuto.',
+      sin_clave: 'La IA no está disponible.',
+      limite: 'La IA llegó al límite gratis por ahora. Prueba en un minuto.',
       imagen: 'La foto es muy pesada o no se pudo leer.',
       texto: 'Escribe qué comiste.',
-      gemini: 'Gemini está saturado en este momento. Prueba en un rato o búscalo a mano.',
+      gemini: 'La IA está saturada en este momento. Prueba en un rato o búscalo a mano.',
       sesion: 'Tu sesión se venció: vuelve a entrar a Bloque.',
-    }[codigo] ?? 'No se pudo conectar con Gemini. Revisa la conexión.');
+    }[codigo] ?? 'No se pudo conectar con la IA. Revisa la conexión.');
   }
   return data;
 }
@@ -113,6 +113,36 @@ export async function aAlimento(x) {
 // ---------- Lo más registrado (para agregar con un toque) ----------
 const BASICOS = [['Café negro', 240], ['Leche entera', 250], ['Huevo entero', 100], ['Banana (guineo)', 120],
   ['Pan blanco', 50], ['Yogur griego natural', 170], ['Proteína whey (polvo)', 30], ['Arroz blanco cocido', 160]];
+
+// Qué parte de la meta del día le toca a cada comida (para decir si un desayuno «está bien»).
+export const PARTE_COMIDA = {
+  desayuno: 0.25, almuerzo: 0.33, merienda: 0.12, cena: 0.25, snack: 0.08, pre_entreno: 0.08, post_entreno: 0.12,
+};
+
+/**
+ * Lo que sueles comer a esta hora (±90 min, últimos 30 días), del más repetido al menos.
+ * @returns {Promise<Array<{alimento, gramos, veces}>>}
+ */
+export async function habitualesAhora(hasta = 6, ahora = new Date()) {
+  const desde = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const filas = datos(await sb.from('comida_items').select('gramos, persona_id, alimento:alimentos(*), comida:comidas!inner(fecha, hora, hogar_id)')
+    .eq('comida.hogar_id', estado.yo.hogar_id).gte('comida.fecha', desde).not('comida.hora', 'is', null).limit(600));
+  const min = ahora.getHours() * 60 + ahora.getMinutes();
+  const porAlimento = new Map();
+  for (const f of filas) {
+    if (!f.alimento || (f.persona_id && f.persona_id !== estado.yo.id)) continue;
+    const [h, m] = f.comida.hora.slice(0, 5).split(':').map(Number);
+    const dif = Math.abs(h * 60 + m - min);
+    if (Math.min(dif, 1440 - dif) > 90) continue;
+    const x = porAlimento.get(f.alimento.id) ?? { alimento: f.alimento, veces: 0, gramos: [] };
+    x.veces++; x.gramos.push(Number(f.gramos));
+    porAlimento.set(f.alimento.id, x);
+  }
+  return [...porAlimento.values()].sort((a, b) => b.veces - a.veces).slice(0, hasta).map((x) => {
+    const gs = x.gramos.sort((a, b) => a - b);
+    return { alimento: x.alimento, gramos: gs[Math.floor(gs.length / 2)], veces: x.veces };
+  });
+}
 
 export async function frecuentes(hasta = 10) {
   const desde = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);

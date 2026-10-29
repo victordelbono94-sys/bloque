@@ -147,7 +147,7 @@ function dialogoMedicion(alGuardar) {
         <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
         <button type="submit" class="boton" id="guardar">Guardar</button>
       </div>
-    </form>`, 'Nueva medición');
+    </form>`, 'Nueva medición', { pantalla: true });
 
   const origen = d.querySelector('#origen');
   const referencia = d.querySelector('#es_referencia');

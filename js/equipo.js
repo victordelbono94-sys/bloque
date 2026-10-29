@@ -1,4 +1,4 @@
-// Equipos: deportes, invitaciones y las acciones del admin. En la base el equipo es la tabla "hogares".
+// Equipos: deportes, invitaciones y las acciones del admin. En la base el hogar es la tabla "hogares".
 import { sb, estado, datos } from './db.js';
 import { esc, aviso } from './ui.js';
 import { enApp, APK, abrirExterno } from './nativo.js';
@@ -64,7 +64,7 @@ export function conectarDeporte(cont, alCambiar) {
 export function textoInvitacion(equipo) {
   return `Únete a «${equipo.nombre}» en Bloque 💪\n\n`
     + `1. Instala la app: ${APK}\n`
-    + `2. Entra con Google y elige «Unirme a un equipo»\n`
+    + `2. Entra con Google y elige «Unirme a un hogar»\n`
     + `3. Usa el código ${equipo.codigo}\n\n`
     + `O abre este link: ${linkInvitacion(equipo.codigo)}`;
 }

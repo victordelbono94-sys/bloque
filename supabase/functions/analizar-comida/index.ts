@@ -22,7 +22,7 @@ const PORCIONES = `Porciones típicas en Ecuador si no dicen gramos: 1 huevo 50 
 1 vaso de leche 250 g, 1 taza de leche 240 g, 1 pan 50 g, 1 rebanada de pan de molde 30 g, 1 banana 120 g,
 1 manzana 180 g, 1 cucharada de azúcar 12 g, 1 cucharadita de azúcar 4 g, 1 cucharada de aceite 13 g,
 1 taza de arroz cocido 160 g, 1 plato de arroz 200 g, 1 porción de pollo 150 g, 1 yogur 170 g, 1 scoop de proteína 30 g,
-1 lata de atún escurrido 120 g, 1 cucharada de queso rallado 6 g.`;
+1 lata de atún escurrido 120 g, 1 cucharada de queso rallado 6 g, 1 vaso de agua 250 g, 1 botella de agua 500 g, 1 termo 750 g.`;
 
 const NUTRIENTES = {
   kcal_100g: { type: "NUMBER" }, proteina_100g: { type: "NUMBER" },
@@ -112,6 +112,7 @@ Identifica cada alimento por separado y estima los gramos que se ven (si hay var
 Da valores nutricionales por 100 g tal como está servido. Nombres simples en español
 ("Arroz blanco cocido", "Pechuga de pollo cocida", "Plátano maduro frito"). En "cantidad" pon algo legible
 ("1 plato", "2 presas"). Si no ves comida, lista vacía.
+Si ves bebidas (agua, jugo, café, leche), inclúyelas como alimentos aparte; para líquidos, gramos ≈ ml (agua con 0 kcal).
 Si viene un texto, es lo que la persona agregó o aclara del plato (ej. "le puse 100 g de mozzarella y 2 cucharadas de aceite"):
 súmalo como alimentos aparte o corrige lo que ves (si dice "es arroz integral", cámbialo). Lo que dice el texto manda sobre la foto.
 ${PORCIONES}`,
@@ -120,6 +121,8 @@ Separa cada alimento y di cuántos gramos comió CADA persona: gramos_yo (quien 
 pon 0 si esa persona no lo comió. "Yo", "mi", "me" = quien escribe. "Él", "ella" o el nombre de la otra persona = la otra.
 "Ambos", "los dos" o "comimos" sin separar = los dos; si dan un total compartido (ej. "6 huevos entre los dos") repártelo
 en partes iguales salvo que digan otra cosa. Si solo habla de una persona, la otra va en 0.
+Incluye también lo que tomaron (agua, café, jugo, leche, batidos, bebidas): para líquidos, gramos ≈ ml; el agua va como "Agua" con 0 kcal
+(ej. "tomé un litro de agua en el gym" = Agua 1000 g).
 Si dice "en tortilla" o "revuelto", agrega aceite aparte (5-10 g por persona). "Café con leche" = café y leche por separado.
 En cantidad_yo / cantidad_otro pon lo que corresponde en palabras ("3 huevos", "1 taza"). Valores por 100 g tal como se comió.
 En "momento" pon desayuno, almuerzo, merienda, cena, snack, pre_entreno o post_entreno si el texto lo dice
@@ -137,14 +140,16 @@ y los entrenos (antes de entrenar: carbohidratos fáciles y poca grasa; después
 Da gramos de cada ingrediente para UNA persona y valores por 100 g. "por_que" en una línea; "pasos" en dos o tres frases.
 Todo en español de Ecuador.`,
   consejo: `Eres nutricionista deportivo y hablas en español de Ecuador, directo y breve (máximo 3 frases).
-Ayudas a una persona a llegar a su meta de calorías y proteína del día. El contexto trae su meta, lo que ya comió hoy,
-el plato que está por registrar (con calorías), sus entrenos de hoy y lo que hay en su despensa.
-Si hace una pregunta ("¿si agrego una lata de atún alcanza?"), respóndela con números: cuánto sumaría y en cuánto quedaría frente a la meta.
-Si no pregunta nada, di cuánto le falta y qué agregar a este plato o como snack para llegar.
-En "sugerencias" pon 1 a 3 alimentos concretos para agregar (de la despensa si se puede; si no, comunes: arroz, pasta, pan, aceite de oliva,
-atún, huevo, plátano, maní, avena, leche), con gramos para UNA persona y valores por 100 g. Si preguntó por algo concreto, inclúyelo.
-Si ya llegó a la meta o se pasa, dilo y no sugieras nada.
-Respeta su objetivo: si es ganar peso, prioriza sumar calorías; si es bajar, prioriza proteína sin pasarse.
+Ayudas a una persona a armar ESTA comida (desayuno, almuerzo, cena…) según su objetivo. El contexto trae la meta de esta comida
+(una parte de su día), lo que tiene el plato, lo que le queda del día, sus entrenos de hoy y lo que hay en su despensa.
+Juzga la comida, no el día: si a esta comida le faltan calorías o proteína, di cuánto y qué agregar; si ya está bien, dilo.
+Adapta a su objetivo y propone cambios concretos, no solo agregados: para ganar peso y músculo, más densidad (pan blanco o
+integral con mantequilla de maní, leche en vez de agua en el café o la avena, aceite de oliva, más arroz o pasta, una porción de proteína);
+para bajar grasa, más proteína y fibra sin pasarse (integral, claras, pollo, verduras). Si antes de entrenar, carbohidratos fáciles;
+si después, proteína y carbohidratos.
+Si hace una pregunta ("¿si agrego una lata de atún alcanza?", "¿pan blanco o integral?"), respóndela con números frente a la meta de esta comida.
+En "sugerencias" pon 1 a 3 alimentos concretos para agregar o cambiar (de la despensa si se puede), con gramos para UNA persona
+y valores por 100 g. Si preguntó por algo concreto, inclúyelo. Si la comida ya está bien, sugerencias vacía.
 ${PORCIONES}`,
 };
 const ESQ_CONSEJO = {

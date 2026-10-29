@@ -323,7 +323,7 @@ function dialogoEvento(ev, rutinas, alGuardar) {
         <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
         <button type="submit" class="boton" id="guardar">Guardar</button>
       </div>
-    </form>`, nuevo ? 'Agregar al calendario' : 'Editar evento');
+    </form>`, nuevo ? 'Agregar al calendario' : 'Editar evento', { pantalla: true });
 
   const tipo = d.querySelector('#tipo');
   const asistencia = d.querySelector('#asistencia');
