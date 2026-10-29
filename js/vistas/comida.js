@@ -4,6 +4,7 @@
 //   Despensa → lo que hay en casa (cargado con Gemini) e ideas para cocinar con eso
 import { emparejar, esIndividual, asistenciaIndividual } from '../actividades.js';
 import { cargarSyncs } from '../hecho.js';
+import { metaAgua, aguaDeComidas, cargarAgua, sumarAgua, borrarAgua, litros } from '../hidratacion.js';
 import { sb, estado, datos } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo } from '../ui.js';
 import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia } from '../fechas.js';
@@ -98,6 +99,7 @@ async function vistaDia(app, fecha) {
     </section>
 
     ${htmlResumen(yo, true)}
+    ${htmlAgua(yo, esHoy)}
     ${info.slice(1).map((x) => htmlResumen(x, false)).join('')}
 
 
@@ -126,6 +128,13 @@ async function vistaDia(app, fecha) {
     abrirRegistro(ctx, texto ? { texto } : {});
   });
   app.querySelector('#rapido-manual').addEventListener('click', () => abrirRegistro(ctx, {}));
+  app.querySelectorAll('[data-agua]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { await sumarAgua(Number(b.dataset.agua)); aviso(`+${b.dataset.agua} ml de agua 💧`); vistaDia(app, fecha); } catch (err) { avisoError(err); b.disabled = false; }
+  }));
+  app.querySelectorAll('[data-agua-borrar]').forEach((b) => b.addEventListener('click', async () => {
+    try { await borrarAgua(b.dataset.aguaBorrar); vistaDia(app, fecha); } catch (err) { avisoError(err); }
+  }));
   app.querySelectorAll('[data-habitual]').forEach((b) => b.addEventListener('click', () => {
     const f = habituales[Number(b.dataset.habitual)];
     abrirRegistro(ctx, { items: [{ alimento: f.alimento, gramos: f.gramos }] });
@@ -466,8 +475,8 @@ async function cargarDia(fecha) {
   const rutinaIds = [...new Set(eventos.map((e) => e.rutina_id).filter(Boolean))];
   const rutinas = rutinaIds.length ? datos(await sb.from('rutinas').select('id, foco').in('id', rutinaIds)) : [];
   for (const e of eventos) e.liviana = rutinas.find((r) => r.id === e.rutina_id)?.foco === 'recuperacion';
-  const syncs = await cargarSyncs();
-  return { fecha, eventos, mediciones, objetivos, reloj, comidas, despensa, syncs };
+  const [syncs, agua] = await Promise.all([cargarSyncs(), cargarAgua(fecha, ids).catch(() => [])]);
+  return { fecha, eventos, mediciones, objetivos, reloj, comidas, despensa, syncs, agua };
 }
 
 function datosPersona(p, d) {
@@ -488,7 +497,14 @@ function datosPersona(p, d) {
   const comido = sumar(d.comidas.flatMap((c) => c.porciones.filter((x) => x.persona_id === p.id))
     .map((x) => ({ kcal: Number(x.kcal ?? 0), proteina: Number(x.proteina_g ?? 0), carbos: Number(x.carbohidratos_g ?? 0), grasas: Number(x.grasas_g ?? 0) })));
   const tendencia = tendenciaPeso(d.mediciones.filter((m) => m.persona_id === p.id), foco);
-  return { p, metas, comido, foco, eventos, tendencia };
+  const entradas = (d.agua ?? []).filter((x) => x.persona_id === p.id);
+  const agua = {
+    meta: metaAgua({ peso: metas.ok ? metas.peso : null, ejercicioKcal: metas.ok ? metas.ejercicio : 0 }),
+    deComidas: aguaDeComidas(d.comidas, p.id),
+    entradas,
+  };
+  agua.tomado = agua.deComidas + entradas.reduce((a, x) => a + x.ml, 0);
+  return { p, metas, comido, foco, eventos, tendencia, agua };
 }
 
 
@@ -499,6 +515,34 @@ function barra(nombre, valor, meta, clase) {
       <div class="macro__fila"><span>${nombre}</span><span><strong>${Math.round(valor)}</strong> / ${Math.round(meta)} g</span></div>
       <div class="macro__barra"><span class="${clase}" style="width:${pct}%"></span></div>
     </div>`;
+}
+
+// Hidratación: una botella que se llena, con botones rápidos.
+function htmlAgua(x, esHoy) {
+  const { meta, tomado, deComidas, entradas } = x.agua;
+  const pct = Math.min(100, Math.round((tomado / meta) * 100));
+  const falta = meta - tomado;
+  const entreno = (x.eventos ?? []).find((e) => ['derby', 'gym', 'otro'].includes(e.tipo));
+  const consejo = !esHoy ? '' : entreno
+    ? `Hoy entrenas: lleva ${entreno.tipo === 'derby' ? '~1 L para el derby (unos 500 ml por hora)' : '~500 ml al entreno'} y toma un vaso al terminar.`
+    : falta > 0 ? 'Un vaso cada hora o dos te deja al día.' : '';
+  return `
+    <section class="tarjeta agua" aria-label="Hidratación">
+      <div class="agua__botella" aria-hidden="true"><span class="agua__nivel" style="height:${pct}%"></span><span class="agua__ola"></span></div>
+      <div class="agua__texto">
+        <p class="seccion__titulo" style="margin:0">Hidratación</p>
+        <p class="agua__cifra"><strong>${litros(tomado)}</strong> de ${litros(meta)}</p>
+        <p class="agua__estado ${falta <= 0 ? 'hecho' : ''}">${falta <= 0 ? 'Meta de agua cumplida ✓' : `Te falta ${litros(falta)}`}${deComidas ? ` · ${litros(deComidas)} de bebidas en comidas` : ''}</p>
+        ${consejo ? `<p class="ayuda" style="margin:2px 0 0">${esc(consejo)}</p>` : ''}
+        ${esHoy ? `
+          <div class="agua__botones">
+            <button type="button" class="chip chip--mini" data-agua="250">+ Vaso <span class="quieto">250</span></button>
+            <button type="button" class="chip chip--mini" data-agua="500">+ Botella <span class="quieto">500</span></button>
+            <button type="button" class="chip chip--mini" data-agua="750">+ Termo <span class="quieto">750</span></button>
+          </div>` : ''}
+        ${entradas.length ? `<div class="agua__lista">${entradas.slice(-4).map((e) => `<button type="button" class="agua__item" data-agua-borrar="${esc(e.id)}" aria-label="Borrar ${e.ml} ml">${e.hora ? esc(e.hora.slice(0, 5)) : ''} ${e.ml} ml${e.origen === 'entreno' ? ' · entreno' : ''} ×</button>`).join('')}</div>` : ''}
+      </div>
+    </section>`;
 }
 
 function htmlResumen(x, esYo) {

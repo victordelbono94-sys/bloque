@@ -3,7 +3,7 @@
 //   texto    → interpreta "3 huevos y un café con leche"
 //   despensa → productos de un texto de compras o de una foto (bolsas, alacena, ticket)
 //   ideas    → 3 comidas con lo que hay en la despensa y lo que le falta a la persona
-//   consejo  → cuánto le falta para la meta y qué agregar (o responde "¿si agrego X alcanza?")
+//   consejo  → cuánto le falta a esta comida para su meta y qué agregar o cambiar según el objetivo
 // La clave de Gemini vive solo en el servidor (secreto GEMINI_API_KEY o la tabla
 // privado.secretos) y solo responde a usuarios con sesión.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -243,7 +243,7 @@ function limpiar(modo: string, d: Record<string, unknown>) {
       momento: momentos.includes(String(d.momento)) ? d.momento : null,
       alimentos: lista(d.alimentos, 16).map((a) => ({
         nombre: texto(a.nombre, 120) || "Alimento",
-        gramos_yo: num(a.gramos_yo, 0, 2000), gramos_otro: num(a.gramos_otro, 0, 2000),
+        gramos_yo: num(a.gramos_yo, 0, 3000), gramos_otro: num(a.gramos_otro, 0, 3000),
         ...nutrientes(a),
       })).filter((a) => a.gramos_yo > 0 || a.gramos_otro > 0),
     };
@@ -251,7 +251,7 @@ function limpiar(modo: string, d: Record<string, unknown>) {
   return {
     descripcion: texto(d.descripcion, 200),
     alimentos: lista(d.alimentos, 12).map((a) => ({
-      nombre: texto(a.nombre, 120) || "Alimento", gramos: num(a.gramos, 1, 2000), cantidad: texto(a.cantidad, 40) || null, ...nutrientes(a),
+      nombre: texto(a.nombre, 120) || "Alimento", gramos: num(a.gramos, 1, 3000), cantidad: texto(a.cantidad, 40) || null, ...nutrientes(a),
     })),
   };
 }

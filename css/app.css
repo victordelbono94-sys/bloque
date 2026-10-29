@@ -1287,3 +1287,20 @@ dialog.pantalla::before { display: none; }
 dialog.pantalla > .dialogo { flex: 1; overflow-y: auto; overflow-x: hidden; padding-top: calc(env(safe-area-inset-top) + 18px); padding-bottom: calc(env(safe-area-inset-bottom) + 24px); }
 dialog.pantalla > .dialogo > h2:first-of-type { padding-right: 52px; }
 .pantalla__cerrar { position: absolute; top: calc(env(safe-area-inset-top) + 12px); right: 14px; z-index: 2; width: 40px; height: 40px; border-radius: 12px; border: 0; background: var(--grafito-2); color: var(--tiza); display: inline-flex; align-items: center; justify-content: center; }
+
+/* Hidratación */
+.agua { display: flex; gap: 16px; align-items: stretch; margin-top: 12px; }
+.agua__botella { position: relative; width: 46px; min-height: 120px; flex-shrink: 0; border-radius: 14px 14px 18px 18px; background: var(--asfalto); overflow: hidden; box-shadow: inset 0 0 0 2px rgba(94, 230, 200, 0.35); }
+.agua__nivel { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, #5EE6C8, #2BA7D8); transition: height 0.8s var(--suave); }
+@keyframes ola { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.agua__ola { position: absolute; left: 0; right: 0; bottom: 0; height: 100%; pointer-events: none; }
+.agua__texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.agua__cifra { margin: 0; font-size: 15px; color: var(--tiza-2); }
+.agua__cifra strong { font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 28px; color: #5EE6C8; }
+.agua__estado { margin: 0; font-size: 13px; color: var(--tiza-2); }
+.agua__botones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.agua__lista { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.agua__item { border: 0; background: var(--grafito-2); color: var(--gris); font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 999px; cursor: pointer; }
+.sesion-barra { position: sticky; top: 8px; z-index: 5; display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 12px; }
+.sesion-barra .crono-sesion { position: static; margin: 0; }
+.agua-rapido { white-space: nowrap; border: 0; border-radius: 999px; padding: 10px 14px; background: rgba(43, 167, 216, 0.22); color: #9FE6FF; font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3); backdrop-filter: blur(6px); }

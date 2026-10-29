@@ -9,6 +9,7 @@ import { textoSemaforo } from '../semaforo.js';
 import { abrirFicha, miniatura } from '../ficha.js';
 import { sincronizarAgenda } from '../nativo.js';
 import { emparejar, minutos } from '../actividades.js';
+import { sumarAgua } from '../hidratacion.js';
 
 const ESFUERZOS = [
   { valor: 6, texto: 'Fácil' },
@@ -127,10 +128,13 @@ export async function vistaSesion(app) {
       </div>
     </header>
 
+    <div class="sesion-barra">
+    ${yoParticipo && !terminé ? '<button type="button" class="agua-rapido" id="agua-entreno" aria-label="Sumar 250 ml de agua">💧 +250 ml</button>' : ''}
     <div class="crono-sesion ${terminé ? 'crono-sesion--fin' : ''}" role="timer" aria-label="Tiempo de entreno">
       <svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5M12 2.5V5"/></svg>
       <span id="transcurrido">0:00</span>
       <span class="crono-sesion__txt">${terminé ? 'terminaste' : 'entrenando'}</span>
+    </div>
     </div>
 
     ${delReloj ? `
@@ -160,6 +164,18 @@ export async function vistaSesion(app) {
       </button>` : ''}`;
 
   conectar(app);
+  // Agua durante el entreno: un toque por vaso; se suma a la hidratación del día.
+  let aguaSesion = 0;
+  app.querySelector('#agua-entreno')?.addEventListener('click', async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    try {
+      await sumarAgua(250, 'entreno');
+      aguaSesion += 250;
+      b.textContent = `💧 ${aguaSesion} ml`;
+      aviso('+250 ml de agua 💧');
+    } catch (err) { avisoError(err); } finally { b.disabled = false; }
+  });
 
   // Cronómetro en vivo desde que empezó el entreno (h:mm:ss); si ya terminaste, queda quieto.
   const ultimaMia = series.filter((x) => x.persona_id === estado.yo.id).map((x) => x.hecha_en).sort().at(-1);
