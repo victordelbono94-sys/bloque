@@ -10,6 +10,8 @@ import { abrirFicha, miniatura } from '../ficha.js';
 import { sincronizarAgenda } from '../nativo.js';
 import { emparejar, minutos } from '../actividades.js';
 import { sumarAgua } from '../hidratacion.js';
+import { ofrecerEstiramientos } from '../estiramientos.js';
+import { zonasDe } from '../iconos.js';
 
 const ESFUERZOS = [
   { valor: 6, texto: 'Fácil' },
@@ -781,7 +783,19 @@ function terminar(app) {
       limpiar();
       const subidas = ajustes.filter((x) => x.cambio).length;
       aviso(subidas ? `¡Buen entreno! ${subidas} metas actualizadas para la próxima.` : '¡Buen entreno!');
-      location.hash = '#/hoy';
+      // Estiramientos de lo que trabajaste; cortos si hay derby u otro entreno exigente en menos de 2 horas.
+      const zonas = zonasDe(actual.items.map((it) => ejercicioDe(it, estado.yo.id).grupo_muscular));
+      const ahora = new Date();
+      const luego = datos(await sb.from('calendario').select('tipo, hora_inicio, asistencia, persona_id').eq('hogar_id', estado.yo.hogar_id)
+        .eq('fecha', hoyISO()).in('tipo', ['derby', 'otro']).not('hora_inicio', 'is', null))
+        .filter((e) => e.asistencia === 'juntos' || e.persona_id === estado.yo.id)
+        .map((e) => ({ ...e, min: (new Date(`${hoyISO()}T${e.hora_inicio.slice(0, 5)}:00`) - ahora) / 60000 }))
+        .find((e) => e.min > -15 && e.min <= 120);
+      setTimeout(() => ofrecerEstiramientos(zonas, {
+        corta: !!luego,
+        motivo: luego ? `${luego.tipo === 'derby' ? 'Tienes derby' : 'Tienes otro entreno'} en ${Math.max(0, Math.round(luego.min))} min: suelta lo trabajado sin estirar a fondo (eso, mejor después).` : '',
+        alTerminar: () => { location.hash = '#/hoy'; },
+      }), 250);
     } catch (err) {
       avisoError(err);
       confirmar.disabled = false;

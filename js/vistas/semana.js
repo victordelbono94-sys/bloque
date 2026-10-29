@@ -19,99 +19,155 @@ const LAPIZ = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d
 // Sin hora, el gym (de mañana) va antes que el derby.
 const ORDEN_TIPO = { gym: 0, clase: 1, otro: 1, derby: 2, descanso: 3 };
 
+// Entrenos es una línea de tiempo continua: abre en hoy (o en el día del link), el encabezado queda fijo
+// y al llegar arriba o abajo se cargan las semanas anteriores o siguientes.
 export async function vistaSemana(app) {
   const param = location.hash.split('/')[2];
-  const lunes = inicioSemana(/^\d{4}-\d{2}-\d{2}$/.test(param ?? '') ? param : hoyISO());
+  const hoy = hoyISO();
+  const foco = /^\d{4}-\d{2}-\d{2}$/.test(param ?? '') ? param : hoy;
+  const lunes0 = inicioSemana(foco);
+  const hogar = estado.yo.hogar_id;
+  const rutinas = datos(await sb.from('rutinas').select('id, nombre, foco').eq('hogar_id', hogar).order('creada_en'));
+  const eventosPorId = new Map();
+  const semanas = await Promise.all([sumarDias(lunes0, -7), lunes0, sumarDias(lunes0, 7)].map((l) => cargarSemana(l, rutinas, eventosPorId)));
+
+  app.innerHTML = `
+    <header class="encabezado encabezado--fijo">
+      <div>
+        <h1 class="titulo">Entrenos</h1>
+        <p class="subtitulo" id="sem-rango">${esc(rangoSemana(lunes0))}</p>
+      </div>
+      <button type="button" class="boton boton--sec boton--chico" id="ir-hoy" hidden>↓ Hoy</button>
+    </header>
+    <div class="linea-semanas" id="semanas">
+      <div class="centinela" id="cent-arriba" aria-hidden="true"></div>
+      ${semanas.join('')}
+      <div class="centinela" id="cent-abajo" aria-hidden="true"></div>
+    </div>`;
+
+  const cont = app.querySelector('#semanas');
+  const scroller = document.getElementById('app');
+  let primera = sumarDias(lunes0, -7), ultima = sumarDias(lunes0, 7), cargando = false;
+  const recargarSemana = async (lunes) => {
+    const viejo = cont.querySelector(`[data-lunes="${lunes}"]`);
+    if (!viejo) return;
+    viejo.outerHTML = await cargarSemana(lunes, rutinas, eventosPorId);
+  };
+  const semanaDe = (el) => el.closest('[data-lunes]')?.dataset.lunes;
+
+  // Un solo manejador para todo (las semanas se agregan sobre la marcha).
+  cont.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-agregar], [data-editar], [data-empezar], [data-recuperar], [data-copiar]');
+    if (!b) return;
+    const lunes = semanaDe(b);
+    const listo = () => recargarSemana(lunes);
+    if (b.dataset.agregar) dialogoEvento({ fecha: b.dataset.agregar }, rutinas, async (fecha) => { await listo(); if (fecha && inicioSemana(fecha) !== lunes) recargarSemana(inicioSemana(fecha)); });
+    else if (b.dataset.editar) dialogoEvento(eventosPorId.get(b.dataset.editar), rutinas, listo);
+    else if (b.dataset.recuperar) recuperar(eventosPorId.get(b.dataset.recuperar), rutinas, () => { listo(); recargarSemana(inicioSemana(hoy)); });
+    else if (b.dataset.copiar) copiarSemana([...eventosPorId.values()].filter((x) => inicioSemana(x.fecha) === b.dataset.copiar), b.dataset.copiar);
+    else if (b.dataset.empezar) {
+      b.disabled = true;
+      try { await empezarSesion(eventosPorId.get(b.dataset.empezar)); } catch (err) { avisoError(err); b.disabled = false; }
+    }
+  });
+
+  // Semanas infinitas: arriba se agrega la anterior (sin que la vista salte), abajo la siguiente.
+  const agregarArriba = async () => {
+    if (cargando) return; cargando = true;
+    primera = sumarDias(primera, -7);
+    const html = await cargarSemana(primera, rutinas, eventosPorId);
+    const alto = scroller.scrollHeight, arriba = scroller.scrollTop;
+    cont.querySelector('#cent-arriba').insertAdjacentHTML('afterend', html);
+    scroller.scrollTop = arriba + (scroller.scrollHeight - alto);
+    cargando = false;
+  };
+  const agregarAbajo = async () => {
+    if (cargando) return; cargando = true;
+    ultima = sumarDias(ultima, 7);
+    cont.querySelector('#cent-abajo').insertAdjacentHTML('beforebegin', await cargarSemana(ultima, rutinas, eventosPorId));
+    cargando = false;
+  };
+  const obs = new IntersectionObserver((entradas) => {
+    for (const en of entradas) {
+      if (!en.isIntersecting) continue;
+      if (en.target.id === 'cent-arriba') agregarArriba();
+      else agregarAbajo();
+    }
+  }, { root: scroller, rootMargin: '600px 0px' });
+
+  // El rango del encabezado sigue a la semana que se ve; «Hoy» aparece cuando hoy quedó fuera de la vista.
+  const encabezado = app.querySelector('.encabezado--fijo');
+  const rango = app.querySelector('#sem-rango');
+  const irHoy = app.querySelector('#ir-hoy');
+  const alDesplazar = () => {
+    if (!app.isConnected) return scroller.removeEventListener('scroll', alDesplazar);
+    const tope = scroller.getBoundingClientRect().top + encabezado.offsetHeight + 8;
+    const bloques = [...cont.querySelectorAll('[data-lunes]')];
+    const visible = bloques.filter((x) => x.getBoundingClientRect().top <= tope).at(-1) ?? bloques[0];
+    if (visible) rango.textContent = rangoSemana(visible.dataset.lunes);
+    const hoyEl = cont.querySelector('.sdia--hoy');
+    if (hoyEl) {
+      const r = hoyEl.getBoundingClientRect();
+      const fuera = r.bottom < tope || r.top > window.innerHeight - 80;
+      irHoy.hidden = !fuera;
+      irHoy.textContent = r.top > window.innerHeight - 80 ? '↓ Hoy' : '↑ Hoy';
+    } else irHoy.hidden = false;
+  };
+  const centrar = (fecha, suave = false) => {
+    const el = cont.querySelector(`[data-dia="${fecha}"]`) ?? cont.querySelector('.sdia--hoy');
+    if (!el) return;
+    const destino = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - encabezado.offsetHeight - 8;
+    scroller.scrollTo({ top: destino, behavior: suave ? 'smooth' : 'auto' });
+  };
+  irHoy.addEventListener('click', async () => {
+    if (!cont.querySelector('.sdia--hoy')) { location.hash = '#/semana'; return; }
+    centrar(hoy, true);
+  });
+  // Después de que la pantalla se monta (el router deja el scroll arriba), se va al día.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    centrar(foco);
+    alDesplazar();
+    scroller.addEventListener('scroll', alDesplazar, { passive: true });
+    setTimeout(() => { obs.observe(cont.querySelector('#cent-arriba')); obs.observe(cont.querySelector('#cent-abajo')); }, 400);
+  }));
+  sincronizarAgenda().catch(() => {}); // los avisos de la app siguen al plan
+}
+
+// Una semana de la línea de tiempo: separador con el rango y los 7 días.
+async function cargarSemana(lunes, rutinas, eventosPorId) {
   const domingo = sumarDias(lunes, 6);
   const hoy = hoyISO();
   const hogar = estado.yo.hogar_id;
-
-  const [eventos, rutinas, bandaTodos, syncs] = await Promise.all([
+  const [eventos, bandaTodos, syncs] = await Promise.all([
     sb.from('calendario').select('*').eq('hogar_id', hogar).gte('fecha', lunes).lte('fecha', domingo)
       .order('fecha').order('hora_inicio', { nullsFirst: true }).then(datos),
-    sb.from('rutinas').select('id, nombre, foco').eq('hogar_id', hogar).order('creada_en').then(datos),
     sb.from('sesiones_banda').select('persona_id, inicio, fin, tipo, calorias, calorias_estimadas, fc_promedio').in('persona_id', estado.personas.map((p) => p.id))
       .gte('inicio', new Date(`${lunes}T00:00:00`).toISOString())
       .lt('inicio', new Date(`${sumarDias(domingo, 1)}T00:00:00`).toISOString()).order('inicio').then(datos),
     cargarSyncs(),
   ]);
+  for (const e of eventos) eventosPorId.set(e.id, e);
   const banda = bandaTodos.filter((s) => s.persona_id === estado.yo.id);
-  eventos.sort((a, b) => a.fecha.localeCompare(b.fecha)
-    || horaEfectiva(a).localeCompare(horaEfectiva(b))
-    || ORDEN_TIPO[a.tipo] - ORDEN_TIPO[b.tipo]);
+  eventos.sort((a, b) => a.fecha.localeCompare(b.fecha) || horaEfectiva(a).localeCompare(horaEfectiva(b)) || ORDEN_TIPO[a.tipo] - ORDEN_TIPO[b.tipo]);
   const conRutina = eventos.filter((e) => e.rutina_id);
-  const [sesiones, resumen] = await Promise.all([
-    conRutina.length
-      ? sb.from('sesiones').select('id, calendario_id, terminados, terminada_en').in('calendario_id', conRutina.map((e) => e.id)).then(datos)
-      : [],
-    resumenRutinas(rutinas.map((r) => r.id)),
+  const [sesiones, resumen, cumplido] = await Promise.all([
+    conRutina.length ? sb.from('sesiones').select('id, calendario_id, terminados, terminada_en').in('calendario_id', conRutina.map((e) => e.id)).then(datos) : [],
+    resumenRutinas([...new Set(conRutina.map((e) => e.rutina_id))]),
+    cargarCumplimiento(eventos, estado.yo.id),
   ]);
-
-  const cumplido = await cargarCumplimiento(eventos, estado.yo.id);
   const ctx = { hoy, rutinas, sesiones, resumen, cumplido, bandaTodos, syncs };
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
-  const esEstaSemana = lunes === inicioSemana(hoy);
-
-  app.innerHTML = `
-    <header class="encabezado">
-      <div>
-        <h1 class="titulo">Entrenos</h1>
-        <p class="subtitulo">${esc(rangoSemana(lunes))}</p>
+  const estaSemana = lunes === inicioSemana(hoy);
+  return `
+    <section class="semana-bloque" data-lunes="${lunes}">
+      <div class="semana-sep">
+        <span>${estaSemana ? 'Esta semana · ' : ''}${esc(rangoSemana(lunes))}</span>
+        ${eventos.length ? `<button type="button" class="enlace-chico" data-copiar="${lunes}">Repetir en la siguiente</button>` : ''}
       </div>
-      <div class="fila" style="gap:4px">
-        <a class="boton boton--sec boton--chico" href="#/semana/${sumarDias(lunes, -7)}" aria-label="Semana anterior">‹</a>
-        ${esEstaSemana ? '' : '<a class="boton boton--sec boton--chico" href="#/semana">Hoy</a>'}
-        <a class="boton boton--sec boton--chico" href="#/semana/${sumarDias(lunes, 7)}" aria-label="Semana siguiente">›</a>
-      </div>
-    </header>
-
-    <div class="semana">
-      ${dias.map((d) => htmlDia(d, eventos.filter((e) => e.fecha === d), banda.filter((s) => fechaLocal(s.inicio) === d), ctx)).join('')}
-    </div>
-
-    <button type="button" class="boton boton--sec boton--bloque" style="margin-top:16px" id="copiar" ${eventos.length ? '' : 'disabled'}>
-      Repetir esta semana en la siguiente
-    </button>
-
-    <section class="seccion" aria-labelledby="t-rutinas">
-      <h2 class="seccion__titulo" id="t-rutinas">Rutinas</h2>
-      <div class="biblioteca">
-        ${rutinas.map((r) => {
-          const { cuantos = 0, zonas = [] } = resumen[r.id] ?? {};
-          const enLaSemana = [...new Set(eventos.filter((e) => e.rutina_id === r.id).map((e) => DIAS[new Date(`${e.fecha}T12:00`).getDay()].toLowerCase()))];
-          return `
-            <a class="tarjeta tarjeta--enlace rutina-mini" href="#/entreno/${esc(r.id)}">
-              ${zonas.length ? mapaCuerpo(zonas, { alto: 52 }) : ''}
-              <span class="rutina-mini__texto">
-                <strong>${esc(r.nombre)}</strong>
-                <span class="quieto">${esc(FOCOS[r.foco] ?? '')} · ${cuantos} ejercicios</span>
-                ${enLaSemana.length ? `<span class="rutina-mini__cuando">${esEstaSemana ? 'Esta semana' : 'Esa semana'}: ${esc(enLaSemana.join(', '))}</span>` : ''}
-              </span>
-              <span class="plan__flecha" aria-hidden="true">›</span>
-            </a>`;
-        }).join('') || '<p class="vacio">Todavía no hay rutinas.</p>'}
+      <div class="semana">
+        ${dias.map((d) => htmlDia(d, eventos.filter((e) => e.fecha === d), banda.filter((s) => fechaLocal(s.inicio) === d), ctx)).join('')}
       </div>
     </section>`;
-
-  const recargar = () => vistaSemana(app);
-  sincronizarAgenda().catch(() => {}); // los avisos de la app siguen al plan
-
-  app.querySelectorAll('[data-agregar]').forEach((b) =>
-    b.addEventListener('click', () => dialogoEvento({ fecha: b.dataset.agregar }, rutinas, recargar)));
-  app.querySelectorAll('[data-editar]').forEach((b) =>
-    b.addEventListener('click', () => dialogoEvento(eventos.find((e) => e.id === b.dataset.editar), rutinas, recargar)));
-  app.querySelectorAll('[data-empezar]').forEach((b) => b.addEventListener('click', async () => {
-    b.disabled = true;
-    try {
-      await empezarSesion(eventos.find((e) => e.id === b.dataset.empezar));
-    } catch (err) {
-      avisoError(err);
-      b.disabled = false;
-    }
-  }));
-  app.querySelectorAll('[data-recuperar]').forEach((b) => b.addEventListener('click', () =>
-    recuperar(eventos.find((e) => e.id === b.dataset.recuperar), rutinas, recargar)));
-  app.querySelector('#copiar').addEventListener('click', () => copiarSemana(eventos, lunes));
 }
 
 // Un entreno que no se hizo: pasarlo a otro día (desde hoy) o dejarlo.
@@ -190,7 +246,7 @@ function htmlDia(d, delDia, bandaDia, ctx) {
   pasos.sort((x, y) => x.orden.localeCompare(y.orden));
   const f = new Date(`${d}T12:00`);
   return `
-    <section class="sdia ${esHoy ? 'sdia--hoy' : ''} ${pasado ? 'sdia--pasado' : ''}" aria-label="${esc(diaLargo(d))}">
+    <section class="sdia ${esHoy ? 'sdia--hoy' : ''} ${pasado ? 'sdia--pasado' : ''}" data-dia="${d}" aria-label="${esc(diaLargo(d))}">
       <header class="sdia__cab">
         <span class="sdia__num">${numeroDia(d)}</span>
         <span class="sdia__nombre">${esc(DIAS[f.getDay()])}</span>

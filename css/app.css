@@ -1304,3 +1304,31 @@ dialog.pantalla > .dialogo > h2:first-of-type { padding-right: 52px; }
 .sesion-barra { position: sticky; top: 8px; z-index: 5; display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 12px; }
 .sesion-barra .crono-sesion { position: static; margin: 0; }
 .agua-rapido { white-space: nowrap; border: 0; border-radius: 999px; padding: 10px 14px; background: rgba(43, 167, 216, 0.22); color: #9FE6FF; font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3); backdrop-filter: blur(6px); }
+
+/* Entrenos: línea de tiempo continua con el encabezado fijo */
+.encabezado--fijo {
+  position: sticky; top: -16px; z-index: 6; margin: -16px -16px 0; padding: calc(16px + 8px) 16px 12px;
+  background: linear-gradient(var(--asfalto) 85%, rgba(21, 23, 28, 0));
+}
+.linea-semanas { display: flex; flex-direction: column; gap: 18px; }
+.semana-bloque { display: flex; flex-direction: column; gap: 10px; }
+.semana-sep { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 2px; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--gris); }
+.semana-sep .enlace-chico { text-transform: none; letter-spacing: 0; padding: 4px 0; }
+.centinela { height: 1px; }
+#ir-hoy { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); }
+.semana-sep button.enlace-chico { background: none; border: 0; color: var(--volt); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+/* Estiramientos guiados */
+.estirar__lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; counter-reset: e; }
+.estirar__lista li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--asfalto); counter-increment: e; }
+.estirar__lista li::before { content: counter(e); color: var(--gris); font-weight: 700; margin-right: 4px; }
+.estirar__lista li strong { flex: 1; }
+.estirar__lista li.activo { box-shadow: inset 0 0 0 2px var(--volt); }
+.estirar__lista li.hecho { opacity: 0.5; }
+.estirar__actual { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px; border-radius: 18px; background: linear-gradient(135deg, rgba(198, 244, 50, 0.16), rgba(198, 244, 50, 0.03)); text-align: center; }
+.estirar__actual[data-fase="cambio"] { background: rgba(232, 163, 23, 0.2); }
+.estirar__lado { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--tiza-2); }
+.estirar__nombre { font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 22px; }
+.estirar__tiempo { font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 48px; color: var(--volt); font-variant-numeric: tabular-nums; }
+.estirar__actual[data-fase="cambio"] .estirar__tiempo { color: var(--ambar); }
+.estirar__como { margin: 0; font-size: 14px; color: var(--tiza-2); }
