@@ -156,9 +156,12 @@ object Bienestar {
 
     // ---------- Utilidades ----------
 
-    private fun hoyGuardado(c: Context): JSONObject? = try {
-        JSONObject(prefs(c).getString("hoy", null) ?: return null).takeIf { it.optString("guardado") == LocalDate.now().toString() }
-    } catch (e: Exception) { null }
+    private fun hoyGuardado(c: Context): JSONObject? {
+        val texto = prefs(c).getString("hoy", null) ?: return null
+        return try {
+            JSONObject(texto).takeIf { it.optString("guardado") == LocalDate.now().toString() }
+        } catch (e: Exception) { null }
+    }
 
     private fun hastaProxima(horas: List<LocalTime>): Duration {
         val ahora = LocalDateTime.now()
