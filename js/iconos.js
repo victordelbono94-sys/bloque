@@ -1,4 +1,4 @@
-// Íconos de línea de Bloque y el mapa del cuerpo que muestra qué se trabaja.
+// Íconos de línea de Bloq y el mapa del cuerpo que muestra qué se trabaja.
 
 const svg = (cuerpo, clase = 'icono') =>
   `<svg class="${clase}" viewBox="0 0 24 24" aria-hidden="true">${cuerpo}</svg>`;

@@ -78,7 +78,7 @@ export async function gemini(modo, cuerpo) {
       imagen: 'La foto es muy pesada o no se pudo leer.',
       texto: 'Escribe qué comiste.',
       gemini: 'La IA está saturada en este momento. Prueba en un rato o búscalo a mano.',
-      sesion: 'Tu sesión se venció: vuelve a entrar a Bloque.',
+      sesion: 'Tu sesión se venció: vuelve a entrar a Bloq.',
     }[codigo] ?? 'No se pudo conectar con la IA. Revisa la conexión.');
   }
   return data;

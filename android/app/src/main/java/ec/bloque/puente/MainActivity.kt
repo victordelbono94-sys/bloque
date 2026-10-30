@@ -41,7 +41,7 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * Bloque como app: muestra la web de Bloque a pantalla completa y le suma lo que
+ * Bloq como app: muestra la web de Bloq a pantalla completa y le suma lo que
  * una web no puede hacer: leer y escribir Health Connect, en primer y segundo plano.
  */
 class MainActivity : ComponentActivity() {
@@ -187,7 +187,7 @@ class MainActivity : ComponentActivity() {
         })
     }
 
-    /** Una notificación de Bloque abre una pantalla concreta (solo rutas conocidas). */
+    /** Una notificación de Bloq abre una pantalla concreta (solo rutas conocidas). */
     private fun rutaDe(intent: Intent?): String? =
         intent?.getStringExtra(EXTRA_RUTA)?.takeIf { RUTA_VALIDA.matches(it) }
 
@@ -363,7 +363,7 @@ class MainActivity : ComponentActivity() {
                 null,
                 """<html><body style="margin:0;background:#15171C;color:#F4F2EC;font-family:sans-serif;display:flex;
                    flex-direction:column;align-items:center;justify-content:center;height:100vh;text-align:center;padding:24px">
-                   <h2>Sin conexión</h2><p style="color:#A9ADB8">Bloque necesita internet para abrir la primera vez.</p>
+                   <h2>Sin conexión</h2><p style="color:#A9ADB8">Bloq necesita internet para abrir la primera vez.</p>
                    <a href="$SITIO" style="margin-top:16px;background:#C6F432;color:#15171C;padding:14px 22px;border-radius:14px;
                    text-decoration:none;font-weight:bold">Reintentar</a></body></html>""",
                 "text/html", "utf-8", null,
@@ -406,7 +406,7 @@ class MainActivity : ComponentActivity() {
             }
             val intent = if (imagenes) {
                 // Galería o cámara, a elección.
-                // Android no deja abrir la cámara si Bloque declara el permiso y no lo tiene concedido.
+                // Android no deja abrir la cámara si Bloq declara el permiso y no lo tiene concedido.
                 val conPermiso = checkSelfPermission(Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
                 val camara = if (!conPermiso) null else try {
                     val dir = File(cacheDir, "fotos").apply { mkdirs() }
@@ -439,7 +439,7 @@ class MainActivity : ComponentActivity() {
     } catch (e: Exception) { null }
 
     // ---------- Lo que la web puede pedirle a la app ----------
-    // Solo la web de Bloque se carga en esta WebView (lo demás se abre afuera),
+    // Solo la web de Bloq se carga en esta WebView (lo demás se abre afuera),
     // así que solo ella llega a estos métodos.
 
     private inner class Puente {

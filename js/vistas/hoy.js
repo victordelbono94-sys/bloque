@@ -484,7 +484,7 @@ function avisarPerfil(falta) {
     <div class="dialogo">
       <h2 class="tarjeta__titulo">Terminemos tu perfil</h2>
       <p style="margin:0">${falta.includes('plan')
-        ? 'Todavía no tienes rutinas ni agenda. Con unos datos (tu cuerpo, objetivo, deporte y días de gym) Bloque arma todo por ti.'
+        ? 'Todavía no tienes rutinas ni agenda. Con unos datos (tu cuerpo, objetivo, deporte y días de gym) Bloq arma todo por ti.'
         : 'Faltan algunos datos (tu cuerpo u objetivo) para calcular bien tus calorías y tus entrenos.'}</p>
       <div class="dialogo__pie">
         <button type="button" class="boton boton--sec" data-cerrar>Después</button>

@@ -5,9 +5,9 @@ import { sb, estado, datos } from './db.js';
 import { esc, aviso, avisoError, abrirDialogo } from './ui.js';
 import { deporte } from './deportes.js';
 import { hoyISO, sumarDias, diaCorto } from './fechas.js';
+import { htmlCabecera, htmlCompositor, conectarCompositor, burbujaPensando, bajar, cubo } from './chatia.js';
 
 const CHISPA = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>';
-const ENVIAR = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5z"/></svg>';
 
 // Deportes que ya cargan mucho los cuádriceps: el gym de piernas va a glúteos y femorales.
 export const CARGA_CUADRICEPS = new Set(['roller_derby', 'patinaje', 'hockey', 'ciclismo', 'mtb', 'esqui', 'snowboard', 'speed_skating']);
@@ -66,7 +66,7 @@ async function preguntar(mensaje, ctxIA, historial) {
     throw new Error({
       limite: 'La IA llegó al límite gratis por ahora. Prueba en un minuto.',
       gemini: 'La IA está saturada en este momento. Prueba en un rato.',
-      sesion: 'Tu sesión se venció: vuelve a entrar a Bloque.',
+      sesion: 'Tu sesión se venció: vuelve a entrar a Bloq.',
     }[codigo] ?? 'No se pudo conectar con la IA. Revisa la conexión.');
   }
   return data;
@@ -78,27 +78,26 @@ async function preguntar(mensaje, ctxIA, historial) {
  */
 export async function abrirEntrenador({ rutinaId = null, enCurso = false, mensaje = '', alAplicar = () => {} } = {}) {
   const d = abrirDialogo(`
-    <div class="entrenador">
-      <header class="entrenador__cab">
-        <span class="ia-logo" aria-hidden="true">${CHISPA}</span>
-        <div><h2>Entrenador IA</h2><span class="quieto" id="en-sub">Cargando tus rutinas…</span></div>
-      </header>
-      <div class="entrenador__chat" id="en-chat" aria-live="polite"></div>
-      <div class="chips chips--scroll entrenador__rapidos" id="en-rapidos"></div>
-      <form class="entrenador__barra" id="en-form">
-        <textarea id="en-texto" rows="1" maxlength="600" placeholder="Pídele un cambio o una rutina nueva…"></textarea>
-        <button type="submit" class="boton boton--ia" id="en-enviar" aria-label="Enviar">${ENVIAR}</button>
-      </form>
+    <div class="reg chatia">
+      ${htmlCabecera({ titulo: 'Entrenador IA', sub: 'Cargando tus rutinas…', subId: 'en-sub' })}
+      <div class="chatia__cuerpo" id="en-chat" aria-live="polite">
+        <div class="chatia__bienvenida" id="en-hola">${cubo('cubo--grande')}<h3>Entrenador IA</h3><p>Leyendo tus rutinas y tu deporte…</p></div>
+      </div>
+      <footer class="chatia__pie">
+        <div class="chatia__chips" id="en-rapidos"></div>
+        ${htmlCompositor({ id: 'en', placeholder: 'Pídele un cambio o una rutina nueva…', foto: false, ids: { texto: 'en-texto', enviar: 'en-enviar' } })}
+      </footer>
     </div>`, 'Entrenador IA', { pantalla: true });
   const $ = (q) => d.querySelector(q);
   const chat = $('#en-chat');
+  const compositor = conectarCompositor(d, { texto: '#en-texto', enviar: '#en-enviar', alEnviar: () => enviar($('#en-texto').value) });
   const historial = [];
   let datosCtx = null;
   d.proteger = () => !!$('#en-texto').value.trim();
 
   const burbuja = (rol, html) => {
-    chat.insertAdjacentHTML('beforeend', `<div class="burbuja burbuja--${rol}">${html}</div>`);
-    chat.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    chat.insertAdjacentHTML('beforeend', `<div class="chatia__msg chatia__msg--${rol}">${html}</div>`);
+    bajar(chat.lastElementChild);
     return chat.lastElementChild;
   };
 
@@ -124,26 +123,26 @@ export async function abrirEntrenador({ rutinaId = null, enCurso = false, mensaj
     ];
   $('#en-rapidos').innerHTML = rapidos.map((t) => `<button type="button" class="chip chip--mini" data-rapido>${esc(t)}</button>`).join('');
 
-  burbuja('ia', rutinaActual
-    ? `Hola 👋 Estoy viendo <strong>${esc(rutinaActual.nombre)}</strong>. ${dep ? `Sé que hacen ${esc(dep.nombre.toLowerCase())} y ` : ''}lo tengo en cuenta. Dime qué quieres cambiar.`
-    : `Hola 👋 ${dep ? `Sé que hacen ${esc(dep.nombre.toLowerCase())}. ` : ''}Te armo rutinas nuevas o ajusto las que tienen. ¿Qué necesitas?`);
+  $('#en-hola').innerHTML = `${cubo('cubo--grande cubo--quieto')}<h3>${rutinaActual ? esc(rutinaActual.nombre) : 'Tu entrenador'}</h3><p>${rutinaActual
+    ? `${dep ? `Sé que hacen ${esc(dep.nombre.toLowerCase())} y lo tengo en cuenta. ` : ''}Dime qué quieres cambiar${enCurso ? ', incluso en pleno entreno' : ''}.`
+    : `${dep ? `Sé que hacen ${esc(dep.nombre.toLowerCase())}. ` : ''}Te armo rutinas nuevas o ajusto las que tienen. ¿Qué necesitas?`}</p>`;
 
   const enviar = async (texto) => {
     texto = texto.trim();
     if (!texto) return;
-    $('#en-texto').value = '';
-    $('#en-texto').style.height = '';
+    compositor.limpiar();
     $('#en-rapidos').hidden = true;
+    $('#en-hola')?.remove();
     burbuja('yo', esc(texto));
-    const pensando = burbuja('ia', '<span class="ia-puntos"><i></i><i></i><i></i></span>');
+    const pensando = burbujaPensando(chat, ['Pensando…', 'Revisando tus rutinas…', 'Cuidando lo que ya carga el deporte…', 'Eligiendo ejercicios…']);
     $('#en-enviar').disabled = true;
     try {
       const r = await preguntar(texto, datosCtx.ia, historial);
       historial.push({ rol: 'yo', texto }, { rol: 'ia', texto: r.respuesta });
-      pensando.innerHTML = esc(r.respuesta || 'Listo.');
+      pensando.terminar(`<span>${esc(r.respuesta || 'Listo.')}</span>`);
       for (const prop of r.rutinas ?? []) pintarPropuesta(prop);
     } catch (e) {
-      pensando.innerHTML = `<span class="quieto">${esc(e.message)}</span>`;
+      pensando.terminar(`<span class="quieto">${esc(e.message)}</span>`);
     } finally { $('#en-enviar').disabled = false; }
   };
 
@@ -221,9 +220,6 @@ export async function abrirEntrenador({ rutinaId = null, enCurso = false, mensaj
     return rutinaId2;
   };
 
-  $('#en-form').addEventListener('submit', (e) => { e.preventDefault(); enviar($('#en-texto').value); });
-  $('#en-texto').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar($('#en-texto').value); } });
-  $('#en-texto').addEventListener('input', (e) => { e.target.style.height = 'auto'; e.target.style.height = `${Math.min(120, e.target.scrollHeight)}px`; });
   d.querySelectorAll('[data-rapido]').forEach((b) => b.addEventListener('click', () => enviar(b.textContent)));
   if (mensaje) enviar(mensaje);
   return d;

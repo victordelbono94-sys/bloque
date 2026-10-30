@@ -10,7 +10,7 @@ class Ajustes(context: Context) {
         get() = prefs.getString("codigo", null)
         set(v) = prefs.edit().putString("codigo", v).apply()
 
-    /** La persona de Bloque dueña de este vínculo (para cambiar de cuenta en el mismo teléfono). */
+    /** La persona de Bloq dueña de este vínculo (para cambiar de cuenta en el mismo teléfono). */
     var personaId: String?
         get() = prefs.getString("persona_id", null)
         set(v) = prefs.edit().putString("persona_id", v).apply()

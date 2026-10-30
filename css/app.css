@@ -1750,3 +1750,145 @@ dialog.pantalla > .estirar .dialogo__pie { position: sticky; bottom: calc(-1 * (
 .micro--sol .micro__nombre::after { content: ' · sol'; color: #F5C84B; font-weight: 600; font-size: 12px; }
 .micro__detalle { padding: 2px 0 10px; font-size: 13px; color: var(--tiza-2); }
 .micro__detalle p { margin: 0 0 6px; }
+
+.kcal__texto--arriba { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: var(--gris); }
+.kcal__numero--ok { font-size: 28px; color: var(--volt); }
+
+/* ================= Chat con la IA (registro, entrenador, despensa): un solo diseño ================= */
+.chatia { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--grafito); }
+.chatia__cab {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(42, 45, 53, 0.92); backdrop-filter: blur(14px); position: relative; z-index: 3;
+}
+.chatia__boton-cab { width: 40px; height: 40px; border-radius: 12px; border: 0; background: var(--grafito-2); color: var(--tiza); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .15s var(--suave), background .2s; }
+.chatia__boton-cab:active { transform: scale(.92); }
+.chatia__titulo { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.chatia__titulo h2 { margin: 0; font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 19px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chatia__sub { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--gris); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chatia__sub .momento-pill { margin: 0; padding: 2px 8px; font-size: 13px; background: rgba(255, 255, 255, 0.07); color: var(--tiza-2); }
+.chatia__accion { display: flex; align-items: center; }
+.chatia__seguir {
+  display: inline-flex; align-items: center; gap: 2px; min-height: 40px; padding: 0 10px 0 16px; border: 0; border-radius: 999px;
+  background: var(--volt); color: var(--asfalto); font: inherit; font-weight: 700; font-size: 15px; cursor: pointer;
+  transition: opacity .25s var(--suave), transform .25s var(--resorte), background .2s;
+}
+.chatia__seguir .icono { width: 18px; height: 18px; stroke-width: 2.6; }
+.chatia__seguir:disabled { opacity: .28; transform: scale(.94); cursor: default; }
+.chatia__seguir:not(:disabled) { animation: seguir-listo .45s var(--resorte); }
+.chatia__seguir:active:not(:disabled) { transform: scale(.94); }
+@keyframes seguir-listo { 0% { transform: scale(.9); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+
+.chatia__cuerpo { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px; display: flex; flex-direction: column; gap: 12px; overscroll-behavior: contain; scroll-padding-bottom: 12px; }
+.chatia__pie { position: relative; z-index: 2; display: flex; flex-direction: column; gap: 8px; padding: 6px 12px calc(env(safe-area-inset-bottom) + 10px); background: var(--grafito); }
+.chatia__pie::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 22px; background: linear-gradient(to top, var(--grafito), rgba(42, 45, 53, 0)); pointer-events: none; }
+
+/* Chips de arriba del cuadro: se desplazan de costado y se desvanecen en los bordes (no se cortan). */
+.chatia__chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 2px 12px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 22px), transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 22px), transparent 100%); }
+.chatia__chips::-webkit-scrollbar { display: none; }
+.chatia__chips .chip { flex-shrink: 0; animation: chip-entra .4s var(--suave) both; }
+.chatia__chips .chip:nth-child(2) { animation-delay: .04s; } .chatia__chips .chip:nth-child(3) { animation-delay: .08s; }
+.chatia__chips .chip:nth-child(4) { animation-delay: .12s; } .chatia__chips .chip:nth-child(n+5) { animation-delay: .16s; }
+@keyframes chip-entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* El cuadro para escribir */
+.chatia__compositor { display: flex; flex-direction: column; gap: 6px; }
+.chatia__fila {
+  display: flex; align-items: flex-end; gap: 2px; min-height: 56px; padding: 6px; border-radius: 28px;
+  background: var(--grafito-2); border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28); transition: border-color .2s, box-shadow .2s;
+}
+.chatia__fila:focus-within { border-color: rgba(198, 244, 50, 0.55); box-shadow: 0 0 0 4px rgba(198, 244, 50, 0.1), 0 10px 30px rgba(0, 0, 0, 0.28); }
+.chatia__fila textarea { flex: 1; min-width: 0; min-height: 44px; max-height: 132px; resize: none; border: 0; background: transparent; color: var(--tiza); font: inherit; font-size: 16px; line-height: 1.4; padding: 11px 8px; box-shadow: none; }
+.chatia__fila textarea:focus-visible { outline: none; }
+.chatia__fila textarea::placeholder { color: var(--gris); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chatia__icono { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--tiza-2); cursor: pointer; transition: background .2s, transform .15s; }
+.chatia__icono:active { transform: scale(.9); background: rgba(255, 255, 255, 0.06); }
+.chatia__icono .icono { width: 22px; height: 22px; }
+.chatia__enviar { position: relative; width: 44px; height: 44px; flex: 0 0 44px; border-radius: 50%; border: 0; cursor: pointer; color: var(--asfalto);
+  background: linear-gradient(135deg, #C6F432, #5EE6C8 60%, #8A7CFF); background-size: 180% 180%; background-position: 0% 0%;
+  transition: background-position .4s var(--suave), transform .2s var(--resorte), opacity .2s; }
+.chatia__enviar > span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transition: transform .35s var(--resorte), opacity .2s; }
+.chatia__enviar .icono { width: 21px; height: 21px; }
+.chatia__enviar .icono--lleno { fill: currentColor; stroke: none; }
+.chatia__enviar-flecha { opacity: 0; transform: scale(.4) translateY(8px); }
+.chatia__enviar-flecha .icono { stroke-width: 2.6; }
+.chatia__enviar--listo { background-position: 0% 0%; background: var(--volt); }
+.chatia__enviar--listo .chatia__enviar-chispa { opacity: 0; transform: scale(.4) rotate(-90deg); }
+.chatia__enviar--listo .chatia__enviar-flecha { opacity: 1; transform: none; }
+.chatia__enviar:active { transform: scale(.88); }
+.chatia__enviar:disabled { opacity: .5; }
+.chatia__estado { margin: 0 8px; font-size: 13px; color: var(--gris); }
+.chatia__adjunto { position: relative; width: 72px; height: 72px; margin-left: 8px; border-radius: 16px; overflow: hidden; animation: chip-entra .35s var(--resorte) both; box-shadow: 0 6px 18px rgba(0, 0, 0, .35); }
+.chatia__adjunto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.chatia__adjunto-quitar { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .65); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.chatia__adjunto-quitar .icono { width: 14px; height: 14px; }
+
+/* Mensajes */
+.chatia__msg { max-width: 86%; padding: 10px 14px; border-radius: 20px; font-size: 15px; line-height: 1.45; animation: msg-entra .38s var(--resorte) both; }
+.chatia__msg--yo { align-self: flex-end; background: var(--volt); color: var(--asfalto); border-bottom-right-radius: 6px; transform-origin: bottom right; }
+.chatia__msg--ia { align-self: flex-start; background: var(--grafito-2); border-bottom-left-radius: 6px; transform-origin: bottom left; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.chatia__msg--ia > span:not(.cubo) { flex: 1; min-width: 0; }
+.chatia__msg--ia .chips, .chatia__msg--ia .reparto-ia, .chatia__msg--ia .ia-msg__duda, .chatia__msg--ia .ia-msg__opciones { flex-basis: 100%; }
+.chatia__msg--propuesta { align-self: stretch; max-width: none; padding: 0; background: none; }
+.chatia__msg--solo { max-width: none; align-self: stretch; }
+.chatia__msg--llega > * { animation: chip-entra .35s var(--suave) both; }
+@keyframes msg-entra { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
+.chatia__msg--pensando { align-items: center; gap: 10px; padding: 10px 16px 10px 12px; }
+.chatia__frase { color: var(--tiza-2); font-size: 14px; background: linear-gradient(90deg, var(--gris) 0%, var(--tiza) 50%, var(--gris) 100%); background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent; animation: brillo-texto 1.6s linear infinite; }
+.chatia__frase--entra { animation: brillo-texto 1.6s linear infinite, frase-entra .35s var(--suave); }
+@keyframes brillo-texto { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes frase-entra { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+/* El cubo de Bloq: mientras la IA piensa, el cuadrado del logo cambia de forma, gira y cambia de color. */
+.cubo { position: relative; width: 26px; height: 26px; flex: 0 0 26px; display: inline-flex; align-items: center; justify-content: center; }
+.cubo i { display: block; width: 16px; height: 16px; border-radius: 3px;
+  background: linear-gradient(135deg, #C6F432, #5EE6C8 50%, #8A7CFF); background-size: 250% 250%;
+  animation: cubo-forma 2.6s cubic-bezier(.65, 0, .35, 1) infinite, cubo-color 3.2s ease-in-out infinite alternate;
+  box-shadow: 0 0 12px rgba(198, 244, 50, 0.35); }
+@keyframes cubo-forma {
+  0%   { border-radius: 3px; transform: translateY(0) rotate(0) scale(1); }
+  16%  { border-radius: 3px; transform: translateY(-4px) rotate(0) scale(.9, 1.1); }
+  28%  { border-radius: 50%; transform: translateY(0) rotate(90deg) scale(.85); }
+  46%  { border-radius: 50% 3px 50% 3px; transform: rotate(180deg) scale(1.05); }
+  62%  { border-radius: 2px; transform: rotate(225deg) scale(.78); }
+  80%  { border-radius: 50% 50% 3px 3px; transform: rotate(360deg) scale(1.08, .9); }
+  100% { border-radius: 3px; transform: rotate(360deg) scale(1); }
+}
+@keyframes cubo-color { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+.cubo--grande { width: 56px; height: 56px; flex-basis: 56px; }
+.cubo--grande i { width: 36px; height: 36px; border-radius: 9px; box-shadow: 0 10px 30px rgba(198, 244, 50, 0.25); }
+.cubo--quieto i { animation: cubo-respira 3.6s ease-in-out infinite, cubo-color 4s ease-in-out infinite alternate; }
+@keyframes cubo-respira { 0%, 100% { transform: rotate(0) scale(1); border-radius: 9px; } 50% { transform: rotate(8deg) scale(1.06); border-radius: 14px; } }
+@media (prefers-reduced-motion: reduce) { .cubo i, .chatia__frase { animation: none !important; } }
+
+/* Bienvenida (todavía no hay mensajes) */
+.chatia__bienvenida { margin: auto 0; padding: 12px 4px 4px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; animation: msg-entra .5s var(--suave) both; }
+.chatia__bienvenida h3 { margin: 6px 0 0; font-family: var(--titulo); font-stretch: 112%; font-weight: 800; font-size: 22px; }
+.chatia__bienvenida p { margin: 0; max-width: 34ch; color: var(--gris); font-size: 15px; line-height: 1.45; }
+.chatia__sugerencias { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 380px; margin-top: 14px; }
+.chatia__sugerencia { display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 16px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--grafito-2); color: var(--tiza); font: inherit; font-size: 15px; text-align: left; cursor: pointer;
+  animation: chip-entra .45s var(--suave) both; animation-delay: calc(.12s + var(--k) * .06s); transition: transform .15s, border-color .2s; }
+.chatia__sugerencia:active { transform: scale(.98); border-color: rgba(198, 244, 50, 0.5); }
+
+/* Total del plato, fijo arriba del cuerpo mientras se arma */
+.chatia__resumen { position: sticky; top: -16px; z-index: 2; margin: -16px -16px 0; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: rgba(42, 45, 53, 0.9); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 14px; animation: chip-entra .3s var(--suave) both; }
+.chatia__resumen strong { font-family: var(--titulo); font-size: 17px; }
+.item-comida { animation: item-entra .42s var(--resorte) both; }
+@keyframes item-entra { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+
+/* Despensa: el mismo cuadro, dentro de la tarjeta */
+.chatia__compositor--suelto .chatia__fila { box-shadow: none; background: var(--asfalto); }
+#r-vacio:not([hidden]) { margin: auto 0; }
+.item-comida--quieto { animation: none; }
+.chatia__pie[hidden] { display: none; }
+.chatia__foto { display: block; width: 180px; max-width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 14px; margin: -4px -8px 6px; }
+.chatia__msg--yo:has(.chatia__foto) { padding: 8px 8px 10px; }
+.chatia__msg--yo:has(.chatia__foto) > span { display: block; padding: 0 6px; }
+.ia-chat { gap: 10px; }
+.reg .chatia__cuerpo .reg__momentos { margin: 0; }

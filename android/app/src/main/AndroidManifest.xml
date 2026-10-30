@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Instalar las actualizaciones de Bloque (Android lo pide una vez) -->
+    <!-- Instalar las actualizaciones de Bloq (Android lo pide una vez) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Avisos del gym: notificaciones, llegar al gimnasio y volver a programarlos al reiniciar -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

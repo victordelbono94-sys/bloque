@@ -24,7 +24,7 @@ object Api {
             val texto = (if (estado in 200..299) con.inputStream else con.errorStream)
                 ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: "{}"
             if (estado == 401) throw NoVinculado()
-            if (estado !in 200..299) throw Exception("Bloque respondió $estado: $texto")
+            if (estado !in 200..299) throw Exception("Bloq respondió $estado: $texto")
             return JSONObject(texto)
         } finally {
             con.disconnect()

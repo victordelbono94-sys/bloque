@@ -126,7 +126,7 @@ object Descanso {
         if (nm.getNotificationChannel(CANAL) != null) return
         nm.createNotificationChannel(NotificationChannel(CANAL, "Descanso entre series", NotificationManager.IMPORTANCE_HIGH).apply {
             description = "Avisa cuando se acaba el descanso del gym con la app cerrada"
-            enableVibration(false) // la vibración la maneja Bloque (cuenta regresiva)
+            enableVibration(false) // la vibración la maneja Bloq (cuenta regresiva)
             setSound(null, null)
         })
     }

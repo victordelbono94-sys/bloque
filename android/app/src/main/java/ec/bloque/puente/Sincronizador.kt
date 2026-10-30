@@ -25,7 +25,7 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.reflect.KClass
 
-/** Una vuelta completa: leer de Health Connect, mandar a Bloque y escribir lo pendiente. */
+/** Una vuelta completa: leer de Health Connect, mandar a Bloq y escribir lo pendiente. */
 object Sincronizador {
 
     suspend fun sincronizar(context: Context): String = withContext(Dispatchers.IO) {
@@ -57,11 +57,11 @@ object Sincronizador {
         val respuesta = Api.sincronizar(codigo, cuerpo)
         respuesta.optString("nombre").takeIf { it.isNotEmpty() }?.let { ajustes.nombre = it }
 
-        // Mediciones cargadas en Bloque que faltan en Health Connect.
+        // Mediciones cargadas en Bloq que faltan en Health Connect.
         val escritas = escribirPendientes(context, hc, permisos, respuesta.optJSONArray("pendientes") ?: JSONArray())
         if (escritas.length() > 0) Api.sincronizar(codigo, JSONObject().put("escritas", escritas))
 
-        // ¿Grabaste fuerza en el reloj sin abrir el entreno en Bloque? Se ofrece anotar las series.
+        // ¿Grabaste fuerza en el reloj sin abrir el entreno en Bloq? Se ofrece anotar las series.
         try { Avisos.alSincronizar(context, sesiones) } catch (e: Exception) { }
         // ¿Ya te despertaste? Una hora después se pregunta cómo amaneciste; y se guarda lo de hoy para los recordatorios.
         try { Bienestar.alSincronizar(context, cuerpo.getJSONArray("dias"), respuesta.optJSONObject("hoy")) } catch (e: Exception) { }

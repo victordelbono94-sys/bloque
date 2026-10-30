@@ -1,4 +1,4 @@
-// Puente con la app Android de Bloque. Dentro de la app existe window.BloqueNativo;
+// Puente con la app Android de Bloq. Dentro de la app existe window.BloqueNativo;
 // en el navegador no, y todo esto queda inactivo.
 import { sb, estado, datos } from './db.js';
 
@@ -47,7 +47,7 @@ export async function loginEnApp() {
 }
 
 // Conecta este teléfono con la cuenta que inició sesión (una sola vez por cuenta).
-// Crea un código, guarda en Bloque solo su hash y le da el código a la app.
+// Crea un código, guarda en Bloq solo su hash y le da el código a la app.
 export async function asegurarVinculo() {
   if (!puente || !estado.yo) return;
   const e = estadoNativo();

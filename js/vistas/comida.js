@@ -4,6 +4,7 @@
 //   Despensa → lo que hay en casa (cargado con Gemini) e ideas para cocinar con eso
 import { emparejar, esIndividual, asistenciaIndividual, porConfirmar } from '../actividades.js';
 import { cargarSyncs } from '../hecho.js';
+import { htmlCompositor, conectarCompositor, burbujaPensando, cubo } from '../chatia.js';
 import { deporte } from '../deportes.js';
 import { metaAgua, aguaDeComidas, cargarAgua, sumarAgua, borrarAgua, litros } from '../hidratacion.js';
 import { sb, estado, datos } from '../db.js';
@@ -86,7 +87,7 @@ async function vistaDia(app, fecha) {
     ${pestanas('dia', fecha)}
 
     <section class="ia-caja ia-inicio" aria-label="Agregar comida">
-      <span class="ia-inicio__marca">${ICONO_CHISPA} IA de Bloque</span>
+      <span class="ia-inicio__marca">${ICONO_CHISPA} IA de Bloq</span>
       <form class="ia-inicio__barra" id="rapido">
         <input id="rapido-texto" autocomplete="off" maxlength="400" placeholder="¿Qué comiste${esHoy ? '' : ' ese día'}?" aria-label="Qué comiste">
         <label class="ia-inicio__icono" aria-label="Sacar foto del plato">${ICONO_FOTO}<input type="file" id="rapido-camara" accept="image/*" capture="environment" hidden></label>
@@ -102,14 +103,6 @@ async function vistaDia(app, fecha) {
       <div class="ver-persona" role="tablist" aria-label="De quién ver el día">
         ${info.map((x) => `<button type="button" class="ver-persona__op" role="tab" data-ver="${esc(x.p.id)}" aria-selected="${x === visto}">
           <span class="ver-persona__cara">${cara(x.p)}</span><span>${esc(x === yo ? 'Yo' : x.p.nombre)}</span>
-          ${x.metas.ok ? (() => {
-            // Lo que le queda por comer hoy, o cuánto se pasó (con el mismo criterio del resumen: según su objetivo).
-            const resto = Math.round(x.metas.kcal - x.comido.kcal);
-            const diag = diagnosticoDia({ metas: x.metas, comido: x.comido });
-            return resto >= 0
-              ? `<span class="ver-persona__kcal">faltan ${kc(resto)}</span>`
-              : `<span class="ver-persona__kcal ver-persona__kcal--${diag.tono === 'ojo' ? 'ojo' : 'ok'}">+${kc(-resto)} kcal</span>`;
-          })() : ''}
         </button>`).join('')}
       </div>` : ''}
     <div id="resumen-persona" class="resumen-persona">${htmlResumen(visto, true, esHoy && visto === yo, visto === yo)}</div>
@@ -274,7 +267,8 @@ async function mostrarIdeas(ctx, cont, boton) {
   try { const c = JSON.parse(sessionStorage.getItem(clave) ?? 'null'); if (c && Date.now() - c.t < 30 * 60e3 && !boton.dataset.otra) ideas = c.ideas; } catch { /* sin caché */ }
   if (!ideas) {
     boton.disabled = true;
-    cont.innerHTML = '<p class="quieto" style="margin:0">Pensando ideas con tu despensa y lo que te falta hoy…</p>';
+    cont.innerHTML = '';
+    burbujaPensando(cont, ['Pensando ideas…', 'Mirando tu despensa…', 'Viendo lo que te falta hoy…'], 'chatia__msg chatia__msg--ia chatia__msg--solo');
     const ahora = new Date();
     const falta = yo.metas.ok ? {
       kcal: Math.round(yo.metas.kcal - yo.comido.kcal), proteina_g: Math.round(yo.metas.proteina - yo.comido.proteina),
@@ -430,14 +424,14 @@ async function vistaDespensa(app) {
     ${pestanas('despensa')}
     <section class="tarjeta pila" style="gap:10px">
       <h2 class="seccion__titulo" style="margin:0">Agregar lo que compraste</h2>
-      <textarea id="dp-texto" rows="2" maxlength="1200" class="area" placeholder="Ej.: 2 fundas de fideos de 400 g, 1 kg de arroz, 30 huevos, 2 litros de leche"></textarea>
-      <div class="fila" style="gap:8px;flex-wrap:wrap">
-        <button type="button" class="boton boton--chico" id="dp-leer">${ICONO_CHISPA} Agregar con IA</button>
-        <button type="button" class="boton boton--sec boton--chico" id="dp-foto">${ICONO_FOTO} Foto de las compras</button>
-        <button type="button" class="boton boton--texto boton--chico" id="dp-manual">Buscar o escanear</button>
-        <input type="file" id="dp-archivo" accept="image/*" hidden>
+      <div class="chatia__compositor--suelto">${htmlCompositor({
+        id: 'dp', placeholder: 'Ej.: 1 kg de arroz, 30 huevos, 2 L de leche',
+        ids: { texto: 'dp-texto', enviar: 'dp-leer', camara: 'dp-camara', galeria: 'dp-archivo', foto: 'dp-foto-prev', quitar: 'dp-foto-quitar', estado: 'dp-estado' },
+      })}</div>
+      <div class="fila" style="gap:8px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="chip chip--mini" id="dp-manual">🔍 Buscar o escanear</button>
+        <span class="ayuda" style="margin:0">o una foto de las fundas, la alacena, la refri o el ticket.</span>
       </div>
-      <p class="ayuda" style="margin:0">Sirve una foto de las fundas, la alacena, la refri o el ticket.</p>
       <div id="dp-revision"></div>
     </section>
 
@@ -453,7 +447,8 @@ async function vistaDespensa(app) {
   const revision = app.querySelector('#dp-revision');
   const procesar = async (cuerpo, boton) => {
     boton.disabled = true;
-    revision.innerHTML = '<p class="quieto" style="margin:0">La IA está leyendo…</p>';
+    revision.innerHTML = '';
+    burbujaPensando(revision, cuerpo.imagen ? ['Mirando la foto…', 'Reconociendo productos…', 'Calculando envases…'] : ['Leyendo tu lista…', 'Buscando cada producto…'], 'chatia__msg chatia__msg--ia chatia__msg--solo');
     try {
       const { productos = [] } = await gemini('despensa', cuerpo);
       if (!productos.length) { revision.innerHTML = '<p class="quieto" style="margin:0">No encontré comida ahí. Prueba de nuevo.</p>'; return; }
@@ -462,17 +457,25 @@ async function vistaDespensa(app) {
       revision.innerHTML = `<p class="quieto" style="margin:0">${esc(err.message)}</p>`;
     } finally { boton.disabled = false; }
   };
-  app.querySelector('#dp-leer').addEventListener('click', (e) => {
-    const texto = app.querySelector('#dp-texto').value.trim();
-    if (!texto) return app.querySelector('#dp-texto').focus();
-    procesar({ texto }, e.currentTarget);
+  const dpCompositor = conectarCompositor(app, {
+    texto: '#dp-texto', enviar: '#dp-leer',
+    alEnviar: () => {
+      const texto = app.querySelector('#dp-texto').value.trim();
+      if (!texto) return app.querySelector('#dp-texto').focus();
+      dpCompositor.limpiar();
+      procesar({ texto }, app.querySelector('#dp-leer'));
+    },
   });
-  app.querySelector('#dp-foto').addEventListener('click', () => app.querySelector('#dp-archivo').click());
-  app.querySelector('#dp-archivo').addEventListener('change', async (e) => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (f) procesar({ imagen: await fotoBase64(f), tipo: 'image/jpeg', texto: app.querySelector('#dp-texto').value.trim() }, app.querySelector('#dp-foto'));
-  });
+  for (const id of ['#dp-camara', '#dp-archivo']) {
+    app.querySelector(id).addEventListener('change', async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = '';
+      if (!f) return;
+      const texto = app.querySelector('#dp-texto').value.trim();
+      dpCompositor.limpiar();
+      procesar({ imagen: await fotoBase64(f), tipo: 'image/jpeg', texto }, app.querySelector('#dp-leer'));
+    });
+  }
   app.querySelector('#dp-manual').addEventListener('click', () => dialogoPaquete({ recargar }));
   app.querySelectorAll('[data-paquete]').forEach((b) => b.addEventListener('click', () =>
     dialogoEditarPaquete(despensa.find((x) => x.id === b.dataset.paquete), { recargar })));
@@ -691,9 +694,11 @@ function htmlResumen(x, esYo, esHoy = true, mio = esYo) {
   return `
     <section class="tarjeta dia-comida" style="margin-top:4px">
       <div class="kcal">
-        <div>
-          <span class="kcal__numero">${kc(Math.abs(quedan))}</span>
-          <span class="kcal__texto">${quedan >= 0 ? 'kcal por comer' : 'kcal de más'}</span>
+        <div>${quedan >= 25
+          ? `<span class="kcal__texto kcal__texto--arriba">Faltan</span><span class="kcal__numero">${kc(quedan)}</span><span class="kcal__texto">kcal por comer</span>`
+          : quedan > -25
+            ? '<span class="kcal__numero kcal__numero--ok">Meta cumplida ✓</span><span class="kcal__texto">Ya no te faltan calorías hoy</span>'
+            : `<span class="kcal__texto kcal__texto--arriba">Te pasaste</span><span class="kcal__numero">+${kc(-quedan)}</span><span class="kcal__texto">kcal de más</span>`}
         </div>
         <span class="quieto kcal__meta">${kc(comido.kcal)} de ${kc(metas.kcal)}</span>
       </div>

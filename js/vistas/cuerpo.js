@@ -197,7 +197,7 @@ function borrarMedicion(id, alTerminar) {
   const d = abrirDialogo(`
     <div class="dialogo">
       <h2 class="tarjeta__titulo">¿Eliminar la medición?</h2>
-      <p>Se borra de Bloque. Si ya se había sincronizado con Health Connect, bórrala también allá.</p>
+      <p>Se borra de Bloq. Si ya se había sincronizado con Health Connect, bórrala también allá.</p>
       <div class="dialogo__pie">
         <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
         <button type="button" class="boton" id="confirmar">Eliminar</button>

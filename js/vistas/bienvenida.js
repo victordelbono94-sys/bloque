@@ -1,4 +1,4 @@
-// Primera vez en Bloque: tu nombre, cómo vas a usar la app (hogar nuevo, unirte o solo)
+// Primera vez en Bloq: tu nombre, cómo vas a usar la app (hogar nuevo, unirte o solo)
 // y tu deporte. Si llegaste con un link de invitación, va directo a unirte.
 import { estado } from '../db.js';
 import { esc, aviso, avisoError } from '../ui.js';
@@ -23,9 +23,9 @@ export function pantallaBienvenida(app, alTerminar, alSalir) {
       app.innerHTML = `
         <section class="bienvenida">
           ${PUNTOS(0, total)}
-          <span class="wordmark" aria-label="bloque">bl<span class="wordmark__bloque" aria-hidden="true"></span>que</span>
+          <span class="wordmark" aria-label="bloq">bl<span class="wordmark__bloque" aria-hidden="true"></span>q</span>
           <h1 class="titulo">Hola 👋</h1>
-          <p class="subtitulo">Bloque arma tus entrenos, tu semana y tu comida según tu deporte y tus objetivos. Empecemos por lo básico.</p>
+          <p class="subtitulo">Bloq arma tus entrenos, tu semana y tu comida según tu deporte y tus objetivos. Empecemos por lo básico.</p>
           <div class="campo">
             <label for="b-nombre">¿Cómo te llamas?</label>
             <input id="b-nombre" type="text" maxlength="40" autocomplete="given-name" value="${esc(s.nombre)}" placeholder="Tu nombre">
@@ -49,7 +49,7 @@ export function pantallaBienvenida(app, alTerminar, alSalir) {
       app.innerHTML = `
         <section class="bienvenida">
           ${PUNTOS(1, total)}
-          <h1 class="titulo">¿Cómo vas a usar Bloque?</h1>
+          <h1 class="titulo">¿Cómo vas a usar Bloq?</h1>
           <div class="opciones">
             ${opcion('equipo', '👥', 'Crear un hogar', 'Vives o entrenas con otras personas (tu pareja, familia, amigos). Comparten la semana, las rutinas y la comida.')}
             ${opcion('unirme', '🔑', 'Unirme a un hogar', 'Alguien ya creó el hogar y te pasó un código.')}
@@ -120,7 +120,7 @@ export function pantallaBienvenida(app, alTerminar, alSalir) {
       try {
         await crearEquipo(s.nombre, { nombre: s.equipo || null, personal: s.modo === 'solo', deporte: leer() ?? 'otro' });
         olvidarInvitacion();
-        await alTerminar(s.modo === 'equipo' ? 'Hogar creado. Invita a los demás desde Perfil.' : '¡Listo! Bienvenido a Bloque.');
+        await alTerminar(s.modo === 'equipo' ? 'Hogar creado. Invita a los demás desde Perfil.' : '¡Listo! Bienvenido a Bloq.');
       } catch (err) {
         avisoError(err);
         boton.disabled = false;
@@ -139,7 +139,7 @@ export function pantallaBienvenida(app, alTerminar, alSalir) {
   pintar();
 }
 
-// Link de invitación abierto por alguien que ya usa Bloque: confirmar antes de cambiar de equipo.
+// Link de invitación abierto por alguien que ya usa Bloq: confirmar antes de cambiar de equipo.
 export async function vistaUnirme(app) {
   const codigo = (location.hash.split('/')[2] ?? '').toUpperCase();
   olvidarInvitacion();

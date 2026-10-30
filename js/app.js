@@ -1,4 +1,4 @@
-// Arranque de Bloque: sesión, equipo y navegación entre pantallas.
+// Arranque de Bloq: sesión, equipo y navegación entre pantallas.
 import { sb, estado, cargarPersonas, fotoInicialDeGoogle, revisarDespertar } from './db.js';
 import { hoyISO } from './fechas.js';
 import { aviso, avisoError } from './ui.js';
@@ -43,7 +43,7 @@ function pantallaIngreso() {
   nav.hidden = true;
   app.innerHTML = `
     <section class="pantalla-centro">
-      <span class="wordmark wordmark--grande" aria-label="bloque">bl<span class="wordmark__bloque" aria-hidden="true"></span>que</span>
+      <span class="wordmark wordmark--grande" aria-label="bloq">bl<span class="wordmark__bloque" aria-hidden="true"></span>q</span>
       <p class="subtitulo">Entrenamiento, cuerpo y comidas, juntos.</p>
       <button class="boton boton--bloque" id="entrar" type="button">Entrar con Google</button>
     </section>`;
@@ -162,7 +162,7 @@ function iniciar() {
 }
 
 async function arrancar() {
-  // En el teléfono, Bloque solo funciona instalada como app.
+  // En el teléfono, Bloq solo funciona instalada como app.
   if (!estaInstalada() && !puedeSeguirEnNavegador()) {
     nav.hidden = true;
     return pantallaInstalar(app, iniciar);

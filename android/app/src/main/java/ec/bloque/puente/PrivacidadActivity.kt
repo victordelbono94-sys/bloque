@@ -10,7 +10,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 
-/** Lo que Health Connect muestra cuando alguien pregunta cómo usa Bloque los datos. */
+/** Lo que Health Connect muestra cuando alguien pregunta cómo usa Bloq los datos. */
 class PrivacidadActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,17 +22,17 @@ class PrivacidadActivity : ComponentActivity() {
             setPadding(dp(20), dp(28), dp(20), dp(28))
         }
         contenido.addView(TextView(this).apply {
-            text = "Cómo usa Bloque tus datos"
+            text = "Cómo usa Bloq tus datos"
             setTextColor(tiza); textSize = 24f; typeface = Typeface.DEFAULT_BOLD
             setPadding(0, 0, 0, dp(16))
         })
         contenido.addView(TextView(this).apply {
-            text = "Bloque lee de Health Connect tus pasos, calorías, sueño, frecuencia cardiaca, " +
-                "entrenos y mediciones corporales, y los guarda en tu cuenta privada de Bloque " +
+            text = "Bloq lee de Health Connect tus pasos, calorías, sueño, frecuencia cardiaca, " +
+                "entrenos y mediciones corporales, y los guarda en tu cuenta privada de Bloq " +
                 "para planificar tus entrenamientos y cuidar tu recuperación.\n\n" +
-                "También escribe en Health Connect las mediciones que cargas en Bloque " +
+                "También escribe en Health Connect las mediciones que cargas en Bloq " +
                 "(peso, grasa, masa magra, masa ósea, agua y metabolismo basal).\n\n" +
-                "Solo tú y las personas de tu hogar en Bloque ven estos datos. No se venden ni se " +
+                "Solo tú y las personas de tu hogar en Bloq ven estos datos. No se venden ni se " +
                 "comparten con nadie más. Puedes quitar los permisos o cerrar sesión cuando quieras."
             setTextColor(tiza); textSize = 16f; setLineSpacing(0f, 1.25f)
             background = GradientDrawable().apply { setColor(Color.parseColor("#2A2D35")); cornerRadius = dp(16).toFloat() }

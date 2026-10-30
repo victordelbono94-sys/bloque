@@ -21,7 +21,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Actualizaciones de la parte nativa. Bloque no viene de Play Store, así que revisa
+ * Actualizaciones de la parte nativa. Bloq no viene de Play Store, así que revisa
  * la última versión publicada en GitHub, la descarga y abre el instalador de Android.
  */
 class Actualizador(private val activity: ComponentActivity, private val versionActual: Long) {
@@ -74,10 +74,10 @@ class Actualizador(private val activity: ComponentActivity, private val versionA
         dialogoAbierto = true
         val novedades = remota.optString("novedades").takeIf { it.isNotBlank() }
         AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle("Hay una actualización de Bloque")
+            .setTitle("Hay una actualización de Bloq")
             .setMessage(
                 (novedades?.let { "$it\n\n" } ?: "") +
-                    "Hace falta instalarla para seguir usando Bloque. Se instala encima de la actual: no se pierde nada."
+                    "Hace falta instalarla para seguir usando Bloq. Se instala encima de la actual: no se pierde nada."
             )
             .setCancelable(false)
             .setPositiveButton("Actualizar") { _, _ -> descargar() }
@@ -95,7 +95,7 @@ class Actualizador(private val activity: ComponentActivity, private val versionA
             addView(barra)
         }
         val dialogo = AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle("Actualizando Bloque")
+            .setTitle("Actualizando Bloq")
             .setView(caja)
             .setCancelable(false)
             .show()
@@ -154,11 +154,11 @@ class Actualizador(private val activity: ComponentActivity, private val versionA
     private fun puedeInstalar(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.O || activity.packageManager.canRequestPackageInstalls()
 
-    // Android pide una vez permitir que Bloque instale sus propias actualizaciones.
+    // Android pide una vez permitir que Bloq instale sus propias actualizaciones.
     private fun pedirPermisoInstalar() {
         AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
             .setTitle("Un permiso, una sola vez")
-            .setMessage("Android va a pedir que permitas a Bloque instalar actualizaciones. Activa «Permitir de esta fuente» y vuelve atrás.")
+            .setMessage("Android va a pedir que permitas a Bloq instalar actualizaciones. Activa «Permitir de esta fuente» y vuelve atrás.")
             .setPositiveButton("Continuar") { _, _ ->
                 instalarAlVolver = true
                 activity.startActivity(

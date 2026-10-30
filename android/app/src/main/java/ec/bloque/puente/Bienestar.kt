@@ -46,7 +46,7 @@ object Bienestar {
 
     // ---------- Después de cada sincronización ----------
 
-    /** Con los días leídos de Health Connect y lo que Bloque sabe de hoy (comidas, agua). */
+    /** Con los días leídos de Health Connect y lo que Bloq sabe de hoy (comidas, agua). */
     fun alSincronizar(c: Context, dias: JSONArray, hoyServidor: JSONObject?) {
         hoyServidor?.let { prefs(c).edit().putString("hoy", it.put("guardado", LocalDate.now().toString()).toString()).apply() }
         if (!Avisos.config(c).optBoolean("despertar", true)) return
@@ -105,7 +105,7 @@ object Bienestar {
 
     @SuppressLint("MissingPermission")
     fun confirmarCansancio(c: Context, ok: Boolean, valor: Int) {
-        val texto = if (ok) "Anotado: ${mapOf(2 to "fresco", 3 to "normal", 4 to "cansado")[valor]}. Tu semáforo se actualiza al abrir Bloque."
+        val texto = if (ok) "Anotado: ${mapOf(2 to "fresco", 3 to "normal", 4 to "cansado")[valor]}. Tu semáforo se actualiza al abrir Bloq."
         else "No se pudo anotar (sin conexión). Ábrela y márcalo en Hoy."
         val n = NotificationCompat.Builder(c, CANAL)
             .setSmallIcon(R.drawable.ic_aviso)
@@ -121,7 +121,7 @@ object Bienestar {
 
     // ---------- ¿Qué fue este entreno? ----------
 
-    /** Entrenos genéricos del reloj que Bloque no sabe qué fueron: se pregunta una vez por cada uno. */
+    /** Entrenos genéricos del reloj que Bloq no sabe qué fueron: se pregunta una vez por cada uno. */
     @SuppressLint("MissingPermission")
     fun preguntarEntrenos(c: Context, lista: JSONArray?) {
         if (lista == null || lista.length() == 0) return
@@ -174,7 +174,7 @@ object Bienestar {
             .setSmallIcon(R.drawable.ic_aviso)
             .setColor(Color.parseColor("#C6F432"))
             .setContentTitle(if (ok) "Anotado: $nombre ✓" else "Ups")
-            .setContentText(if (ok) "Se cuenta en tu día al abrir Bloque." else "No se pudo anotar (sin conexión). Ábrela y elígelo en Hoy.")
+            .setContentText(if (ok) "Se cuenta en tu día al abrir Bloq." else "No se pudo anotar (sin conexión). Ábrela y elígelo en Hoy.")
             .setContentIntent(abrirApp(c, "hoy", 2))
             .setAutoCancel(true)
             .setTimeoutAfter(if (ok) 10_000 else 0)
@@ -276,7 +276,7 @@ object Bienestar {
     }
 }
 
-/** Respuesta desde la notificación («Fresco / Normal / Cansado»): se manda a Bloque sin abrir la app. */
+/** Respuesta desde la notificación («Fresco / Normal / Cansado»): se manda a Bloq sin abrir la app. */
 class CheckinReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val valor = intent.getIntExtra("cansancio", 0).takeIf { it in 1..5 } ?: return
@@ -294,7 +294,7 @@ class CheckinReceiver : BroadcastReceiver() {
     }
 }
 
-/** Respuesta desde «¿Qué fue este entreno?» (Derby / Gym…): se manda a Bloque sin abrir la app. */
+/** Respuesta desde «¿Qué fue este entreno?» (Derby / Gym…): se manda a Bloq sin abrir la app. */
 class ConfirmarReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getStringExtra("id") ?: return

@@ -247,7 +247,7 @@ object Avisos {
         notificar(c, e, "hora", "Hoy toca gym$cuando", e.titulo, "Comenzar")
     }
 
-    /** Después de sincronizar: un entreno de fuerza del reloj sin entreno abierto en Bloque. */
+    /** Después de sincronizar: un entreno de fuerza del reloj sin entreno abierto en Bloq. */
     fun alSincronizar(c: Context, sesiones: JSONArray) {
         if (!config(c).optBoolean("reloj")) return
         val zona = ZoneId.systemDefault()

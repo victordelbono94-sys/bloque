@@ -31,7 +31,7 @@ import java.time.Period
 import java.time.ZoneId
 import kotlin.reflect.KClass
 
-/** Lee de Health Connect lo que Bloque necesita. Salta lo que no tiene permiso. */
+/** Lee de Health Connect lo que Bloq necesita. Salta lo que no tiene permiso. */
 class Lector(private val context: Context, private val hc: HealthConnectClient, private val permisos: Set<String>) {
     private val zona: ZoneId = ZoneId.systemDefault()
 

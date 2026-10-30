@@ -62,7 +62,7 @@ export function conectarDeporte(cont, alCambiar) {
 }
 
 export function textoInvitacion(equipo) {
-  return `Únete a «${equipo.nombre}» en Bloque 💪\n\n`
+  return `Únete a «${equipo.nombre}» en Bloq 💪\n\n`
     + `1. Instala la app: ${APK}\n`
     + `2. Entra con Google y elige «Unirme a un hogar»\n`
     + `3. Usa el código ${equipo.codigo}\n\n`

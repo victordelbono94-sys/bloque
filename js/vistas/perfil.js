@@ -115,8 +115,8 @@ export async function vistaPerfil(app) {
       <h2 class="seccion__titulo" id="banda">Banda y Health Connect</h2>
       <div class="tarjeta pila" id="banda-tarjeta">
         ${enApp ? htmlNativo(estadoNativo()) : `
-          <p class="quieto" style="margin:0">Los datos de la banda llegan desde la app Bloque para Android, que lee Health Connect.</p>
-          <a class="boton boton--sec" href="${APK}">Descargar la app Bloque</a>`}
+          <p class="quieto" style="margin:0">Los datos de la banda llegan desde la app Bloq para Android, que lee Health Connect.</p>
+          <a class="boton boton--sec" href="${APK}">Descargar la app Bloq</a>`}
         ${dispositivos.length ? `
           <div class="pila" style="gap:10px;margin-top:4px">
             <p class="seccion__titulo" style="margin:6px 0 0">Teléfonos conectados</p>
@@ -247,7 +247,7 @@ function htmlNativo(e) {
       <button type="button" class="boton boton--sec" data-nativo="permisos">Instalar Health Connect</button>`;
   }
   if (!e.permisosLectura) {
-    return `<p style="margin:0"><strong>Falta dar permisos.</strong> Bloque necesita leer pasos, sueño, frecuencia cardiaca, entrenos y peso.</p>
+    return `<p style="margin:0"><strong>Falta dar permisos.</strong> Bloq necesita leer pasos, sueño, frecuencia cardiaca, entrenos y peso.</p>
       <button type="button" class="boton" data-nativo="permisos">Dar permisos de Health Connect</button>`;
   }
   const ultima = e.ultimaSync ? `Sincronizó ${haceCuanto(e.ultimaSync)}` : 'Todavía no sincronizó';
@@ -273,7 +273,7 @@ function conectarNativo(app) {
     tarjeta.querySelectorAll('[data-nativo]').forEach((b) => b.addEventListener('click', () => {
       if (b.dataset.nativo === 'permisos') pedirPermisos();
       if (b.dataset.nativo === 'sync') sincronizarAhora();
-      if (b.dataset.nativo === 'actualizar') { buscarActualizacion(); aviso('Buscando actualizaciones…'); }
+      if (b.dataset.nativo === 'actualizar') import('../actualizar.js').then((m) => m.comprobarAhora());
     }));
   };
   tarjeta.querySelectorAll('a[href^="https://github.com"]').forEach((a) => a.addEventListener('click', (e) => {
@@ -449,7 +449,7 @@ function conectarGimnasio(app, gimnasio) {
 function htmlAvisos(e, gimnasio) {
   if (!soportaAvisos) {
     return `<p style="margin:0"><strong>Avisos al llegar al gym</strong></p>
-      <p class="quieto" style="margin:0">Para activarlos, actualiza la app Bloque.</p>
+      <p class="quieto" style="margin:0">Para activarlos, actualiza la app Bloq.</p>
       <button type="button" class="boton boton--sec" data-aviso="actualizar">Buscar actualización</button>`;
   }
   const a = e?.avisos ?? {};
@@ -478,7 +478,7 @@ function htmlAvisos(e, gimnasio) {
   return `
     ${sinNotif && (a.llegada || a.hora || a.reloj || a.despertar || a.agua || a.comidas) ? `
       <div class="aviso-falta aviso-falta--bloque">
-        <p style="margin:0">Las notificaciones de Bloque están apagadas.</p>
+        <p style="margin:0">Las notificaciones de Bloq están apagadas.</p>
         <button type="button" class="boton boton--chico" data-aviso="notificaciones">Permitir notificaciones</button>
       </div>` : ''}
     ${fila('aviso-llegada', 'Al llegar al gimnasio', 'Si hoy toca gym, te avisa con el botón Comenzar.', a.llegada, faltaLlegada)}
@@ -486,7 +486,7 @@ function htmlAvisos(e, gimnasio) {
       <div class="chips" id="aviso-minutos" style="margin-left:34px">
         ${[0, 10, 30].map((m) => `<button type="button" class="chip" data-valor="${m}" aria-pressed="${(a.minutosAntes ?? 10) === m}">${m ? `${m} min antes` : 'A la hora'}</button>`).join('')}
       </div>` : '')}
-    ${fila('aviso-reloj', 'Cuando el reloj registre un entreno', 'Si grabaste fuerza en la banda y no abriste el entreno en Bloque, te ofrece anotar las series.', a.reloj)}
+    ${fila('aviso-reloj', 'Cuando el reloj registre un entreno', 'Si grabaste fuerza en la banda y no abriste el entreno en Bloq, te ofrece anotar las series.', a.reloj)}
     ${a.confirmable ? fila('aviso-confirmar', '¿Qué fue este entreno?', 'Si el reloj guarda un «otro entreno» (patinaje, eSports…), te pregunta qué fue en vez de adivinar. Respondes desde la notificación.', a.confirmar !== false) : ''}
     <p class="seccion__titulo" style="margin:10px 0 0">Bienestar</p>
     ${a.bienestar ? `
@@ -500,7 +500,7 @@ function conectarAvisos(app) {
   const tarjeta = app.querySelector('#avisos-tarjeta');
   if (!tarjeta) return;
   const conectar = () => {
-    tarjeta.querySelector('[data-aviso="actualizar"]')?.addEventListener('click', () => { buscarActualizacion(); aviso('Buscando actualizaciones…'); });
+    tarjeta.querySelector('[data-aviso="actualizar"]')?.addEventListener('click', () => import('../actualizar.js').then((m) => m.comprobarAhora()));
     if (!soportaAvisos) return;
     const leer = () => ({
       llegada: tarjeta.querySelector('#aviso-llegada').checked,

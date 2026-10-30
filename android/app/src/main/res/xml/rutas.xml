@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Archivos que Bloque comparte con el instalador de Android: solo la actualización descargada. -->
+<!-- Archivos que Bloq comparte con el instalador de Android: solo la actualización descargada. -->
 <paths>
     <cache-path name="actualizacion" path="actualizacion/" />
-    <!-- Fotos de comidas sacadas con la cámara desde Bloque -->
+    <!-- Fotos de comidas sacadas con la cámara desde Bloq -->
     <cache-path name="fotos" path="fotos/" />
 </paths>

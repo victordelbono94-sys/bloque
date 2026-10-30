@@ -9,6 +9,7 @@ import { macros, sumar } from '../alimentos.js';
 import { OBJETIVOS, diagnosticoDia } from '../nutricion.js';
 import { panelBuscar } from './buscar.js';
 import { esLiquido } from '../hidratacion.js';
+import { ICONOS, htmlCompositor, conectarCompositor, burbujaPensando, htmlBienvenida, bajar } from '../chatia.js';
 import { deporte } from '../deportes.js';
 import {
   MOMENTOS, PARTE_COMIDA, momentoPorHora, momentoSugerido, kc, g, cantidadTexto, gemini, fotoBase64, aAlimento,
@@ -62,26 +63,29 @@ export function abrirRegistro(ctx, op = {}) {
   const historial = [];    // lo mismo en texto, para que la IA recuerde lo hablado
 
   const d = abrirDialogo(`
-    <div class="reg">
-      <header class="reg__cab">
-        <button type="button" class="reg__cerrar" data-cerrar aria-label="Cerrar">${ICONO.x}</button>
-        <div class="reg__titulo">
+    <div class="reg chatia">
+      <header class="chatia__cab">
+        <button type="button" class="chatia__boton-cab" id="r-izq" aria-label="Cerrar">${ICONOS.x}</button>
+        <div class="chatia__titulo">
           <h2>${editar ? 'Editar comida' : 'Agregar comida'}</h2>
-          <span id="r-paso">${varios ? 'Paso 1 de 2' : ''}</span>
+          <span class="chatia__sub"><button type="button" class="momento-pill" id="r-momento-btn" aria-expanded="false" aria-label="Cambiar el momento"></button><span id="r-paso"></span></span>
         </div>
-        <button type="button" class="momento-pill" id="r-momento-btn" aria-expanded="false" aria-label="Cambiar el momento"></button>
+        <div class="chatia__accion" id="r-accion"></div>
       </header>
       <div class="chips chips--scroll reg__momentos" id="r-momento" aria-label="Momento" hidden>
         ${Object.entries(MOMENTOS).map(([v, t]) => `<button type="button" class="chip chip--mini" data-valor="${v}">${t}</button>`).join('')}
       </div>
-      <div class="reg__cuerpo" id="r-cuerpo"></div>
-      <footer class="reg__pie" id="r-pie"></footer>
+      <div class="chatia__cuerpo" id="r-cuerpo"></div>
+      <footer class="chatia__pie" id="r-pie"></footer>
     </div>`, editar ? 'Editar comida' : 'Agregar comida', { pantalla: true });
   const $ = (q) => d.querySelector(q);
+  // Izquierda: cerrar en el paso 1, volver en el paso 2.
+  $('#r-izq').addEventListener('click', () => (paso === 2 ? pintarPaso1() : d.descartar()));
   // Atrás, tocar afuera o deslizar no borran lo anotado sin preguntar.
   d.proteger = () => paso === 2 || !!fotoPendiente || !!$('#r-texto')?.value.trim() || (!editar && items.length > 0);
   const pintarMomento = () => {
     $('#r-momento-btn').textContent = `${MOMENTOS[momento]} ▾`;
+    if ($('#r-paso')) $('#r-paso').textContent = paso === 2 ? 'Paso 2 de 2 · quién comió' : '';
     d.querySelectorAll('#r-momento [data-valor]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.valor === momento)));
   };
   pintarMomento();
@@ -101,41 +105,41 @@ export function abrirRegistro(ctx, op = {}) {
   const lista = ctx.habituales?.length ? ctx.habituales : (ctx.frecuentes ?? []);
   const pintarPaso1 = () => {
     paso = 1;
-    $('#r-paso').textContent = varios ? 'Paso 1 de 2' : '';
     $('#r-momento-btn').hidden = false;
+    pintarMomento();
     // Arriba (lo que se desplaza): tu plato con su desglose y la conversación con la IA.
     // Abajo, fijo como en una app de mensajes: el total + «Seguir», y el cuadro para escribirle a la IA o mandar una foto.
+    $('#r-izq').innerHTML = ICONOS.x;
+    $('#r-izq').setAttribute('aria-label', 'Cerrar');
+    $('#r-accion').innerHTML = `<button type="button" class="chatia__seguir" id="r-seguir" disabled>${varios ? `Seguir${ICONOS.chevron}` : (editar ? 'Guardar' : 'Guardar')}</button>`;
     $('#r-cuerpo').innerHTML = `
-      <div class="frecuentes reg__rapidos" id="r-rapidos" aria-label="Agregar rápido">
-        <button type="button" class="chip chip--mini chip--buscar" id="r-buscar-abrir">${ICONO.buscar} Buscar</button>
-        ${lista.map((f, i) => `<button type="button" class="chip chip--mini" data-frec="${i}">+ ${esc(nombreCorto(f.alimento))}</button>`).join('')}
-      </div>
+      <div class="chatia__resumen" id="r-resumen" hidden><span>Tu plato</span><span class="comida-total" id="r-total"></span></div>
       <div id="r-buscar" hidden></div>
-      <p class="reg__vacio" id="r-vacio">Escríbele abajo qué comiste o mándale una foto: la IA arma el plato y te dice cómo vas.</p>
+      <div id="r-vacio">${htmlBienvenida({
+        titulo: '¿Qué comiste?',
+        texto: 'Mándale una foto del plato o escríbelo como se lo contarías a alguien. La IA arma el plato y te dice cómo vas.',
+        sugerencias: [
+          { icono: '📷', texto: 'Sacar una foto del plato' },
+          { icono: '✍️', texto: '2 huevos revueltos, pan y café con leche' },
+          { icono: '🤔', texto: '¿Qué me conviene comer ahora?' },
+        ],
+      })}</div>
       <div id="r-items" class="pila" style="gap:8px"></div>
       <div class="consejo" id="r-consejo" hidden>
         <div class="consejo__meta" id="r-meta"></div>
       </div>
       ${editar ? '<button type="button" class="boton boton--texto boton--chico reg__borrar" id="r-borrar">Eliminar esta comida</button>' : ''}
       <div class="ia-chat" id="r-chat" aria-live="polite">${chatLog.join('')}</div>`;
+    $('#r-pie').hidden = false;
     $('#r-pie').innerHTML = `
-      <div class="reg__resumen" id="r-resumen" hidden>
-        <span class="comida-total" id="r-total"></span>
-        <button type="button" class="boton boton--chico reg__seguir" id="r-seguir" disabled>${varios ? 'Seguir ›' : (editar ? 'Guardar cambios' : 'Guardar')}</button>
+      <div class="chatia__chips" id="r-rapidos" aria-label="Agregar rápido">
+        <button type="button" class="chip chip--mini chip--buscar" id="r-buscar-abrir">${ICONO.buscar} Buscar</button>
+        ${lista.map((f, i) => `<button type="button" class="chip chip--mini" data-frec="${i}">+ ${esc(nombreCorto(f.alimento))}</button>`).join('')}
       </div>
-      <section class="reg__compositor" id="r-ia">
-        <div class="ia-foto ia-foto--mini" id="r-foto" hidden>
-          <img alt="Foto del plato">
-          <button type="button" class="ia-foto__quitar" id="r-foto-quitar" aria-label="Quitar la foto">${ICONO.x}</button>
-        </div>
-        <p class="ia-estado" id="r-estado" hidden></p>
-        <div class="reg__fila-escribir">
-          <label class="ia-icono" aria-label="Sacar foto">${ICONO.camara}<input type="file" id="r-camara" accept="image/*" capture="environment" hidden></label>
-          <label class="ia-icono" aria-label="Elegir de la galería">${ICONO.galeria}<input type="file" id="r-galeria" accept="image/*" hidden></label>
-          <textarea id="r-texto" rows="1" maxlength="600" placeholder="¿Qué comiste?">${esc(op.texto ?? '')}</textarea>
-          <button type="button" class="reg__enviar" id="r-leer" aria-label="Enviar a la IA">${ICONO.chispa}</button>
-        </div>
-      </section>`;
+      ${htmlCompositor({
+        id: 'r-ia', placeholder: '¿Qué comiste?', valor: op.texto ?? '',
+        ids: { texto: 'r-texto', enviar: 'r-leer', camara: 'r-camara', galeria: 'r-galeria', foto: 'r-foto', quitar: 'r-foto-quitar', estado: 'r-estado' },
+      })}`;
     conectarPaso1();
     pintarItems();
     if (fotoPendiente) mostrarFoto(fotoPendiente);
@@ -145,21 +149,23 @@ export function abrirRegistro(ctx, op = {}) {
     const el = $('#r-estado');
     if (!el) return;
     el.hidden = !t; el.textContent = t ?? '';
-    $('#r-ia')?.classList.toggle('ia-caja--pensando', cargando);
   };
 
   const agregar = (alimento, gramos, paquete = null, persona = null) => { items.push({ alimento, gramos: Number(gramos) || 100, paquete, persona }); pintarItems(); };
   const paqueteDe = (alimento) => ctx.despensa.find((p) => p.alimento_id === alimento.id && Number(p.gramos_restantes) > 0);
 
+  let vistos = new Set();
   const pintarItems = () => {
     const cont = $('#r-items');
     if (!cont) return;
+    const antes = vistos;
+    vistos = new Set(items);
     cont.innerHTML = items.length ? items.map((it, i) => {
       const m = macros(it.alimento, it.gramos);
       const paquete = it.paquete, enDespensa = !paquete && paqueteDe(it.alimento);
       const dueno = it.persona ? estado.personas.find((p) => p.id === it.persona) : null;
       return `
-        <div class="item-comida">
+        <div class="item-comida ${antes.has(it) ? 'item-comida--quieto' : ''}">
           <div class="item-comida__texto">
             <span class="item-comida__titulo"><strong>${esc(it.alimento.nombre)}</strong>${dueno ? `<span class="dueno dueno--${dueno.id === estado.yo.id ? 'yo' : 'otro'}">${esc(dueno.id === estado.yo.id ? 'Yo' : dueno.nombre)}</span>` : ''}</span>
             <span class="quieto">${esc(cantidadTexto(it.alimento, it.gramos))}${cantidadTexto(it.alimento, it.gramos).endsWith(' g') ? '' : ` · ${g(it.gramos)}`} · ${kc(m.kcal)} kcal · P ${Math.round(m.proteina)}</span>
@@ -175,11 +181,12 @@ export function abrirRegistro(ctx, op = {}) {
         </div>`;
     }).join('') : '';
     const total = sumar(items.map((it) => macros(it.alimento, it.gramos)));
-    $('#r-total').innerHTML = items.length ? `<strong>${kc(total.kcal)} kcal</strong> · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}` : '';
+    $('#r-total').innerHTML = items.length ? `<strong>${kc(total.kcal)}</strong> kcal · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}` : '';
     $('#r-seguir').disabled = !items.length;
     $('#r-resumen').hidden = !items.length;
     if ($('#r-vacio')) $('#r-vacio').hidden = !!items.length || chatLog.length > 0;
     if ($('#r-rapidos')) $('#r-rapidos').hidden = items.length > 2;
+    $('#r-ia') && conectado?.actualizar();
     if ($('#r-texto') && !fotoPendiente) $('#r-texto').placeholder = items.length ? 'Agrega, corrige o pregunta…' : '¿Qué comiste?';
     pintarMeta();
 
@@ -263,11 +270,13 @@ export function abrirRegistro(ctx, op = {}) {
   // ---------- Una sola conversación con la IA sobre el plato ----------
   // Lo que escribas arriba va acá: comida nueva, órdenes («quita el arroz», «es para los dos») o preguntas.
   const burbuja = (rol, html) => {
-    const b = `<div class="ia-msg ia-msg--${rol}">${html}</div>`;
+    const b = `<div class="chatia__msg chatia__msg--${rol}">${html}</div>`;
     chatLog.push(b);
     const cont = $('#r-chat');
     if (!cont) return null;
+    if ($('#r-vacio')) $('#r-vacio').hidden = true;
     cont.insertAdjacentHTML('beforeend', b);
+    bajar(cont.lastElementChild);
     return cont.lastElementChild;
   };
   // Lo que se toma (bebidas, caldos, sopas) cuenta para la hidratación: gramos ≈ ml.
@@ -353,8 +362,11 @@ export function abrirRegistro(ctx, op = {}) {
       burbuja('yo', esc(texto));
       historial.push({ rol: 'yo', texto });
     }
-    const pensando = burbuja('ia', '<span class="ia-puntos"><i></i><i></i><i></i></span>');
-    pensando?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if ($('#r-vacio')) $('#r-vacio').hidden = true;
+    chatLog.push('');
+    const pensando = $('#r-chat') ? burbujaPensando($('#r-chat'), auto
+      ? ['Revisando tu plato…', 'Mirando tu meta del día…', 'Pensando qué sugerirte…']
+      : ['Pensando…', 'Mirando tu plato…', 'Revisando tu meta del día…']) : null;
     try {
       const r = await preguntarPlato(texto);
       const aguaAntes = aguaDelPlato();
@@ -369,16 +381,16 @@ export function abrirRegistro(ctx, op = {}) {
       }
       if (aguaSumada >= 50) r.respuesta = `${r.respuesta ?? ''} 💧 Suma ~${Math.round(aguaSumada / 10) * 10} ml a tu agua del día.`.trim();
       historial.push({ rol: 'ia', texto: [r.respuesta, r.duda].filter(Boolean).join(' ') });
-      const html = `<span class="ia-logo ia-logo--mini" aria-hidden="true">${ICONO.chispa}</span><span>${esc(r.respuesta || 'Listo.')}</span>
+      const html = `<span>${esc(r.respuesta || 'Listo.')}</span>
         ${r.sugerencias?.length ? `<div class="chips">${r.sugerencias.map((x, k) =>
           `<button type="button" class="chip chip--mini chip--sugerencia" data-sug="${k}">+ ${esc(x.cantidad || `${Math.round(x.gramos)} g`)} ${esc(x.nombre.toLowerCase())} · ${kc(x.kcal * x.gramos / 100)} kcal</button>`).join('')}</div>` : ''}
         ${htmlReparto(r.reparto_sugerido)}
         ${r.duda ? `<p class="ia-msg__duda">${esc(r.duda)}</p>` : ''}
         ${r.opciones?.length ? `<div class="chips ia-msg__opciones">${r.opciones.map((o, k) => `<button type="button" class="chip chip--mini" data-opcion="${k}">${esc(o)}</button>`).join('')}</div>` : ''}`;
       chatLog.pop();
-      chatLog.push(`<div class="ia-msg ia-msg--ia">${esc([r.respuesta || 'Listo.', r.duda].filter(Boolean).join(' '))}</div>`); // al volver del paso 2, sin botones
+      chatLog.push(`<div class="chatia__msg chatia__msg--ia">${esc([r.respuesta || 'Listo.', r.duda].filter(Boolean).join(' '))}</div>`); // al volver del paso 2, sin botones
       if (pensando) {
-        pensando.innerHTML = html;
+        pensando.terminar(html);
         // Si la IA tiene una duda, se responde tocando una opción (o escribiendo arriba).
         pensando.querySelectorAll('[data-opcion]').forEach((btn) => btn.addEventListener('click', () => {
           pensando.querySelector('.ia-msg__opciones')?.remove();
@@ -391,11 +403,11 @@ export function abrirRegistro(ctx, op = {}) {
           agregar(await aAlimento(x), x.gramos, null, reparto === 'distinto' ? estado.yo.id : null);
           btn.remove();
         }));
-        pensando.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        bajar(pensando);
       }
     } catch (err) {
       chatLog.pop();
-      if (pensando) pensando.innerHTML = `<span class="quieto">${esc(err.message)}</span>`;
+      if (pensando) pensando.terminar(`<span class="quieto">${esc(err.message)}</span>`);
     }
   };
 
@@ -470,42 +482,51 @@ export function abrirRegistro(ctx, op = {}) {
   };
 
   // ---------- La IA: texto, foto o ambas ----------
+  let conectado = null;
   const mostrarFoto = (archivo) => {
     const caja = $('#r-foto');
     if (!caja) return;
     caja.hidden = false;
     caja.querySelector('img').src = URL.createObjectURL(archivo);
     $('#r-texto').placeholder = 'Algo que no se ve, o pregunta…';
-    
+    conectado?.actualizar();
   };
   const quitarFoto = () => {
     fotoPendiente = null;
     $('#r-foto').hidden = true;
     $('#r-texto').placeholder = items.length ? 'Agrega, corrige o pregunta…' : '¿Qué comiste?';
-    
+    mensaje(null);
+    conectado?.actualizar();
   };
   const leer = async () => {
     const texto = $('#r-texto').value.trim();
     if (!fotoPendiente && !texto) return $('#r-texto').focus();
     const boton = $('#r-leer');
     boton.disabled = true;
-    $('#r-texto').value = '';
-    $('#r-texto').style.height = '';
+    conectado?.limpiar();
     try {
       if (fotoPendiente) {
         // Con foto: primero se lee el plato. Lo que escribiste va como aclaración del plato, salvo que sea una pregunta.
         const pregunta = esPregunta(texto) ? texto : '';
-        mensaje(texto && !pregunta ? 'Mirando la foto y lo que le agregaste…' : 'Mirando la foto…', true);
-        const r = await gemini('foto', { imagen: await fotoBase64(fotoPendiente), tipo: 'image/jpeg', texto: (pregunta ? '' : texto) || undefined });
-        if (!r.alimentos?.length) { mensaje('No reconocí comida en la foto. Prueba más cerca o escríbelo.'); return; }
+        mensaje(null);
+        const foto = fotoPendiente;
+        if ($('#r-vacio')) $('#r-vacio').hidden = true;
+        // Tu foto queda en la conversación, como en una app de mensajes.
+        burbuja('yo', `<img class="chatia__foto" src="${URL.createObjectURL(foto)}" alt="Foto del plato">${texto ? `<span>${esc(texto)}</span>` : ''}`);
+        quitarFoto();
+        const viendo = burbujaPensando($('#r-chat'), texto && !pregunta
+          ? ['Mirando la foto…', 'Sumando lo que le agregaste…', 'Calculando porciones…']
+          : ['Mirando la foto…', 'Reconociendo los alimentos…', 'Calculando porciones…']);
+        let r;
+        try { r = await gemini('foto', { imagen: await fotoBase64(foto), tipo: 'image/jpeg', texto: (pregunta ? '' : texto) || undefined }); }
+        catch (err) { viendo.terminar(`<span class="quieto">${esc(err.message)} Mientras tanto, agrégalo a mano.</span>`); return; }
+        if (!r.alimentos?.length) { viendo.terminar('<span>No reconocí comida en la foto. Prueba más cerca o escríbelo.</span>'); return; }
         for (const x of r.alimentos) agregar(await aAlimento(x), x.gramos);
         // Lo que vio en la foto queda en la conversación: así después puedes decir «la foto era para los dos».
         const visto = `📷 En la foto veo: ${r.alimentos.map((x) => `${x.nombre.toLowerCase()} (${Math.round(x.gramos)} g)`).join(', ')}.`;
-        burbuja('ia', esc(visto));
+        viendo.terminar(`<span>${esc(visto)}</span>`);
+        chatLog.push(`<div class="chatia__msg chatia__msg--ia">${esc(visto)}</div>`);
         historial.push({ rol: 'yo', texto: texto && !pregunta ? `Te mando una foto del plato. ${texto}` : 'Te mando una foto del plato.' }, { rol: 'ia', texto: visto });
-        quitarFoto();
-        mensaje(null);
-        $('#r-ia')?.classList.remove('ia-caja--pensando');
         // Y la IA revisa el plato sola (proteína, carbohidratos y verduras), o responde lo que preguntaste.
         await hablar(pregunta || REVISION, { auto: !pregunta });
       } else {
@@ -515,16 +536,16 @@ export function abrirRegistro(ctx, op = {}) {
       mensaje(`${err.message} Mientras tanto, agrégalo a mano.`);
     } finally {
       boton.disabled = false;
-      $('#r-ia')?.classList.remove('ia-caja--pensando');
     }
   };
 
   const conectarPaso1 = () => {
-    const texto = $('#r-texto');
-    const ajustar = () => { texto.style.height = 'auto'; texto.style.height = `${Math.min(120, texto.scrollHeight)}px`; };
-    texto.addEventListener('input', ajustar);
-    $('#r-leer').addEventListener('click', leer);
-    $('#r-texto').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); leer(); } });
+    conectado = conectarCompositor(d, { texto: '#r-texto', enviar: '#r-leer', alEnviar: leer, hayAdjunto: () => !!fotoPendiente });
+    d.querySelectorAll('[data-sugerencia]').forEach((b) => b.addEventListener('click', () => {
+      const k = Number(b.dataset.sugerencia);
+      if (k === 0) return $('#r-camara').click();
+      hablar(['', '2 huevos revueltos, pan y café con leche', '¿Qué me conviene comer ahora?'][k]);
+    }));
     for (const id of ['#r-camara', '#r-galeria']) {
       $(id).addEventListener('change', (e) => {
         const f = e.target.files?.[0];
@@ -532,7 +553,7 @@ export function abrirRegistro(ctx, op = {}) {
         if (!f) return;
         fotoPendiente = f;
         mostrarFoto(f);
-        mensaje('📷 Foto lista. Si le pusiste algo que no se ve, escríbelo; después toca «Enviar».');
+        mensaje('Si le pusiste algo que no se ve, escríbelo. Después toca enviar.');
       });
     }
     $('#r-foto-quitar').addEventListener('click', quitarFoto);
@@ -572,9 +593,12 @@ export function abrirRegistro(ctx, op = {}) {
 
   const pintarPaso2 = () => {
     paso = 2;
-    $('#r-paso').textContent = 'Paso 2 de 2';
+    pintarMomento();
     $('#r-momento-btn').hidden = true;
     $('#r-momento').hidden = true;
+    $('#r-izq').innerHTML = ICONOS.atras;
+    $('#r-izq').setAttribute('aria-label', 'Volver');
+    $('#r-accion').innerHTML = `<button type="button" class="chatia__seguir" id="r-guardar">${editar ? 'Guardar' : 'Guardar'}</button>`;
     const variosElegidos = quien.length > 1;
     $('#r-cuerpo').innerHTML = `
       <h3 class="reg__pregunta">¿Quién comió?</h3>
@@ -605,9 +629,8 @@ export function abrirRegistro(ctx, op = {}) {
         const p = estado.personas.find((x) => x.id === id);
         return `<span><span class="persona-op__cara persona-op__cara--mini">${cara(p)}</span><strong>${esc(id === estado.yo.id ? 'Yo' : p.nombre)}</strong> ${kc(m.kcal)} kcal · P ${Math.round(m.proteina)}</span>`;
       }).join('')}</div>`;
-    $('#r-pie').innerHTML = `
-      <button type="button" class="boton boton--sec" id="r-atras">Atrás</button>
-      <button type="button" class="boton reg__seguir" id="r-guardar">${editar ? 'Guardar cambios' : 'Guardar'}</button>`;
+    $('#r-pie').innerHTML = '';
+    $('#r-pie').hidden = true;
     d.querySelectorAll('[data-persona]').forEach((b) => b.addEventListener('click', () => {
       const id = b.dataset.persona;
       quien = quien.includes(id) ? quien.filter((x) => x !== id) : [...quien, id];
@@ -616,7 +639,6 @@ export function abrirRegistro(ctx, op = {}) {
     }));
     d.querySelectorAll('[data-reparto]').forEach((b) => b.addEventListener('click', () => { reparto = b.dataset.reparto; pintarPaso2(); }));
     d.querySelectorAll('[data-dueno]').forEach((b) => b.addEventListener('click', () => { items[Number(b.dataset.dueno)].persona = b.dataset.id || null; pintarPaso2(); }));
-    $('#r-atras').addEventListener('click', pintarPaso1);
     $('#r-guardar').addEventListener('click', guardar);
   };
   const opcion = (v, titulo, texto) => `
@@ -655,7 +677,7 @@ export function abrirRegistro(ctx, op = {}) {
   };
 
   pintarPaso1();
-  if (op.foto) { fotoPendiente = op.foto; mostrarFoto(op.foto); mensaje('📷 Foto lista. Si le pusiste algo que no se ve, escríbelo; después toca «Enviar».'); }
+  if (op.foto) { fotoPendiente = op.foto; mostrarFoto(op.foto); mensaje('Si le pusiste algo que no se ve, escríbelo. Después toca enviar.'); }
   else if (op.texto) leer();
   return d;
 }
