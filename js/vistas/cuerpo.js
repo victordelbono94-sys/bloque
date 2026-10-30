@@ -39,6 +39,7 @@ export async function vistaCuerpo(app) {
         <h1 class="titulo">Cuerpo</h1>
         <p class="subtitulo">Peso y bioimpedancia</p>
       </div>
+      <button type="button" class="boton boton--sec boton--chico" id="ver-semana">📊 Semana</button>
     </header>
 
     ${estado.personas.length > 1 ? `
@@ -78,6 +79,7 @@ export async function vistaCuerpo(app) {
     </section>`;
 
   const recargar = () => vistaCuerpo(app);
+  app.querySelector('#ver-semana')?.addEventListener('click', async () => (await import('../semanal.js')).abrirResumenSemanal(persona.id));
   app.querySelector('#nueva')?.addEventListener('click', () => dialogoMedicion(recargar));
   app.querySelectorAll('[data-borrar]').forEach((b) =>
     b.addEventListener('click', () => borrarMedicion(b.dataset.borrar, recargar)));

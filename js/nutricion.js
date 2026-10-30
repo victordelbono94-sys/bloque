@@ -167,7 +167,13 @@ export function calcularMetas({ persona, medicion, foco = 'recomposicion', event
   if (ajuste.nota) notas.unshift(ajuste.nota);
   const kcalDe = (gasto) => Math.round(((base + gasto) * factor + ajuste.kcal) / 10) * 10;
   const kcal = kcalDe(ejercicio);
-  const proteina = Math.round(Math.min(obj.proteinaKg * peso, magra != null ? 2.7 * magra : Infinity));
+  // Sin % de grasa y con IMC alto, la proteína se calcula sobre un peso ajustado a la estatura (no sobre todo el peso):
+  // con 79 kg en 1,64 m, 2,2 g × 79 kg sobreestima. Peso ajustado = peso de IMC 25 + 40 % de lo que sobra.
+  const pesoProteina = magra == null && imc != null && imc > 27
+    ? (25 * (altura / 100) ** 2) + 0.4 * (peso - 25 * (altura / 100) ** 2)
+    : peso;
+  if (pesoProteina !== peso) notas.push(`Proteína calculada sobre un peso ajustado a tu estatura (~${Math.round(pesoProteina)} kg). Si cargas tu % de grasa, la meta queda más precisa.`);
+  const proteina = Math.round(Math.min(obj.proteinaKg * pesoProteina, magra != null ? 2.7 * magra : Infinity));
   const grasas = Math.round(Math.max(0.8 * peso, (0.25 * kcal) / 9));
   const carbos = Math.max(0, Math.round((kcal - proteina * 4 - grasas * 9) / 4));
 
@@ -186,7 +192,9 @@ export function calcularMetas({ persona, medicion, foco = 'recomposicion', event
   return {
     ok: true, foco, magro, basal: Math.round(basal), base: Math.round(base), ejercicio: Math.round(ejercicio),
     medido: Math.round(medido), gasto: Math.round(base + ejercicio), kcal, proteina, carbos, grasas, extraCarbos, notas, peso,
-    vidaDiaria: vida, ajustePeso: ajuste.kcal,
+    vidaDiaria: vida, ajustePeso: ajuste.kcal, sinGrasa: grasa == null && medicion?.masa_magra_kg == null,
+    // Proteína por comida que mejor aprovecha el músculo (~0,4 g/kg, entre 25 y 45 g).
+    proteinaPorComida: Math.round(Math.min(45, Math.max(25, 0.4 * pesoProteina))),
   };
 }
 

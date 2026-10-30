@@ -130,6 +130,13 @@ export async function vistaHoy(app) {
       </a>` : ''}
 
     <div id="por-confirmar" class="pila" style="gap:12px">${htmlPorConfirmar(porConfirmarLista)}</div>
+    ${[1, 2].includes(new Date().getDay()) ? `
+      <button type="button" class="tarjeta semana-aviso" id="ver-semana">
+        <span class="semana-aviso__icono" aria-hidden="true">📊</span>
+        <span><strong>Tu resumen de la semana</strong><span class="quieto">Peso, calorías, proteína, entrenos y sueño, con 3 cambios para esta semana.</span></span>
+        <span class="plan__flecha" aria-hidden="true">›</span>
+      </button>` : ''}
+    ${htmlCuerpoPendiente(mediciones.filter((m) => m.persona_id === estado.yo.id))}
 
     <section class="tarjeta" aria-labelledby="plan-hoy">
       ${pendientes.map((e) => `
@@ -187,6 +194,7 @@ export async function vistaHoy(app) {
   }));
 
   conectarPorConfirmar(app.querySelector('#por-confirmar'), porConfirmarLista, () => vistaHoy(app));
+  app.querySelector('#ver-semana')?.addEventListener('click', async () => (await import('../semanal.js')).abrirResumenSemanal());
   conectarCheckIn(app, contexto, estados.find((e) => e.persona_id === estado.yo.id));
   conectarRapido(app, hoy);
   if (falta.length) avisarPerfil(falta);
@@ -500,3 +508,36 @@ function htmlNumerosHoy(x, banda) {
     </a>`;
 }
 const kc = (n) => Math.round(n).toLocaleString('es-EC');
+
+// Pesarse seguido y en las mismas condiciones: la meta de calorías se ajusta sola con la tendencia del peso.
+// También avisa si faltan datos que hacen las metas más precisas (% de grasa, experiencia en el gym).
+function htmlCuerpoPendiente(mias) {
+  const ahora = new Date();
+  const conPeso = mias.filter((m) => m.peso_kg != null);
+  const ultimo = conPeso[0] ? new Date(conPeso[0].medido_en) : null;
+  const dias = ultimo ? Math.floor((ahora - ultimo) / 864e5) : null;
+  const hoyCal = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
+  const pesadoHoy = conPeso.some((m) => String(m.medido_en).slice(0, 10) === hoyCal);
+  const tocaHoy = [1, 4].includes(ahora.getDay()) && ahora.getHours() < 12 && !pesadoHoy;
+  const sinGrasa = !mias.some((m) => m.grasa_pct != null && (ahora - new Date(m.medido_en)) < 60 * 864e5);
+  const items = [];
+  if (tocaHoy || dias == null || dias >= 4) {
+    items.push(`<a class="pendiente pendiente--link" href="#/cuerpo">
+      <span class="pendiente__texto"><strong>⚖️ ${tocaHoy ? 'Hoy toca pesarte' : dias == null ? 'Registra tu peso' : `Hace ${dias} días que no te pesas`}</strong>
+      <span class="quieto">Al levantarte, en ayunas y después del baño: así tu meta de calorías se ajusta con datos confiables.</span></span>
+      <span class="plan__flecha" aria-hidden="true">›</span></a>`);
+  }
+  if (sinGrasa && conPeso.length) {
+    items.push(`<a class="pendiente pendiente--link" href="#/cuerpo">
+      <span class="pendiente__texto"><strong>Agrega tu % de grasa</strong>
+      <span class="quieto">Con tu balanza de bioimpedancia: las calorías y la proteína se calculan sobre tu masa magra y quedan más precisas.</span></span>
+      <span class="plan__flecha" aria-hidden="true">›</span></a>`);
+  }
+  if (!estado.yo.experiencia) {
+    items.push(`<a class="pendiente pendiente--link" href="#/perfil">
+      <span class="pendiente__texto"><strong>¿Cuánta experiencia tienes en el gym?</strong>
+      <span class="quieto">Ajusta las series y la progresión de tus rutinas. Lo marcas en Perfil.</span></span>
+      <span class="plan__flecha" aria-hidden="true">›</span></a>`);
+  }
+  return items.length ? `<section class="tarjeta cuerpo-pendiente">${items.join('')}</section>` : '';
+}

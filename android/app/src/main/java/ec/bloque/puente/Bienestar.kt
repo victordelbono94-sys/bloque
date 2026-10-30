@@ -82,7 +82,7 @@ object Bienestar {
             suenoMin < 300 -> "Es poco: hoy conviene algo suave o descansar."
             suenoMin < 360 -> "Un poco corto: entrena, pero sin ir al límite."
             else -> "Buen descanso."
-        }
+        } + (if (LocalDate.now().dayOfWeek.value in listOf(1, 4)) " Hoy toca pesarte: en ayunas, después del baño." else "")
         fun respuesta(valor: Int): PendingIntent = PendingIntent.getBroadcast(
             c, 900 + valor,
             Intent(c, CheckinReceiver::class.java).putExtra("cansancio", valor).putExtra("fecha", hoy),

@@ -207,7 +207,10 @@ export function abrirRegistro(ctx, op = {}) {
     const metaKcal = Math.min(k >= 0 ? disponible * (parte / resto) : disponible, info.metas.kcal * parte * 1.75);
     const meta = Math.round(metaKcal / 10) * 10;
     const protDisp = Math.max(0, info.metas.proteina - (info.comido.proteina - Number(antes?.proteina ?? 0)));
-    const protMeta = Math.round(Math.min(k >= 0 ? protDisp * (parte / resto) : protDisp, info.metas.proteina * parte * 1.75));
+    // En las comidas principales, al menos lo que el músculo aprovecha de una vez (~0,4 g/kg, 25–45 g), si queda.
+    const protMeta = Math.round(Math.min(
+      Math.max(k >= 0 ? protDisp * (parte / resto) : protDisp * 0.5, k >= 0 ? Math.min(protDisp, info.metas.proteinaPorComida ?? 0) : 0),
+      info.metas.proteina * parte * 1.75, protDisp || Infinity));
     const restoDia = disponible - mio.kcal;
     const quemado = Math.round(info.metas.medido || info.metas.ejercicio || 0);
     // El día completo con este plato: lo mismo que verá el resumen al guardar (mismo diagnóstico que usa la IA).
@@ -242,7 +245,11 @@ export function abrirRegistro(ctx, op = {}) {
     else if (b.falta > 120) estadoTxt = `Te quedan ~${kc(b.falta)} kcal para ${femenino ? 'esta' : 'este'} ${esc(nombre)}, sin salirte del déficit`;
     else if (b.falta >= -b.meta * 0.35) estadoTxt = bien(`${femenino ? 'Buena' : 'Buen'} ${esc(nombre)} ✓`);
     else estadoTxt = b.diag.exceso > 0 ? tono(b.diag.kcal) : bien('Comida grande, pero vas bien en el día ✓');
-    const notaMacro = b.diag.notas.find((n) => /proteína|carbohidratos/.test(n));
+    const principal = ['desayuno', 'almuerzo', 'cena'].includes(momento);
+    const faltaProtComida = principal && b.info.metas.proteinaPorComida ? b.info.metas.proteinaPorComida - b.mio.proteina : 0;
+    const notaMacro = faltaProtComida > 8 && b.diag.estado !== 'pasado' && ['masa_muscular', 'recomposicion', 'perder_grasa'].includes(b.info.foco)
+      ? `Para cuidar el músculo rinde más ~${b.info.metas.proteinaPorComida} g de proteína por comida: a esta le faltan ~${Math.round(faltaProtComida)} g.`
+      : b.diag.notas.find((n) => /proteína|carbohidratos/.test(n));
     const despues = fecha !== hoyISO() ? '' : b.restoDia >= 0 ? ` · después te quedan ${kc(b.restoDia)} kcal en el día` : '';
     $('#r-meta').innerHTML = `
       <div class="meta-comida__fila"><span>${MOMENTOS[momento]}${varios ? ' · tu parte' : ''}</span><span><strong>${kc(b.mio.kcal)}</strong> / ~${kc(b.meta)} kcal · P ${Math.round(b.mio.proteina)}/${b.protMeta} g</span></div>
@@ -288,6 +295,7 @@ export function abrirRegistro(ctx, op = {}) {
           tendencia_peso: b.info.tendencia?.nota ?? null,
         },
         metas_del_dia: { kcal: b.info.metas.kcal, proteina_g: b.info.metas.proteina, carbos_g: b.info.metas.carbos, grasas_g: b.info.metas.grasas },
+        proteina_ideal_por_comida_g: b.info.metas.proteinaPorComida,
         meta_de_esta_comida: { kcal: b.meta, proteina_g: b.protMeta, carbos_g: Math.round((b.info.metas.carbos ?? 0) * (PARTE_COMIDA[momento] ?? 0.25)) },
         diagnostico_de_la_app: [b.diag.kcal, ...b.diag.notas.filter((n) => n !== b.diag.kcal)].filter(Boolean),
         regla: 'Lo que respondas tiene que coincidir con diagnostico_de_la_app (es lo que la persona ve en pantalla): si dice que está bien por su objetivo, no lo retes; usa esos mismos números.',

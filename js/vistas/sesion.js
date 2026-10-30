@@ -102,6 +102,8 @@ export async function vistaSesion(app) {
     sb.from('series').select('*').eq('sesion_id', id).order('hecha_en').then(datos),
     sb.from('estado_diario').select('*').eq('persona_id', estado.yo.id).eq('fecha', hoyISO()).maybeSingle().then(datos),
   ]);
+  // El objetivo cambia cómo se progresa: para ganar masa, primero más reps (volumen); para bajar grasa, sostener el peso.
+  const miFoco = (await sb.from('objetivos').select('foco').eq('persona_id', estado.yo.id).order('desde', { ascending: false }).limit(1).then(datos).catch(() => []))[0]?.foco ?? 'recomposicion';
 
   // Lo que grabó el reloj para este entreno (cuando ya sincronizó).
   let delReloj = null;
@@ -124,7 +126,7 @@ export async function vistaSesion(app) {
     .in('persona_id', participantes.map((p) => p.id)).in('ejercicio_id', ejIds).neq('sesion_id', id)
     .order('hecha_en', { ascending: false }).limit(800)) : [];
 
-  actual = { sesion, rutina, items, participantes, series, previas, sugerencias: {}, cambios: leerCambios(id) };
+  actual = { sesion, rutina, items, participantes, series, previas, sugerencias: {}, cambios: leerCambios(id), foco: miFoco };
   const yoParticipo = participantes.some((p) => p.id === estado.yo.id);
   const terminé = sesion.terminados.includes(estado.yo.id);
   const sem = miEstado?.semaforo;
@@ -789,11 +791,16 @@ function calcularAjustes() {
     const sufrio = hechas.some((s) => s.esfuerzo === 10 && s.reps < meta.reps - 1);
     const base = it.reps_base;
     if (cargaCumplida && esfuerzoMedio <= 8) {
-      // Doble progresión: con pesos chicos (+2,5 kg es más del 12 %) primero se suben las reps
-      // hasta base + 4; después se sube el peso y las reps vuelven a la base.
+      // Doble progresión según el objetivo:
+      //  - ganar masa: primero reps hasta base + 4 (más volumen), después peso y las reps vuelven a la base;
+      //  - mantener / cardio: reps hasta base + 6;
+      //  - bajar grasa o recomposición: sostener la carga (se sube el peso salvo que el salto sea muy grande).
       const mancuerna = /mancuerna/i.test(it.ejercicio.nombre);
       const salto = meta.peso_kg >= 60 && /pierna|glúteo|cuádriceps|espalda/i.test(it.ejercicio.grupo_muscular) ? 5 : mancuerna ? 2 : 2.5;
-      if (salto / meta.peso_kg > 0.12 && meta.reps < base + 4) {
+      const foco = actual.foco;
+      const tope = foco === 'masa_muscular' ? base + 4 : ['mantenimiento', 'cardio'].includes(foco) ? base + 6 : base + 4;
+      const repsPrimero = foco === 'masa_muscular' || ['mantenimiento', 'cardio'].includes(foco) || salto / meta.peso_kg > 0.12;
+      if (repsPrimero && meta.reps < tope) {
         const reps = meta.reps + 2;
         ajustes.push({ it, meta, cambio: { reps }, texto: `${meta.reps} → ${reps} reps con ${kg(meta.peso_kg)} kg` });
       } else {

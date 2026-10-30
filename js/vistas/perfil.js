@@ -65,6 +65,15 @@ export async function vistaPerfil(app) {
           <input id="altura_cm" type="number" inputmode="decimal" min="100" max="250" step="0.5" value="${esc(yo.altura_cm ?? '')}">
         </div>
         <div class="campo">
+          <label for="experiencia">Experiencia en el gym</label>
+          <select id="experiencia">
+            <option value="">Sin indicar</option>
+            <option value="principiante" ${yo.experiencia === 'principiante' ? 'selected' : ''}>Principiante (menos de 1 año)</option>
+            <option value="intermedio" ${yo.experiencia === 'intermedio' ? 'selected' : ''}>Intermedio (1 a 3 años)</option>
+            <option value="avanzado" ${yo.experiencia === 'avanzado' ? 'selected' : ''}>Avanzado (más de 3 años)</option>
+          </select>
+        </div>
+        <div class="campo">
           <label for="sexo">Sexo</label>
           <select id="sexo">
             <option value="">Sin indicar</option>
@@ -149,6 +158,7 @@ export async function vistaPerfil(app) {
         fecha_nacimiento: app.querySelector('#fecha_nacimiento').value || null,
         altura_cm: altura,
         sexo: app.querySelector('#sexo').value || null,
+        experiencia: app.querySelector('#experiencia').value || null,
         nivel_actividad: app.querySelector('#nivel_actividad').value || null,
       }).eq('id', yo.id));
       await cargarPersonas();
