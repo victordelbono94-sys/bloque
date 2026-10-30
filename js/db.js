@@ -52,3 +52,23 @@ export async function fotoInicialDeGoogle() {
   const { error } = await sb.from('personas').update({ avatar_url: url }).eq('id', estado.yo.id);
   if (!error) estado.yo.avatar_url = url;
 }
+
+/**
+ * ¿Ya te despertaste hoy? Si el reloj sincronizó el sueño de esta noche, el día de la app pasa a hoy
+ * (antes de eso, lo que comes de madrugada sigue contando para ayer). Devuelve true si el día cambió.
+ */
+export async function revisarDespertar() {
+  if (!estado.yo) return false;
+  const { hoyISO, calendarioISO, sumarDias } = await import('./fechas.js');
+  const antes = hoyISO();
+  const hoyCal = calendarioISO();
+  try {
+    const { data } = await sb.from('actividad_diaria').select('fecha, sueno_min').eq('persona_id', estado.yo.id)
+      .gte('fecha', sumarDias(hoyCal, -7)).not('sueno_min', 'is', null);
+    const usaReloj = (data ?? []).some((d) => Number(d.sueno_min) > 0);
+    const desperto = (data ?? []).some((d) => d.fecha === hoyCal && Number(d.sueno_min) > 0);
+    localStorage.setItem('bloque-reloj-sueno', usaReloj ? '1' : '0');
+    if (desperto) localStorage.setItem('bloque-desperto', hoyCal);
+  } catch { /* sin conexión: se queda con lo que sabía */ }
+  return hoyISO() !== antes;
+}

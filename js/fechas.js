@@ -17,8 +17,26 @@ export function desdeISO(iso) {
   return new Date(a, m - 1, d);
 }
 
+// El «día» de la app no cambia a medianoche: si te acuestas tarde, lo que comes a la 1 sigue siendo de hoy.
+// Cambia a las 4:00, o, si tu reloj registra el sueño, cuando ya te despertaste (con tope a las 11:00 por si no sincronizó).
+export const HORA_CORTE = 4;
+export const HORA_TOPE_RELOJ = 11;
+const leer = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+
+/** Día de calendario (cambia a medianoche): para lo que de verdad es «fecha» del reloj. */
+export function calendarioISO(fecha = new Date()) {
+  return aISO(fecha);
+}
+
 export function hoyISO() {
-  return aISO(new Date());
+  const ahora = new Date();
+  const h = ahora.getHours();
+  const hoy = aISO(ahora);
+  const ayer = aISO(new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - 1));
+  if (h < HORA_CORTE) return ayer;
+  // Con reloj que mide el sueño: hasta que no llega el sueño de esta noche (o sea, hasta que te despiertas), sigue siendo ayer.
+  if (h < HORA_TOPE_RELOJ && leer('bloque-reloj-sueno') === '1' && leer('bloque-desperto') !== hoy) return ayer;
+  return hoy;
 }
 
 export function sumarDias(iso, n) {

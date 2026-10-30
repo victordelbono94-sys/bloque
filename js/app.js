@@ -1,5 +1,6 @@
 // Arranque de Bloque: sesión, equipo y navegación entre pantallas.
-import { sb, estado, cargarPersonas, fotoInicialDeGoogle } from './db.js';
+import { sb, estado, cargarPersonas, fotoInicialDeGoogle, revisarDespertar } from './db.js';
+import { hoyISO } from './fechas.js';
 import { aviso, avisoError } from './ui.js';
 import { vistaHoy } from './vistas/hoy.js';
 import { vistaSemana } from './vistas/semana.js';
@@ -171,6 +172,7 @@ async function arrancar() {
     if (!session) return pantallaIngreso();
     await cargarPersonas();
     if (!estado.yo) return pantallaPrimeraVez();
+    await revisarDespertar().catch(() => {});
     // Limpia los restos del inicio de sesión en la URL.
     if (location.search || /access_token/.test(location.hash)) history.replaceState(null, '', location.pathname + '#/hoy');
     // Llegó con un link de invitación y ya tiene cuenta: confirmar el cambio de equipo.
@@ -195,10 +197,26 @@ sb.auth.onAuthStateChange((evento) => {
 });
 
 // Cuando la app termina de sincronizar con Health Connect, se refrescan las pantallas que lo muestran.
-alEventoNativo('sync', (r) => {
+alEventoNativo('sync', async (r) => {
   const ruta = location.hash.replace(/^#\/?/, '').split('/')[0] || 'hoy';
-  if (r?.ok && estado.yo && ['hoy', 'cuerpo'].includes(ruta) && !document.querySelector('dialog[open]')) mostrarRuta();
+  const cambioDia = r?.ok && estado.yo ? await revisarDespertar().catch(() => false) : false;
+  if (r?.ok && estado.yo && (cambioDia || ['hoy', 'cuerpo'].includes(ruta)) && !document.querySelector('dialog[open]')) mostrarRuta();
 });
+
+// El día de la app cambia a las 4:00 (o al despertar, si el reloj mide el sueño): si cambió mientras estaba abierta
+// o al volver a ella, se refresca la pantalla para no seguir sumando al día anterior.
+let diaMostrado = hoyISO();
+const revisarDia = async () => {
+  if (!estado.yo || document.hidden) return;
+  await revisarDespertar().catch(() => {});
+  const ahora = hoyISO();
+  if (ahora !== diaMostrado) {
+    diaMostrado = ahora;
+    if (!document.querySelector('dialog[open]')) mostrarRuta();
+  }
+};
+document.addEventListener('visibilitychange', revisarDia);
+setInterval(revisarDia, 10 * 60 * 1000);
 
 iniciar();
 vigilarActualizaciones();
