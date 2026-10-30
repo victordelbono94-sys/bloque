@@ -703,8 +703,8 @@ span.serie--hecha { opacity: 0.85; }
 .mapa { flex-shrink: 0; display: block; }
 .mapa rect { transition: fill 0.3s ease; }
 .mapa__neutro { fill: #575C6B; }
-.mapa__base { fill: #5D6271; stroke: #5D6271; stroke-width: 1.6; stroke-linejoin: round; }
-.mapa__off { fill: #6E7383; }
+.mapa__base { fill: #5D6271; stroke: #5D6271; }
+.mapa__off { fill: transparent; }
 .mapa__on { fill: var(--volt); }
 @keyframes encender { from { fill: #7A8091; } to { fill: var(--volt); } }
 #app[data-anim] .mapa__on { animation: encender 0.6s var(--suave) 0.25s both; }
@@ -1920,7 +1920,7 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .cuerpo-hero__fila { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 16px; align-items: center; min-height: 190px; }
 .cuerpo-hero__visual { display: flex; justify-content: center; }
 .cuerpo-svg { width: 96px; height: 180px; overflow: visible; }
-.cuerpo-svg__base { fill: #4A4F5C; stroke: #4A4F5C; stroke-width: 1.6; stroke-linejoin: round; }
+.cuerpo-svg__base { fill: #4A4F5C; stroke: #4A4F5C; }
 .cuerpo-svg__nivel { animation: cuerpo-sube .9s var(--suave) both; transform-origin: bottom; transform-box: fill-box; }
 .cuerpo-svg__ola { animation: cuerpo-ola 3s ease-in-out infinite alternate; }
 .cuerpo-svg__visceral { animation: cuerpo-late 2.4s ease-in-out infinite; transform-origin: center; transform-box: fill-box; filter: blur(2px); }

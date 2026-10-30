@@ -3,7 +3,7 @@
 import { sb, estado, datos, nombrePersona } from '../db.js';
 import { esc, num, aviso, avisoError, abrirDialogo, grupoChips, valorChips, cara } from '../ui.js';
 import { fabIA, htmlCabecera } from '../chatia.js';
-import { SILUETA, IC } from '../iconos.js';
+import { FIGURA, mascaraFigura, IC } from '../iconos.js';
 import { fechaCorta, ahoraLocalInput } from '../fechas.js';
 
 const CAMPOS = [
@@ -54,12 +54,12 @@ function htmlCuerpoVisual(m, valor, peso) {
   const id = `c${Math.random().toString(36).slice(2, 7)}`;
   return `
     <svg class="cuerpo-svg" viewBox="0 0 50 94" aria-hidden="true">
-      <defs><clipPath id="${id}"><path d="${SILUETA}"/></clipPath>
+      <defs>${mascaraFigura(id)}
         <linearGradient id="${id}g" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="${m.color}"/><stop offset="1" stop-color="${m.color}" stop-opacity=".55"/></linearGradient></defs>
-      <path class="cuerpo-svg__base" d="${SILUETA}"/>
-      <g clip-path="url(#${id})">
+      <g class="cuerpo-svg__base">${FIGURA}</g>
+      <g mask="url(#${id})">
         ${m.id === 'grasa_visceral'
-          ? `<ellipse cx="25" cy="40" rx="${5 + Math.min(7, valor * 0.5)}" ry="${4 + Math.min(5, valor * 0.35)}" fill="${m.color}" opacity="${Math.min(0.95, 0.4 + valor / 20)}" class="cuerpo-svg__visceral"/>`
+          ? `<ellipse cx="25" cy="38" rx="${5 + Math.min(7, valor * 0.5)}" ry="${4 + Math.min(5, valor * 0.35)}" fill="${m.color}" opacity="${Math.min(0.95, 0.4 + valor / 20)}" class="cuerpo-svg__visceral"/>`
           : `<rect class="cuerpo-svg__nivel" x="0" y="${y}" width="50" height="${alto}" fill="url(#${id}g)"/>
              ${m.id === 'agua_pct' ? `<path class="cuerpo-svg__ola" d="M-6 ${y} q6 -2.5 12 0 t12 0 t12 0 t12 0 t12 0 v4 h-60z" fill="${m.color}" opacity=".7"/>` : ''}`}
       </g>

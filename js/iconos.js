@@ -85,15 +85,20 @@ export function zonasDe(grupos) {
   return [...cuenta.entries()].sort((a, b) => b[1] - a[1]).map(([z]) => z);
 }
 
-// La silueta de Bloq: sin género, en bloques de una sola pieza y con la cabeza cuadrada como el logo (la misma en Cuerpo y en el mapa de los ejercicios). viewBox 0 0 50 94.
-export const SILUETA = 'M21.5 0.5h7a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-7a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3z M22 13H28V15.5H37.5L42 20V52H38V27H34.8V92H26.5V56H23.5V92H15.2V27H12V52H8V20L12.5 15.5H22Z';
-let idClip = 0;
+// La figura de Bloq: estilo pictograma (extremidades de trazo grueso y redondeado) con la cabeza cuadrada como el logo.
+// Es la misma en Cuerpo y en el mapa de los ejercicios. viewBox 0 0 50 94.
+export const FIGURA = '<rect x="19" y="0.5" width="12" height="12" rx="3"/><g stroke-linecap="round" fill="none">'
+  + '<path d="M25 20.5V45" stroke-width="11.5"/><path d="M19.8 19.5L13 44" stroke-width="5.6"/><path d="M30.2 19.5L37 44" stroke-width="5.6"/>'
+  + '<path d="M22.2 49L20.4 89" stroke-width="6.6"/><path d="M27.8 49L29.6 89" stroke-width="6.6"/></g>';
+/** Máscara con la forma de la figura (para llenarla con un dato o encender zonas). */
+export const mascaraFigura = (id) => `<mask id="${id}" maskUnits="userSpaceOnUse" x="-5" y="-5" width="60" height="104"><g fill="#fff" stroke="#fff">${FIGURA}</g></mask>`;
+let idMascara = 0;
 function figura(bloques, zonas, dx) {
-  const id = `sil${++idClip}`;
+  const id = `fig${++idMascara}`;
   return `<g transform="translate(${dx} 0)">
-    <defs><clipPath id="${id}"><path d="${SILUETA}"/></clipPath></defs>
-    <path class="mapa__base" d="${SILUETA}"/>
-    <g clip-path="url(#${id})">${bloques.filter(([zona]) => zona !== 'cabeza' && zona !== 'cadera').map(([zona, x, y, w, h, r]) =>
+    <defs>${mascaraFigura(id)}</defs>
+    <g class="mapa__base">${FIGURA}</g>
+    <g mask="url(#${id})">${bloques.filter(([zona]) => zona !== 'cabeza' && zona !== 'cadera').map(([zona, x, y, w, h, r]) =>
       `<rect class="${zonas.has(zona) ? 'mapa__on' : 'mapa__off'}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}"/>`).join('')}</g>
   </g>`;
 }
