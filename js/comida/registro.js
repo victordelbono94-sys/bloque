@@ -25,6 +25,10 @@ const ICONO = {
 
 const leerQuien = (momento) => { try { return JSON.parse(localStorage.getItem(`bloque-quien2-${momento}`) || 'null'); } catch { return null; } };
 const guardarQuien = (momento, v) => { try { localStorage.setItem(`bloque-quien2-${momento}`, JSON.stringify(v)); } catch { /* nada */ } };
+// ¿Es una pregunta sobre el plato (y no comida para agregar)? «me falta proteína», «está bien así», «¿le agrego arroz?»…
+const esPregunta = (t) => /[?¿]/.test(t)
+  || /^(qu[eé]|c[oó]mo|cu[aá]nt|est[aá]|estoy|me (falta|sobra|conviene|alcanza)|falta|sobra|deber|puedo|podr|sugi|recomi|alcanza|conviene|le (agrego|pongo|falta|sumo)|es (suficiente|mucho|poco)|tengo|hay|revis|dime|ayud|opina|vale)/i.test(t.trim());
+const REVISION = 'Revisa este plato para mi objetivo: ¿cómo voy de proteína, carbohidratos y verduras? Si falta algo, dime qué agregar y cuánto; si sobra, qué quitar.';
 const nombreCorto = (a) => a.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, '').slice(0, 24);
 
 /**
@@ -120,9 +124,8 @@ export function abrirRegistro(ctx, op = {}) {
       <div class="consejo" id="r-consejo" hidden>
         <div class="consejo__meta" id="r-meta"></div>
         <div id="r-respuesta"></div>
-        <button type="button" class="chip chip--mini chip--ia" id="r-preguntar-abrir">${ICONO.chispa} Preguntar a la IA</button>
-        <div class="consejo__fila" id="r-pregunta-fila" hidden>
-          <input id="r-pregunta" type="text" maxlength="200" placeholder="¿Le pongo leche al café? ¿Una lata de atún?" aria-label="Pregúntale a la IA">
+        <div class="consejo__fila" id="r-pregunta-fila">
+          <input id="r-pregunta" type="text" maxlength="200" placeholder="Pregúntale: ¿me falta proteína o verduras?" aria-label="Pregúntale a la IA">
           <button type="button" class="boton boton--ia boton--chico" id="r-preguntar" aria-label="Preguntar">${ICONO.chispa}</button>
         </div>
       </div>`;
@@ -170,6 +173,7 @@ export function abrirRegistro(ctx, op = {}) {
     const total = sumar(items.map((it) => macros(it.alimento, it.gramos)));
     $('#r-total').innerHTML = items.length ? `<strong>${kc(total.kcal)} kcal</strong> · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}` : '';
     $('#r-seguir').disabled = !items.length;
+    if ($('#r-texto') && !fotoPendiente) $('#r-texto').placeholder = items.length ? 'Agrega algo más, o pregúntale sobre el plato (¿me falta proteína?)' : 'Cuéntale a la IA qué comiste, o saca una foto';
     pintarMeta();
 
     const pasoDe = (it) => (Number(it.alimento.porcion_g) > 0 && Number(it.alimento.porcion_g) <= 250 ? Number(it.alimento.porcion_g) : 10);
@@ -218,7 +222,7 @@ export function abrirRegistro(ctx, op = {}) {
     cont.innerHTML = '<p class="consejo__cargando"><span class="ia-puntos"><i></i><i></i><i></i></span> La IA está pensando…</p>';
     try {
       const r = await gemini('consejo', {
-        texto: pregunta || undefined,
+        texto: pregunta ? `${pregunta}\n(Contesta mirando el balance del plato: proteína, carbohidratos, grasas y verduras o fibra; si faltan verduras, sugiere cuáles y cuántos gramos.)` : undefined,
         contexto: {
           objetivo: OBJETIVOS[b.info.foco]?.nombre ?? b.info.foco,
           comida: MOMENTOS[momento],
@@ -339,7 +343,7 @@ export function abrirRegistro(ctx, op = {}) {
     const texto = $('#r-texto').value.trim();
     if (!fotoPendiente && !texto) return $('#r-texto').focus();
     // Sin foto, una pregunta sobre lo que ya está en el plato va directo a la IA (no se lee como comida).
-    if (!fotoPendiente && items.length && /^¿|\?\s*$/.test(texto)) {
+    if (!fotoPendiente && items.length && esPregunta(texto)) {
       $('#r-texto').value = '';
       aconsejar(texto);
       $('#r-consejo')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -349,7 +353,7 @@ export function abrirRegistro(ctx, op = {}) {
     boton.disabled = true;
     try {
       // «¿Con esto de carbohidratos estoy bien?»: con foto, una pregunta no es parte del plato; primero se lee la foto y después se pregunta.
-      const pregunta = /^¿|\?\s*$/.test(texto) ? texto : '';
+      const pregunta = esPregunta(texto) ? texto : '';
       if (fotoPendiente) {
         mensaje(pregunta ? 'Mirando la foto…' : texto ? 'Mirando la foto y lo que le agregaste…' : 'Mirando la foto…', true);
         const r = await gemini('foto', { imagen: await fotoBase64(fotoPendiente), tipo: 'image/jpeg', texto: (pregunta ? '' : texto) || undefined });
@@ -358,7 +362,10 @@ export function abrirRegistro(ctx, op = {}) {
         quitarFoto();
         $('#r-texto').value = '';
         mensaje(pregunta ? 'Listo. Ahora respondo tu pregunta abajo 👇' : 'Listo. Revisa las cantidades: la IA las estima a ojo.');
-        if (pregunta) { aconsejar(pregunta); $('#r-consejo')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+        // Con foto, la IA revisa siempre el plato (proteína, carbohidratos y verduras), o responde lo que preguntaste.
+        aconsejar(pregunta || REVISION);
+        setTimeout(() => $('#r-consejo')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
+        return;
       } else {
         mensaje('Leyendo…', true);
         const otro = estado.personas.find((p) => p.id !== estado.yo.id);
@@ -393,7 +400,6 @@ export function abrirRegistro(ctx, op = {}) {
     const texto = $('#r-texto');
     const ajustar = () => { texto.style.height = 'auto'; texto.style.height = `${Math.min(160, texto.scrollHeight)}px`; };
     texto.addEventListener('input', ajustar);
-    $('#r-preguntar-abrir').addEventListener('click', () => { $('#r-pregunta-fila').hidden = false; $('#r-preguntar-abrir').hidden = true; $('#r-pregunta').focus(); });
     $('#r-leer').addEventListener('click', leer);
     $('#r-texto').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); leer(); } });
     for (const id of ['#r-camara', '#r-galeria']) {
@@ -424,7 +430,7 @@ export function abrirRegistro(ctx, op = {}) {
       if (!cont.hidden) cont.querySelector('#ba-q')?.focus();
     });
     d.querySelectorAll('[data-frec]').forEach((b) => b.addEventListener('click', () => { const f = lista[Number(b.dataset.frec)]; agregar(f.alimento, f.gramos); }));
-    $('#r-preguntar').addEventListener('click', () => { const q = $('#r-pregunta').value.trim(); $('#r-pregunta').value = ''; aconsejar(q || `¿Qué le agrego a este ${MOMENTOS[momento].toLowerCase()} para mi objetivo?`); });
+    $('#r-preguntar').addEventListener('click', () => { const q = $('#r-pregunta').value.trim(); $('#r-pregunta').value = ''; aconsejar(q || REVISION); });
     $('#r-pregunta').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#r-preguntar').click(); } });
     $('#r-borrar')?.addEventListener('click', async () => {
       try { await borrarComida(op.comida); d.close(); aviso('Comida eliminada.'); ctx.recargar(); } catch (err) { avisoError(err); }
