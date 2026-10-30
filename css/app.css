@@ -2261,3 +2261,4 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .datos-plegable[open] .acordeon__flecha { transform: rotate(180deg); }
 .datos-plegable__cuerpo { overflow: hidden; }
 .datos-plegable__cuerpo > .datos { margin-top: 6px; }
+.como-persona > .numeros-hoy { margin: 0 0 12px; }

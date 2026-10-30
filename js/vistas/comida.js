@@ -916,9 +916,10 @@ function conectarAgua(app) {
 }
 
 /** Para Hoy: lo que me falta comer y tomar hoy (meta, comido y agua). */
+/** Lo de hoy de cada persona del hogar (meta, comido, agua), por id. */
 export async function resumenComidaHoy() {
   const d = await cargarDia(hoyISO());
-  return datosPersona(estado.yo, d);
+  return Object.fromEntries(estado.personas.map((p) => [p.id, datosPersona(p, d)]));
 }
 
 // Tarjeta «Tu semana» del día: promedio de calorías y proteína, barras de los 7 días y lo que viene bajo en vitaminas y minerales.

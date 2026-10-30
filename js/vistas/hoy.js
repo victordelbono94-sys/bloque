@@ -158,8 +158,6 @@ export async function vistaHoy(app) {
       ${proximo ? `<p class="plan__proximo"><span class="quieto">Después</span> ${iconoEvento(proximo)} <strong>${esc(rutinaProxima?.nombre ?? nombreEvento(proximo))}</strong> <span class="quieto">${esc(diaCorto(proximo.fecha))} ${numeroDia(proximo.fecha)}${proximo.hora_inicio ? ` · ${esc(hora(proximo.hora_inicio))}` : ''}</span></p>` : ''}
     </section>
 
-    ${htmlNumerosHoy(comidaHoy, mia)}
-
     <section class="seccion" aria-labelledby="como-titulo">
       <div class="fila fila--entre como-cabeza" ${estado.personas.length > 1 ? 'hidden' : ''}>
         <h2 class="seccion__titulo" id="como-titulo" style="margin:0">${esc(tituloComo(personaVista))}</h2>
@@ -176,6 +174,7 @@ export async function vistaHoy(app) {
           }).join('')}
         </div>` : ''}
       ${estado.personas.map((p) => `<div class="como-persona" data-persona-como="${esc(p.id)}" ${p.id === personaVista.id ? '' : 'hidden'}>
+        ${htmlNumerosHoy(comidaHoy?.[p.id], banda(p.id))}
         ${tarjetaPersona(p, estados.find((e) => e.persona_id === p.id), mediciones.find((m) => m.persona_id === p.id), esDescanso(deHoy, p.id), banda(p.id), semaforoDe)}
         <div class="como-molestias" data-molestias="${esc(p.id)}"></div>
       </div>`).join('')}
