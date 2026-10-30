@@ -61,6 +61,10 @@ async function vistaDia(app, fecha) {
   const personas = [...estado.personas].sort((a, b) => (a.id === estado.yo.id ? -1 : b.id === estado.yo.id ? 1 : 0));
   const info = personas.map((p) => datosPersona(p, d));
   const yo = info[0];
+  // A quién se mira en el resumen (las caras de arriba): yo por defecto.
+  let verId = null;
+  try { verId = sessionStorage.getItem('bloque-comida-ver'); } catch { /* nada */ }
+  const visto = info.find((x) => x.p.id === verId) ?? yo;
   const snacks = esHoy ? snacksDelDia(yo.eventos, yo.metas.ok ? yo.metas.peso : null) : [];
   const ctx = {
     fecha, esHoy, info, despensa: d.despensa, frecuentes: frec, habituales,
@@ -93,8 +97,14 @@ async function vistaDia(app, fecha) {
       </div>
     </section>
 
-    ${htmlResumen(yo, true, esHoy)}
-    ${info.slice(1).map((x) => htmlResumen(x, false)).join('')}
+    ${info.length > 1 ? `
+      <div class="ver-persona" role="tablist" aria-label="De quién ver el día">
+        ${info.map((x) => `<button type="button" class="ver-persona__op" role="tab" data-ver="${esc(x.p.id)}" aria-selected="${x === visto}">
+          <span class="ver-persona__cara">${cara(x.p)}</span><span>${esc(x === yo ? 'Yo' : x.p.nombre)}</span>
+          ${x.metas.ok ? `<span class="ver-persona__kcal">${kc(Math.max(0, x.metas.kcal - x.comido.kcal))} kcal</span>` : ''}
+        </button>`).join('')}
+      </div>` : ''}
+    <div id="resumen-persona" class="resumen-persona">${htmlResumen(visto, true, esHoy && visto === yo, visto === yo)}</div>
 
 
 
@@ -102,9 +112,10 @@ async function vistaDia(app, fecha) {
       <section class="seccion" aria-labelledby="t-ahora">
         <h2 class="seccion__titulo" id="t-ahora">¿Qué como ahora?</h2>
         <div class="tarjeta pila" style="gap:12px">
-          ${snacks.length ? htmlSnack(snacks[0]) + (snacks.length > 1 ? `<details class="snacks-mas"><summary>Ver ${snacks.length - 1} más</summary>${snacks.slice(1).map(htmlSnack).join('')}</details>` : '') : ''}
-          <button type="button" class="boton boton--sec" id="ideas-btn">${ICONO_CHISPA} Ideas con lo que hay en casa</button>
+          ${snacks.map(htmlSnack).join('')}
+          <p class="seccion__titulo ideas__titulo">${ICONO_CHISPA} Ideas con lo que hay en casa</p>
           <div id="ideas" class="pila" style="gap:12px"></div>
+          <button type="button" class="boton boton--sec" id="ideas-btn" hidden>${ICONO_CHISPA} Otras ideas</button>
         </div>
       </section>` : ''}
 
@@ -140,7 +151,29 @@ async function vistaDia(app, fecha) {
   app.querySelectorAll('[data-comida]').forEach((b) => b.addEventListener('click', () =>
     abrirRegistro(ctx, { comida: d.comidas.find((c) => c.id === b.dataset.comida) })));
   app.querySelector('#cambiar-objetivo')?.addEventListener('click', () => dialogoObjetivo(yo.foco, () => vistaDia(app, fecha)));
-  app.querySelector('#ideas-btn')?.addEventListener('click', (e) => mostrarIdeas(ctx, app.querySelector('#ideas'), e.currentTarget));
+  const botonIdeas = app.querySelector('#ideas-btn');
+  botonIdeas?.addEventListener('click', (e) => mostrarIdeas(ctx, app.querySelector('#ideas'), e.currentTarget));
+  // Las ideas se cargan solas cuando la sección aparece en pantalla (y quedan guardadas 30 min).
+  const contIdeas = app.querySelector('#ideas');
+  if (contIdeas && botonIdeas) {
+    const obs = new IntersectionObserver((en) => {
+      if (!en.some((x) => x.isIntersecting)) return;
+      obs.disconnect();
+      mostrarIdeas(ctx, contIdeas, botonIdeas).then(() => { botonIdeas.hidden = false; });
+    }, { root: document.getElementById('app'), rootMargin: '200px 0px' });
+    obs.observe(contIdeas);
+  }
+  app.querySelectorAll('[data-ver]').forEach((b) => b.addEventListener('click', () => {
+    try { sessionStorage.setItem('bloque-comida-ver', b.dataset.ver); } catch { /* nada */ }
+    const x = info.find((y) => y.p.id === b.dataset.ver);
+    app.querySelectorAll('[data-ver]').forEach((o) => o.setAttribute('aria-selected', String(o === b)));
+    const cont = app.querySelector('#resumen-persona');
+    cont.classList.remove('fundido'); void cont.offsetWidth;
+    cont.innerHTML = htmlResumen(x, true, esHoy && x === yo, x === yo);
+    cont.classList.add('fundido');
+    if (x === yo) conectarAgua(app);
+    app.querySelector('#cambiar-objetivo')?.addEventListener('click', () => dialogoObjetivo(yo.foco, () => vistaDia(app, fecha)));
+  }));
 }
 
 const ICONO_MOMENTO = { desayuno: '☕', almuerzo: '🍽️', merienda: '🥪', cena: '🌙', snack: '🍎', pre_entreno: '⚡', post_entreno: '💪' };
@@ -547,7 +580,7 @@ function barra(nombre, valor, meta, clase) {
 }
 
 // Hidratación dentro del resumen del día: un vaso con agua que sube, y botones rápidos.
-function htmlAgua(x, esHoy) {
+function htmlAgua(x, esHoy, mio = true) {
   const { meta, tomado, deComidas, entradas } = x.agua;
   const pct = Math.min(100, Math.round((tomado / meta) * 100));
   const falta = meta - tomado;
@@ -563,7 +596,7 @@ function htmlAgua(x, esHoy) {
       </div>
       <div class="agua-dia__texto">
         <div class="macro__fila"><span>Agua</span><span><strong id="agua-tomado">${litros(tomado)}</strong> / ${litros(meta)}</span></div>
-        <p class="agua-dia__estado ${falta <= 0 ? 'hecho' : ''}" id="agua-estado">${falta <= 0 ? 'Meta de agua cumplida ✓' : `Te falta ${litros(falta)}`}${deComidas ? ` · ${litros(deComidas)} de bebidas` : ''}${entreno ? ` · ${entreno.tipo === 'derby' ? 'lleva ~1 L al derby' : 'lleva ~500 ml al entreno'}` : ''}</p>
+        <p class="agua-dia__estado ${falta <= 0 ? 'hecho' : ''}" id="agua-estado">${falta <= 0 ? 'Meta de agua cumplida ✓' : `${mio ? 'Te' : 'Le'} falta ${litros(falta)}`}${deComidas ? ` · ${litros(deComidas)} de bebidas` : ''}${entreno ? ` · ${entreno.tipo === 'derby' ? 'lleva ~1 L al derby' : 'lleva ~500 ml al entreno'}` : ''}</p>
         ${esHoy ? `
           <div class="agua-dia__botones">
             <button type="button" class="chip chip--mini chip--agua" data-agua="250">+ Vaso</button>
@@ -575,16 +608,16 @@ function htmlAgua(x, esHoy) {
     </div>`;
 }
 
-function htmlResumen(x, esYo, esHoy = true) {
+function htmlResumen(x, esYo, esHoy = true, mio = esYo) {
   const { p, metas, comido } = x;
   if (!metas.ok) {
     return `
       <section class="tarjeta dia-comida ${esYo ? '' : 'dia-comida--otro'}" style="margin-top:12px">
-        <h2 class="tarjeta__titulo">${esc(esYo ? 'Mi día' : p.nombre)}</h2>
-        <p class="quieto" style="margin:8px 0 0">Para calcular ${esYo ? 'tu meta' : 'su meta'} falta ${esc(unir(metas.falta))}.</p>
-        ${esYo ? '<a class="boton boton--sec boton--chico" style="margin-top:12px" href="#/perfil">Completar perfil</a>' : `<p class="ayuda" style="margin-top:6px">${esc(p.nombre)} lo completa desde su Perfil y Cuerpo.</p>`}
+        <h2 class="tarjeta__titulo">${esc(mio ? 'Mi día' : p.nombre)}</h2>
+        <p class="quieto" style="margin:8px 0 0">Para calcular ${mio ? 'tu meta' : 'su meta'} falta ${esc(unir(metas.falta))}.</p>
+        ${mio ? '<a class="boton boton--sec boton--chico" style="margin-top:12px" href="#/perfil">Completar perfil</a>' : `<p class="ayuda" style="margin-top:6px">${esc(p.nombre)} lo completa desde su Perfil y Cuerpo.</p>`}
         ${comido.kcal ? `<p class="quieto" style="margin:10px 0 0">Comido hoy: ${kc(comido.kcal)} kcal · ${g(comido.proteina)} de proteína</p>` : ''}
-        ${esYo ? htmlAgua(x, esHoy) : ''}
+        ${esYo ? htmlAgua(x, esHoy, mio) : ''}
       </section>`;
   }
   const quedan = metas.kcal - comido.kcal;
@@ -613,11 +646,11 @@ function htmlResumen(x, esYo, esHoy = true) {
         ${barra('Carbohidratos', comido.carbos, metas.carbos, 'm-carb')}
         ${barra('Grasas', comido.grasas, metas.grasas, 'm-gras')}
       </div>
-      ${htmlAgua(x, esHoy)}
+      ${htmlAgua(x, esHoy, mio)}
       ${notas.length ? `<ul class="notas-comida">${notas.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
       <p class="ayuda dia-comida__pie">
         Gasto estimado ${kc(metas.gasto)} kcal (${metas.medido ? `entrenos según el reloj: ${kc(metas.medido)}` : `entrenos: ${kc(metas.ejercicio)}`})
-        · <button type="button" class="enlace-boton" id="cambiar-objetivo">${esc(OBJETIVOS[x.foco]?.nombre ?? 'Objetivo')}</button>
+        · ${mio ? `<button type="button" class="enlace-boton" id="cambiar-objetivo">${esc(OBJETIVOS[x.foco]?.nombre ?? 'Objetivo')}</button>` : esc(OBJETIVOS[x.foco]?.nombre ?? '')}
       </p>
     </section>`;
 }

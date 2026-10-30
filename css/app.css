@@ -1435,3 +1435,15 @@ dialog.pantalla > .dialogo > h2:first-of-type { padding-right: 52px; }
 .agua-dia--baja .vaso { animation: vaso-baja 0.45s ease; }
 @keyframes vaso-baja { 40% { transform: scale(0.95); } }
 .agua-dia--sube #agua-tomado, .agua-dia--baja #agua-tomado { display: inline-block; animation: fundido 0.35s var(--suave); }
+
+/* Comida: de quién ver el día (caras del hogar) */
+.ver-persona { display: flex; gap: 8px; overflow-x: auto; margin: 4px -16px 8px; padding: 2px 16px 4px; scrollbar-width: none; }
+.ver-persona::-webkit-scrollbar { display: none; }
+.ver-persona__op { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 999px; border: 1px solid var(--linea); background: var(--grafito); color: inherit; font: inherit; font-size: 14px; cursor: pointer; transition: background .2s, border-color .2s; }
+.ver-persona__op[aria-selected="true"] { background: rgba(198,244,50,.12); border-color: var(--volt); font-weight: 600; }
+.ver-persona__cara { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; overflow: hidden; background: var(--grafito-2); font-weight: 700; font-size: 13px; }
+.ver-persona__cara > img { width: 100%; height: 100%; object-fit: cover; }
+.ver-persona__kcal { font-size: 12px; opacity: .65; font-weight: 400; }
+.resumen-persona.fundido { animation: fundidoEntra .25s ease; }
+@keyframes fundidoEntra { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.ideas__titulo { margin-top: 8px; }
