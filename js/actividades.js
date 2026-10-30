@@ -93,8 +93,20 @@ const COMPATIBLES = {
   derby: ['patinaje', 'tipo_0', 'tipo_52', 'tipo_60', 'hiit', 'tipo_36'],
   clase: null, // cualquiera menos caminar
 };
+// «Otro entreno» genérico del reloj (tipo_0 o un número que la app no conoce): puede ser cualquier cosa,
+// hasta eSports o yoga suave. Solo cuenta como entreno agendado si hubo esfuerzo de verdad.
+const generico = (tipo) => tipo === 'tipo_0' || (/^tipo_\d+$/.test(tipo) && !CONOCIDOS.has(tipo));
+const CONOCIDOS = new Set(['tipo_13', 'tipo_36', 'tipo_52', 'tipo_60', 'tipo_70', 'tipo_81']);
+/** ¿Hubo esfuerzo? Pulso promedio ≥ 95, o al menos 2,5 kcal por minuto según el reloj. */
+export function conEsfuerzo(s) {
+  const min = Math.max(1, minutos(s));
+  if (Number(s.fc_promedio) >= 95) return true;
+  if (s.calorias && !s.calorias_estimadas && s.calorias / min >= 2.5) return true;
+  return false;
+}
 const compatible = (ev, s) => {
   if (ev.tipo === 'descanso' || !s.tipo) return false;
+  if (generico(s.tipo) && !conEsfuerzo(s)) return false;
   // «Otro»: lo que corresponde a su actividad; si es una clase u otra cosa, cualquiera menos caminar.
   const lista = ev.tipo === 'otro'
     ? (OTROS.find((o) => o.clave === ev.actividad)?.reloj ?? null)

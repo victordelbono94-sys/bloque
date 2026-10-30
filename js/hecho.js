@@ -30,7 +30,7 @@ export async function cargarCumplimiento(eventos, personaId) {
         .eq('persona_id', personaId).in('item.rutina_id', [...new Set(conRutina.map((e) => e.rutina_id))]).then(datos)
       : [],
     fechas.length
-      ? sb.from('sesiones_banda').select('tipo, inicio, fin, calorias').eq('persona_id', personaId)
+      ? sb.from('sesiones_banda').select('tipo, inicio, fin, calorias, calorias_estimadas, fc_promedio').eq('persona_id', personaId)
         .gte('inicio', new Date(`${fechas[0]}T00:00:00`).toISOString())
         .lt('inicio', new Date(`${fechas.at(-1)}T23:59:59`).toISOString()).then(datos)
       : [],

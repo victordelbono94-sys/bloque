@@ -324,7 +324,7 @@ async function vistaSemana(app) {
     sb.from('calendario').select('*').eq('hogar_id', estado.yo.hogar_id).gte('fecha', dias[0]).lte('fecha', hoy).then(datos),
     sb.from('mediciones_corporales').select('persona_id, medido_en, peso_kg, grasa_pct, masa_magra_kg').in('persona_id', ids).order('medido_en', { ascending: false }).limit(120).then(datos),
     sb.from('objetivos').select('*').in('persona_id', ids).order('desde', { ascending: false }).then(datos),
-    sb.from('sesiones_banda').select('persona_id, calorias, calorias_estimadas, inicio, fin, tipo').in('persona_id', ids).gte('inicio', desde).then(datos),
+    sb.from('sesiones_banda').select('persona_id, calorias, calorias_estimadas, inicio, fin, tipo, fc_promedio').in('persona_id', ids).gte('inicio', desde).then(datos),
     sb.from('comidas').select('fecha, porciones(*)').eq('hogar_id', estado.yo.hogar_id).gte('fecha', dias[0]).lte('fecha', hoy).then(datos),
   ]);
   const rutinaIds = [...new Set(eventos.map((e) => e.rutina_id).filter(Boolean))];
@@ -527,7 +527,7 @@ async function cargarDia(fecha) {
     sb.from('mediciones_corporales').select('persona_id, medido_en, peso_kg, grasa_pct, masa_magra_kg')
       .in('persona_id', ids).order('medido_en', { ascending: false }).limit(120).then(datos),
     sb.from('objetivos').select('*').in('persona_id', ids).order('desde', { ascending: false }).then(datos),
-    sb.from('sesiones_banda').select('persona_id, calorias, calorias_estimadas, inicio, fin, tipo').in('persona_id', ids)
+    sb.from('sesiones_banda').select('persona_id, calorias, calorias_estimadas, inicio, fin, tipo, fc_promedio').in('persona_id', ids)
       .gte('inicio', desde.toISOString()).lte('inicio', hasta.toISOString()).then(datos),
     sb.from('comidas').select('*, comida_items(id, gramos, despensa_id, persona_id, alimento:alimentos(*)), porciones(*)')
       .eq('hogar_id', hogar).eq('fecha', fecha).order('hora', { nullsFirst: true }).then(datos),
