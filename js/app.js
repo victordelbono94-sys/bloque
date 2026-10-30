@@ -114,7 +114,7 @@ async function mostrarRuta() {
     setTimeout(() => nav.classList.remove('nav--entra'), 450);
   }
   nav.querySelectorAll('.nav__item').forEach((a) => {
-    if (a.dataset.ruta === (['sesion', 'comenzar', 'entreno'].includes(nombre) ? 'semana' : nombre)) a.setAttribute('aria-current', 'page');
+    if (a.dataset.ruta === (['sesion', 'comenzar', 'entreno'].includes(nombre) ? 'semana' : nombre === 'perfil' ? 'cuerpo' : nombre)) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
 

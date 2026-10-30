@@ -4,7 +4,7 @@ import { sb, estado, datos, nombrePersona } from '../db.js';
 import { esc, num, aviso, avisoError, abrirDialogo, grupoChips, valorChips, cara } from '../ui.js';
 import { fabIA, htmlCabecera } from '../chatia.js';
 import { mascarasPose, IC } from '../iconos.js';
-import { fechaCorta, ahoraLocalInput } from '../fechas.js';
+import { fechaCorta, ahoraLocalInput, hoyISO } from '../fechas.js';
 
 const CAMPOS = [
   { id: 'peso_kg', etiqueta: 'Peso', unidad: 'kg', min: 30, max: 250, paso: 0.1 },
@@ -192,6 +192,66 @@ function abrirHistorial(persona, mediciones, foco, soyYo, recargar) {
   pintar(mediciones.length > 1 && (Date.now() - new Date(mediciones.at(-1).medido_en)) > 90 * 864e5 ? '90' : 'todo');
 }
 
+// ---------- Sugerencias rápidas (como las de Hoy y Alimentación) ----------
+// Cada una se puede ignorar: desaparece por una semana.
+const claveIgnorar = (k) => `bloque-yo-ignorar-${estado.yo.id}-${k}`;
+const ignorada = (k) => { try { const h = localStorage.getItem(claveIgnorar(k)); return !!h && h > hoyISO(); } catch { return false; } };
+
+function sugerenciasYo(mediciones) {
+  const yo = estado.yo;
+  const dias = (m) => (m ? Math.floor((Date.now() - new Date(m.medido_en)) / 864e5) : null);
+  const peso = mediciones.find((m) => m.peso_kg != null);
+  const bio = mediciones.find((m) => m.grasa_pct != null || m.masa_muscular_kg != null);
+  const dPeso = dias(peso), dBio = dias(bio);
+  const lista = [];
+  if (dPeso == null || dPeso >= 7) {
+    lista.push({ k: 'peso', i: IC.balanza, ti: dPeso == null ? 'Registra tu peso' : `Hace ${dPeso} días que no te pesas`,
+      t: 'Pésate al levantarte, en ayunas: así Bloq ajusta tu meta de calorías con tu tendencia real.', b: 'Registrar peso', a: 'pesar' });
+  }
+  if (peso && (dBio == null || dBio > 30)) {
+    lista.push({ k: 'bio', i: IC.documento, ti: dBio == null ? 'Haz una prueba de bioimpedancia' : 'Toca una nueva bioimpedancia',
+      t: dBio == null ? 'Con tu % de grasa y músculo ves si bajas grasa o subes músculo, no solo kilos.' : `La última es de hace ${dBio} días. Una al mes mantiene tus metas precisas.`, b: 'Cargar resultados', a: 'ia' });
+  }
+  const faltan = [!yo.altura_cm && 'altura', !yo.fecha_nacimiento && 'fecha de nacimiento', !yo.sexo && 'sexo'].filter(Boolean);
+  if (faltan.length) {
+    lista.push({ k: 'datos', i: IC.nota, ti: 'Completa tus datos', t: `Falta tu ${faltan.join(', ')}: con eso se calcula tu metabolismo.`, b: 'Completar', href: '#/perfil' });
+  }
+  const primera = mediciones.at(-1);
+  if (peso && dias(primera) >= 28 && mediciones.length >= 3) {
+    lista.push({ k: 'progreso', i: IC.ritmo, ti: 'Mira cuánto cambiaste', t: `Tienes mediciones desde hace ${Math.round(dias(primera) / 7)} semanas: compara cómo estabas antes y cómo estás hoy.`, b: 'Ver mi progreso', a: 'historial' });
+  }
+  return lista.filter((x) => !ignorada(x.k)).slice(0, 2);
+}
+
+function htmlSugerencias(lista) {
+  if (!lista.length) return '';
+  return `<section class="tarjeta cuerpo-pendiente yo-sugerencias">${lista.map((x) => `
+    <div class="pendiente pendiente--resp" data-sug="${x.k}">
+      <span class="yo-sug__ic" aria-hidden="true">${x.i}</span>
+      <span class="pendiente__texto"><strong>${esc(x.ti)}</strong><span class="quieto">${esc(x.t)}</span>
+        <span class="resp-fila yo-sug__botones">
+          ${x.href ? `<a class="boton boton--chico" href="${x.href}">${esc(x.b)}</a>` : `<button type="button" class="boton boton--chico" data-accion="${x.a}">${esc(x.b)}</button>`}
+          <button type="button" class="boton boton--texto boton--chico" data-ignorar="${x.k}">Ignorar</button>
+        </span>
+      </span>
+    </div>`).join('')}</section>`;
+}
+
+function conectarSugerencias(app, { abrirIA, pesar }) {
+  const caja = app.querySelector('.yo-sugerencias');
+  if (!caja) return;
+  caja.querySelector('[data-accion="pesar"]')?.addEventListener('click', pesar);
+  caja.querySelector('[data-accion="ia"]')?.addEventListener('click', abrirIA);
+  caja.querySelector('[data-accion="historial"]')?.addEventListener('click', () => app.querySelector('#ver-historial')?.click());
+  caja.querySelectorAll('[data-ignorar]').forEach((b) => b.addEventListener('click', () => {
+    try { localStorage.setItem(claveIgnorar(b.dataset.ignorar), sumarDiasISO(7)); } catch { /* nada */ }
+    const fila = b.closest('.pendiente');
+    fila.classList.add('pendiente--hecho');
+    setTimeout(() => { fila.remove(); if (!caja.querySelector('.pendiente')) caja.remove(); }, 380);
+  }));
+}
+const sumarDiasISO = (n) => { const d = new Date(Date.now() + n * 864e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
 export async function vistaCuerpo(app) {
   const param = location.hash.split('/')[2];
   const persona = estado.personas.find((p) => p.id === param) ?? estado.yo;
@@ -238,16 +298,7 @@ export async function vistaCuerpo(app) {
     return `<button type="button" class="cuerpo-tile ${u ? '' : 'cuerpo-tile--sin'}" data-metrica="${m.id}" aria-pressed="${m.id === sel}" style="--c:${m.color}" ${u ? '' : 'data-sin="1"'}>
       <small>${m.nombre}</small><strong>${u ? num(Number(u[m.id]), m.dec ?? 1) : '—'}${u && m.unidad ? `<em>${m.unidad}</em>` : ''}</strong></button>`;
   }).join('');
-  // ¿La última bioimpedancia (con % de grasa) tiene más de un mes?
-  const bio = mediciones.find((x) => x.grasa_pct != null || x.masa_muscular_kg != null);
-  const diasBio = bio ? Math.floor((Date.now() - new Date(bio.medido_en)) / 864e5) : null;
-  const avisoBio = soyYo && (diasBio == null || diasBio > 30) ? `
-    <section class="tarjeta aviso-bio">
-      <span class="aviso-bio__icono">${IC.balanza}</span>
-      <div><strong>${diasBio == null ? 'Haz una prueba de bioimpedancia' : 'Tus datos de composición están desactualizados'}</strong>
-      <p>${diasBio == null ? 'Con tu % de grasa, músculo y agua, Bloq calcula tus metas sobre tu masa magra y ves si cambia grasa o músculo.' : `Tu última bioimpedancia es de hace ${diasBio} días. Se aconseja una nueva una vez al mes para que tus metas sigan precisas.`}</p>
-      <button type="button" class="boton boton--sec boton--chico" id="cargar-bio">Cargar resultados</button></div>
-    </section>` : '';
+  const sugerencias = soyYo ? sugerenciasYo(mediciones) : [];
 
   app.innerHTML = `
     <header class="encabezado encabezado--fijo">
@@ -255,7 +306,10 @@ export async function vistaCuerpo(app) {
         <h1 class="titulo">Yo</h1>
         <p class="subtitulo">${soyYo ? 'Tu peso y composición esta semana' : `Peso y composición de ${esc(persona.nombre)}`}</p>
       </div>
-      <button type="button" class="boton boton--sec boton--chico nav-dia" id="ver-historial" aria-label="Historial y progreso">${ICONO_HISTORIAL}</button>
+      <div class="yo-acciones">
+        <button type="button" class="boton boton--sec boton--chico nav-dia" id="ver-historial" aria-label="Historial y progreso">${ICONO_HISTORIAL}</button>
+        <a class="avatar" href="#/perfil" aria-label="Perfil y ajustes">${cara(estado.yo)}</a>
+      </div>
     </header>
 
     ${estado.personas.length > 1 ? `
@@ -264,12 +318,14 @@ export async function vistaCuerpo(app) {
           <span class="ver-persona__cara">${cara(p)}</span><span>${esc(p.id === estado.yo.id ? 'Yo' : p.nombre)}</span></a>`).join('')}
       </div>` : ''}
 
+    ${htmlSugerencias(sugerencias)}
+
     ${conDatos.length ? `
       <section class="tarjeta cuerpo-hero">
         <div class="cuerpo-hero__fila" id="cuerpo-metrica">${htmlMetrica(elegida)}</div>
         <div class="cuerpo-tiles" aria-label="Tu composición">${htmlTiles(elegida)}</div>
       </section>
-      ${avisoBio}` : `
+      ` : `
       <section class="tarjeta cuerpo-vacio">
         <p style="margin:0"><strong>${soyYo ? 'Carga tu primera medición' : `${esc(persona.nombre)} todavía no tiene mediciones`}</strong></p>
         ${soyYo ? '<p class="quieto" style="margin:6px 0 0">Toca «Nueva medición»: escribe tu peso o mándale a la IA una foto de la balanza o el PDF de tu bioimpedancia.</p>' : ''}
@@ -288,7 +344,7 @@ export async function vistaCuerpo(app) {
     if (b) abrirQueEs(b.dataset.queEs, mediciones, persona, foco);
   });
   const abrirIA = async () => (await import('../cuerpoia.js')).abrirCuerpoIA({ alGuardar: recargar, manual: (v) => dialogoMedicion(recargar, v ?? {}) });
-  app.querySelector('#cargar-bio')?.addEventListener('click', abrirIA);
+  conectarSugerencias(app, { abrirIA, pesar: () => dialogoMedicion(recargar, {}) });
   app.querySelectorAll('[data-metrica]').forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.sin) { if (soyYo) abrirIA(); return; }
     try { sessionStorage.setItem('bloque-cuerpo-metrica', b.dataset.metrica); } catch { /* nada */ }

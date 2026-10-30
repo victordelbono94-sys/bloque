@@ -223,18 +223,22 @@ const nivel = (x, bien, casi) => (x == null ? 'sin' : x >= bien ? 'ok' : x >= ca
 function filasComoTeFue(s) {
   const reg = s.registrados || 0;
   const pl = (n, a, b) => `${n} ${n === 1 ? a : b}`;
-  const kcal = !reg ? ['sin', 'No registraste comidas: con una foto del plato basta.']
-    : s.enMeta && s.cerca ? [nivel((s.enMeta + s.cerca) / reg, 0.6, 0.3), `Cumpliste tu meta ${pl(s.enMeta, 'día', 'días')} y estuviste muy cerca ${pl(s.cerca, 'día', 'días')} más.`]
-    : s.enMeta ? [nivel(s.enMeta / reg, 0.6, 0.3), `Cumpliste tu meta ${s.enMeta} de ${reg} días registrados.`]
-    : s.cerca ? ['casi', `Estuviste muy cerca de tu meta ${s.cerca} de ${reg} días: te faltó poquito.`]
-    : ['ojo', `Te quedaste lejos de tu meta estos días. Esta semana se puede: mira «Calorías día por día».`];
+  const deReg = `de los ${pl(reg, 'día', 'días')} que registraste`;
+  const dif = s.kcalComida != null && s.kcalMeta != null ? s.kcalComida - s.kcalMeta : null;
+  const lejos = dif == null ? 'Te alejaste de tu meta de calorías.'
+    : `Comiste en promedio ${r(Math.abs(dif))} kcal ${dif < 0 ? 'menos' : 'más'} por día de lo que pide tu objetivo.`;
+  const kcal = !reg ? ['sin', 'No registraste comidas esta semana.']
+    : s.enMeta && s.cerca ? [nivel((s.enMeta + s.cerca) / reg, 0.6, 0.3), `Comiste lo justo ${pl(s.enMeta, 'día', 'días')} y quedaste cerca otros ${pl(s.cerca, 'día', 'días')}, ${deReg}.`]
+    : s.enMeta ? [nivel(s.enMeta / reg, 0.6, 0.3), `Comiste lo justo para tu objetivo ${s.enMeta} ${deReg}.`]
+    : s.cerca ? ['casi', `Quedaste cerca de tu meta ${s.cerca} ${deReg}.`]
+    : ['ojo', lejos];
   const prot = !reg ? ['sin', 'Sin comidas registradas.']
-    : s.protOk ? [nivel((s.protOk + s.protCerca * 0.5) / reg, 0.6, 0.3), `Llegaste a tu proteína ${pl(s.protOk, 'día', 'días')}${s.protCerca ? ` y casi ${pl(s.protCerca, 'día', 'días')} más` : ''}.`]
-    : s.protCerca ? ['casi', `Casi llegas a tu proteína ${pl(s.protCerca, 'día', 'días')} (promedio ${r(s.protComida)} de ${r(s.protMeta)} g).`]
-    : ['ojo', `Vas en ${r(s.protComida ?? 0)} de ${r(s.protMeta ?? 0)} g por día: suma una porción en cada comida.`];
-  const ent = !s.agendados ? ['sin', 'No tenías entrenos agendados.'] : [nivel(s.hechos / s.agendados, 0.7, 0.4), `Fuiste a ${s.hechos} de ${s.agendados} entrenos${s.hechos ? ': cada uno suma' : ''}.`];
-  const sue = s.suenoProm == null ? ['sin', 'Sin datos del reloj.'] : [nivel(s.suenoProm / 60, 7, 6.3), `Dormiste ${(s.suenoProm / 60).toFixed(1).replace('.', ',')} h por noche (lo ideal: 7–9 h).`];
-  const agu = s.aguaPct == null ? ['sin', 'No registraste agua.'] : [nivel(s.aguaPct, 0.8, 0.6), `Tomaste el ${Math.round(s.aguaPct * 100)} % del agua que necesitas.`];
+    : s.protOk ? [nivel((s.protOk + s.protCerca * 0.5) / reg, 0.6, 0.3), `Comiste suficiente proteína ${s.protOk} ${deReg}.`]
+    : s.protCerca ? ['casi', `Te faltó poca proteína: comiste ${r(s.protComida)} g al día y tu meta es ${r(s.protMeta)} g.`]
+    : ['ojo', `Comiste ${r(s.protComida ?? 0)} g de proteína al día y tu meta es ${r(s.protMeta ?? 0)} g. Suma una porción en cada comida.`];
+  const ent = !s.agendados ? ['sin', 'No tenías entrenos planeados.'] : [nivel(s.hechos / s.agendados, 0.7, 0.4), `Hiciste ${s.hechos} de los ${pl(s.agendados, 'entreno', 'entrenos')} que tenías planeados.`];
+  const sue = s.suenoProm == null ? ['sin', 'Sin datos del reloj.'] : [nivel(s.suenoProm / 60, 7, 6.3), `Dormiste ${(s.suenoProm / 60).toFixed(1).replace('.', ',')} h por noche en promedio. Lo recomendable es de 7 a 9 h.`];
+  const agu = s.aguaPct == null ? ['sin', 'No registraste agua.'] : [nivel(s.aguaPct, 0.8, 0.6), s.aguaPct >= 1 ? 'Tomaste toda el agua que necesitas cada día.' : `Cada día tomaste en promedio el ${Math.round(s.aguaPct * 100)} % del agua que necesitas.`];
   return [
     fila(IC.comida, 'Calorías', kcal[1], kcal[0]),
     fila(IC.proteina, 'Proteína', prot[1], prot[0]),

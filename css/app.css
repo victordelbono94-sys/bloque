@@ -2248,3 +2248,9 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .interruptor:checked { background: var(--volt); }
 .interruptor:checked::before { transform: translateX(20px); background: var(--asfalto); }
 .interruptor:focus-visible { outline: 2px solid var(--volt); outline-offset: 2px; }
+.yo-acciones { display: flex; align-items: center; gap: 10px; }
+.yo-sugerencias { margin-bottom: 14px; }
+.yo-sugerencias .pendiente { flex-direction: row; align-items: flex-start; }
+.yo-sug__ic { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: rgba(232, 163, 23, .16); color: var(--ambar); }
+.yo-sug__ic .icono-ui { width: 18px; height: 18px; }
+.yo-sug__botones { margin-top: 10px; }

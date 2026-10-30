@@ -120,7 +120,6 @@ export async function vistaHoy(app) {
         <h1 class="titulo">Hoy</h1>
         <p class="subtitulo">${esc(diaLargo(hoy))}</p>
       </div>
-      <a class="avatar" href="#/perfil" aria-label="Perfil y ajustes">${cara(estado.yo)}</a>
     </header>
 
     ${falta.length ? `
