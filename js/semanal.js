@@ -31,6 +31,13 @@ export async function calcularSemana(persona) {
     sb.from('objetivos').select('foco, desde').eq('persona_id', persona.id).order('desde', { ascending: false }).limit(1).then(datos),
     sb.from('hidratacion').select('fecha, ml').eq('persona_id', persona.id).gte('fecha', ini).lte('fecha', fin).then(datos),
   ]);
+  // Para aprender el gasto real: 3 semanas de comidas registradas y el ritmo que eligió (si habló con la IA del cuerpo).
+  const d21 = sumarDias(fin, -20);
+  const [porc21, notas] = await Promise.all([
+    sb.from('porciones').select('kcal, comida:comidas!inner(fecha, hogar_id)').eq('persona_id', persona.id).eq('comida.hogar_id', hogar)
+      .gte('comida.fecha', d21).lte('comida.fecha', fin).then(datos).catch(() => []),
+    sb.from('notas_cuerpo').select('tipo, texto, valor, creada_en').eq('persona_id', persona.id).order('creada_en', { ascending: false }).limit(12).then(datos).catch(() => []),
+  ]);
   const foco = objetivos[0]?.foco ?? 'recomposicion';
   const tendencia = tendenciaPeso(mediciones, foco);
   const suyos = eventos.filter((e) => e.tipo !== 'descanso' && (e.asistencia === 'juntos' || e.persona_id === persona.id));
@@ -113,44 +120,143 @@ export async function calcularSemana(persona) {
   sugerencias.sort((a, b) => b.p - a.p);
 
   const racha = await rachaSemanas(persona.id).catch(() => 0);
+  const pesoActual = pesoAct != null ? Number(pesoAct) : null;
+  const ritmo = ritmoEsperado(foco, pesoActual, notas.find((n) => n.tipo === 'ritmo')?.valor);
+  const gasto = gastoReal(porc21, mediciones, d21, fin, persona);
+  const gastoEstimado = prom(registrados, (d) => d.metas.gasto);
   return {
-    racha, persona, ini, fin, foco, porDia, registrados: registrados.length, enMeta, protOk, kcalComida, kcalMeta, protComida, protMeta,
+    racha, ritmo, gasto, gastoEstimado, pesoActual, notas,
+    proyeccion: pesoActual != null ? {
+      real: tendencia?.kgSemana != null ? pesoActual + tendencia.kgSemana * 4 : null,
+      ideal: pesoActual + ((ritmo.min + ritmo.max) / 2) * 4,
+    } : null, persona, ini, fin, foco, porDia, registrados: registrados.length, enMeta, protOk, kcalComida, kcalMeta, protComida, protMeta,
     agendados, hechos, suenoProm, aguaPct, pesoIni, pesoFin, tendencia, sugerencias: sugerencias.slice(0, 3).map((x) => x.t),
   };
 }
 
-function htmlSemana(s) {
-  const kpi = (valor, etiqueta, ok) => `<div class="semana-kpi ${ok === true ? 'semana-kpi--ok' : ok === false ? 'semana-kpi--ojo' : ''}"><strong>${valor}</strong><span>${etiqueta}</span></div>`;
-  const kg = (n) => `${n.toLocaleString('es-EC', { maximumFractionDigits: 1 })} kg`;
-  const cambio = s.pesoIni != null && s.pesoFin != null ? s.pesoFin - s.pesoIni : null;
-  const ganar = s.foco === 'masa_muscular';
-  const pesoOk = cambio == null ? null : ganar ? cambio >= 0 : s.foco === 'perder_grasa' || s.foco === 'recomposicion' ? cambio <= 0.2 : Math.abs(cambio) < 0.5;
+/** Ritmo sano de cambio de peso por semana según el objetivo (o el que eligió con la IA). */
+export function ritmoEsperado(foco, peso, elegido = null) {
+  const p = peso ?? 70;
+  const R = {
+    perder_grasa: [-0.01, -0.005], recomposicion: [-0.004, -0.001], masa_muscular: [0.0015, 0.004],
+    mantenimiento: [-0.0015, 0.0015], cardio: [-0.0015, 0.0015],
+  }[foco] ?? [-0.0015, 0.0015];
+  if (elegido != null && Number.isFinite(Number(elegido))) {
+    const v = Number(elegido);
+    return { min: Math.round((v - 0.1) * 100) / 100, max: Math.round((v + 0.1) * 100) / 100, elegido: v };
+  }
+  const a = Math.round(R[0] * p * 100) / 100, b = Math.round(R[1] * p * 100) / 100;
+  return { min: Math.min(a, b), max: Math.max(a, b), elegido: null };
+}
+
+/**
+ * Gasto real aprendido (como hacen las apps de nutrición adaptativas): lo que comiste en promedio, corregido por lo que
+ * hizo tu peso. Si comiste 2.400 al día y bajaste 0,3 kg por semana, tu gasto real es ~2.400 + 0,3 × 7.700 / 7 ≈ 2.730.
+ * Necesita ≥ 10 días bien registrados y ≥ 3 pesajes que cubran ≥ 10 días.
+ */
+export function gastoReal(porciones, mediciones, desde, hasta, persona) {
+  const porDia = new Map();
+  for (const x of porciones) porDia.set(x.comida.fecha, (porDia.get(x.comida.fecha) ?? 0) + Number(x.kcal ?? 0));
+  const dias = [...porDia.values()].filter((k) => k > 900);
+  const pesos = mediciones.filter((m) => m.peso_kg != null && fechaLocal(m.medido_en) >= desde && fechaLocal(m.medido_en) <= hasta)
+    .map((m) => ({ x: new Date(m.medido_en).getTime() / 864e5, y: Number(m.peso_kg) }));
+  const falta = { dias: Math.max(0, 10 - dias.length), pesajes: Math.max(0, 3 - pesos.length) };
+  if (dias.length < 10 || pesos.length < 3) return { listo: false, falta, diasRegistrados: dias.length, pesajes: pesos.length };
+  const xs = pesos.map((p) => p.x);
+  if (Math.max(...xs) - Math.min(...xs) < 10) return { listo: false, falta: { ...falta, rango: true }, diasRegistrados: dias.length, pesajes: pesos.length };
+  const mx = xs.reduce((a, b) => a + b, 0) / pesos.length, my = pesos.reduce((a, p) => a + p.y, 0) / pesos.length;
+  const kgDia = pesos.reduce((a, p) => a + (p.x - mx) * (p.y - my), 0) / pesos.reduce((a, p) => a + (p.x - mx) ** 2, 0);
+  const comido = dias.reduce((a, b) => a + b, 0) / dias.length;
+  const kcal = Math.round((comido - kgDia * 7700) / 10) * 10;
+  return { listo: true, kcal: Math.max(1200, Math.min(5500, kcal)), comido: Math.round(comido), kgSemana: Math.round(kgDia * 700) / 100, diasRegistrados: dias.length, pesajes: pesos.length };
+}
+
+const ICONOS_KPI = { comida: '🍽️', proteina: '🥩', entreno: '🏋️', sueno: '😴', agua: '💧' };
+const kgTxt = (n, signo = false, dec = 2) => `${signo && n > 0 ? '+' : ''}${n.toLocaleString('es-EC', { maximumFractionDigits: dec })}`;
+
+/** El resumen de la semana: ritmo del peso frente a lo ideal, proyección, gasto real aprendido, indicadores y plan. */
+export function htmlSemana(s, { compacto = false } = {}) {
+  const real = s.tendencia?.kgSemana ?? null;
+  const { min, max } = s.ritmo;
+  const centro = (min + max) / 2;
+  const bajar = centro < -0.05, subir = centro > 0.05;
+  const estadoRitmo = real == null ? 'sin' : real >= min - 0.05 && real <= max + 0.05 ? 'ok'
+    : (bajar ? (real > max ? 'lento' : 'rapido') : subir ? (real < min ? 'lento' : 'rapido') : 'fuera');
+  const escala = 1.2;
+  const pos = (v) => `${((Math.max(-escala, Math.min(escala, v)) + escala) / (2 * escala)) * 100}%`;
+  const verbo = bajar ? 'bajar' : subir ? 'subir' : 'mantenerte entre';
+  const rangoTxt = bajar || subir
+    ? `${verbo} ${kgTxt(Math.abs(bajar ? max : min))}–${kgTxt(Math.abs(bajar ? min : max))} kg por semana`
+    : `${verbo} ${kgTxt(min, true)} y ${kgTxt(max, true)} kg por semana`;
+  const textoRitmo = {
+    sin: 'Pésate 2 o 3 veces por semana (al levantarte) y acá ves si vas al ritmo de tu objetivo.',
+    ok: '¡Vas al ritmo justo! Sigue así.',
+    lento: bajar ? 'Vas más lento de lo ideal: la app ya ajustó tu meta. Si quieres, cuéntale a la IA cómo vienes.' : 'Vas más lento de lo ideal: la app ya sumó calorías a tu meta.',
+    rapido: bajar ? 'Vas más rápido de lo ideal: puede costar músculo. La app sumó calorías a tu meta.' : 'Subes rápido: puede ser grasa. La app restó un poco a tu meta.',
+    fuera: 'Tu peso se está moviendo: la app ajustó tu meta para mantenerte.',
+  }[estadoRitmo];
+
+  const kpi = (icono, valor, etiqueta, ok) => `<div class="kpi2 ${ok === true ? 'kpi2--ok' : ok === false ? 'kpi2--ojo' : ''}"><span class="kpi2__icono" aria-hidden="true">${icono}</span><strong>${valor}</strong><span>${etiqueta}</span></div>`;
   const barras = s.porDia.map((d) => {
     const pct = d.metas.ok && d.metas.kcal ? Math.min(140, Math.round(d.comido.kcal / d.metas.kcal * 100)) : 0;
     const cls = !d.registrado ? 'sin' : d.diag?.estado === 'justo' ? 'ok' : d.diag?.estado === 'pasado' ? 'pasado' : 'falta';
     return `<div class="semana-dia"><div class="semana-dia__barra"><span class="semana-dia__fill semana-dia__fill--${cls}" style="height:${Math.max(4, pct * 0.7)}%"></span><i class="semana-dia__meta"></i></div>
       <span class="semana-dia__nombre">${esc(diaCorto(d.fecha).slice(0, 2))}</span>${d.hechos ? '<span class="semana-dia__entreno" title="Entreno hecho">●</span>' : '<span class="semana-dia__entreno semana-dia__entreno--no"></span>'}</div>`;
   }).join('');
+  const g = s.gasto;
+  const difGasto = g?.listo && s.gastoEstimado ? g.kcal - s.gastoEstimado : null;
+
   return `
-    <p class="quieto" style="margin:-6px 0 0">${esc(diaCorto(s.ini))} ${numeroDia(s.ini)} – ${esc(diaCorto(s.fin))} ${numeroDia(s.fin)} · ${esc(OBJETIVOS[s.foco]?.nombre ?? '')}</p>
-    <div class="semana-kpis">
-      ${kpi(cambio == null ? '—' : `${cambio > 0 ? '+' : ''}${kg(cambio)}`, s.pesoFin != null ? `peso (${kg(s.pesoFin)})` : 'pésate para ver el cambio', pesoOk)}
-      ${kpi(`${s.enMeta}/${s.registrados || 0}`, 'días en tu meta de calorías', s.registrados ? s.enMeta >= s.registrados * 0.6 : null)}
-      ${kpi(`${s.protOk}/${s.registrados || 0}`, 'días con tu proteína', s.registrados ? s.protOk >= s.registrados * 0.6 : null)}
-      ${kpi(`${s.hechos}/${s.agendados}`, 'entrenos hechos', s.agendados ? s.hechos / s.agendados >= 0.7 : null)}
-      ${kpi(s.suenoProm != null ? `${(s.suenoProm / 60).toFixed(1).replace('.', ',')} h` : '—', 'sueño promedio', s.suenoProm != null ? s.suenoProm >= 420 : null)}
-      ${kpi(s.aguaPct != null ? `${Math.round(s.aguaPct * 100)} %` : '—', 'de tu agua', s.aguaPct != null ? s.aguaPct >= 0.8 : null)}
-    </div>
-    ${s.racha ? `<p class="racha">🔥 Racha: ${s.racha} semana${s.racha === 1 ? '' : 's'} seguida${s.racha === 1 ? '' : 's'} cumpliendo los gyms</p>` : ''}
-    <section class="semana-grafico" aria-label="Calorías por día frente a la meta">
-      <p class="seccion__titulo" style="margin:0 0 8px">Calorías frente a tu meta</p>
-      <div class="semana-dias">${barras}</div>
-      <p class="ayuda" style="margin:8px 0 0">La línea es tu meta de cada día (cambia con los entrenos). ● = entreno hecho.</p>
-    </section>
-    <section>
-      <p class="seccion__titulo" style="margin:0 0 8px">Para esta semana</p>
-      <ol class="semana-sugerencias">${s.sugerencias.map((t) => `<li>${esc(t)}</li>`).join('')}</ol>
-    </section>`;
+    <div class="sem2">
+      <section class="sem2-ritmo sem2-ritmo--${estadoRitmo}">
+        <div class="sem2-ritmo__cab">
+          <span>Ritmo de tu peso</span>
+          <strong>${real == null ? '—' : `${kgTxt(real, true)} kg/sem`}</strong>
+        </div>
+        <div class="sem2-gauge" role="img" aria-label="Ideal: ${esc(rangoTxt)}${real != null ? `; real ${kgTxt(real, true)} kg por semana` : ''}">
+          <span class="sem2-gauge__cero" style="left:${pos(0)}"></span>
+          <span class="sem2-gauge__zona" style="left:${pos(Math.min(min, max))};width:calc(${pos(Math.max(min, max))} - ${pos(Math.min(min, max))})"></span>
+          ${real != null ? `<span class="sem2-gauge__marca" style="left:${pos(real)}"></span>` : ''}
+        </div>
+        <div class="sem2-gauge__escala"><span>bajar</span><span>0</span><span>subir</span></div>
+        <p class="sem2-ritmo__txt">Lo ideal${s.ritmo.elegido != null ? ' (el ritmo que elegiste)' : ` para «${esc(OBJETIVOS[s.foco]?.nombre ?? '')}»`}: <strong>${esc(rangoTxt)}</strong>. ${esc(textoRitmo)}</p>
+      </section>
+
+      ${s.proyeccion ? `
+      <section class="sem2-proy">
+        <div class="sem2-tile"><span>Hoy</span><strong>${kgTxt(s.pesoActual, false, 1)}<small> kg</small></strong></div>
+        <div class="sem2-flecha" aria-hidden="true">→</div>
+        <div class="sem2-tile"><span>En 4 semanas${s.proyeccion.real != null ? ', a este ritmo' : ''}</span><strong>${kgTxt(s.proyeccion.real ?? s.proyeccion.ideal, false, 1)}<small> kg</small></strong></div>
+        <div class="sem2-tile sem2-tile--ideal"><span>Con el ritmo ideal</span><strong>${kgTxt(s.proyeccion.ideal, false, 1)}<small> kg</small></strong></div>
+      </section>` : ''}
+
+      <section class="sem2-gasto">
+        <span class="sem2-gasto__icono" aria-hidden="true">🔥</span>
+        <div>${g?.listo
+          ? `<strong>Tu gasto real: ~${r(g.kcal)} kcal/día</strong><span>Aprendido de ${g.diasRegistrados} días de comidas y ${g.pesajes} pesajes${difGasto != null && Math.abs(difGasto) >= 120 ? ` · ${difGasto > 0 ? `${r(difGasto)} más` : `${r(-difGasto)} menos`} de lo que estimaba la app` : ''}.</span>`
+          : `<strong>Aprendiendo tu metabolismo</strong><span>Con ${g?.falta?.dias ? `${g.falta.dias} día${g.falta.dias === 1 ? '' : 's'} más de comidas registradas` : ''}${g?.falta?.dias && (g?.falta?.pesajes || g?.falta?.rango) ? ' y ' : ''}${g?.falta?.pesajes ? `${g.falta.pesajes} pesaje${g.falta.pesajes === 1 ? '' : 's'} más` : g?.falta?.rango ? 'pesajes en al menos 10 días' : ''} la app calcula cuánto gastas de verdad.</span>`}</div>
+      </section>
+
+      <section class="sem2-kpis">
+        ${kpi(ICONOS_KPI.comida, `${s.enMeta}/${s.registrados || 0}`, 'días en tu meta', s.registrados ? s.enMeta >= s.registrados * 0.6 : null)}
+        ${kpi(ICONOS_KPI.proteina, `${s.protOk}/${s.registrados || 0}`, 'días con proteína', s.registrados ? s.protOk >= s.registrados * 0.6 : null)}
+        ${kpi(ICONOS_KPI.entreno, `${s.hechos}/${s.agendados}`, 'entrenos', s.agendados ? s.hechos / s.agendados >= 0.7 : null)}
+        ${kpi(ICONOS_KPI.sueno, s.suenoProm != null ? `${(s.suenoProm / 60).toFixed(1).replace('.', ',')} h` : '—', 'sueño', s.suenoProm != null ? s.suenoProm >= 420 : null)}
+        ${kpi(ICONOS_KPI.agua, s.aguaPct != null ? `${Math.round(s.aguaPct * 100)}%` : '—', 'de tu agua', s.aguaPct != null ? s.aguaPct >= 0.8 : null)}
+        ${kpi('🔥', s.racha ? `${s.racha}` : '0', s.racha === 1 ? 'semana de racha' : 'semanas de racha', s.racha ? true : null)}
+      </section>
+
+      <details class="sem2-detalle" ${compacto ? '' : 'open'}>
+        <summary>Calorías día por día</summary>
+        <div class="semana-dias">${barras}</div>
+        <p class="ayuda" style="margin:8px 0 0">La línea es tu meta de cada día (cambia con los entrenos). ● = entreno hecho.</p>
+      </details>
+
+      <section class="sem2-plan">
+        <p class="sem2-plan__titulo">Para esta semana</p>
+        ${s.sugerencias.map((t, k) => `<div class="sem2-plan__item" style="--k:${k}"><span>${k + 1}</span><p>${esc(t)}</p></div>`).join('')}
+      </section>
+    </div>`;
 }
 
 /** Abre el resumen semanal (con las caras del hogar para ver el de cada uno). */
