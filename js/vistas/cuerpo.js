@@ -3,7 +3,7 @@
 import { sb, estado, datos, nombrePersona } from '../db.js';
 import { esc, num, aviso, avisoError, abrirDialogo, grupoChips, valorChips, cara } from '../ui.js';
 import { fabIA, htmlCabecera } from '../chatia.js';
-import { mascarasPose, IC } from '../iconos.js';
+import { mascaraFigura, IC } from '../iconos.js';
 import { fechaCorta, ahoraLocalInput, hoyISO } from '../fechas.js';
 
 const CAMPOS = [
@@ -50,21 +50,20 @@ function completar(m) {
 
 function htmlCuerpoVisual(m, valor, peso) {
   const nivel = m.nivel ? m.nivel(valor, peso) : 1;
-  const alto = 47.6 * nivel, y = 47.8 - alto;
+  const alto = 90 * nivel, y = 90 - alto;
   const id = `c${Math.random().toString(36).slice(2, 7)}`;
   return `
-    <svg class="cuerpo-svg" viewBox="8 0 32 48" aria-hidden="true">
-      <defs>${mascarasPose(id)}
+    <svg class="cuerpo-svg" viewBox="0 -1 50 92" aria-hidden="true">
+      <defs>${mascaraFigura(id)}
         <linearGradient id="${id}g" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="${m.color}"/><stop offset="1" stop-color="${m.color}" stop-opacity=".55"/></linearGradient></defs>
-      <rect class="cuerpo-svg__base" width="48" height="48" mask="url(#${id}s)"/>
-      <g mask="url(#${id}s)">
+      <rect class="cuerpo-svg__base" x="0" y="-2" width="50" height="98" mask="url(#${id})"/>
+      <g mask="url(#${id})">
         ${m.id === 'grasa_visceral'
-          ? `<ellipse cx="20.5" cy="23" rx="${3 + Math.min(4, valor * 0.3)}" ry="${2.5 + Math.min(3, valor * 0.22)}" fill="${m.color}" opacity="${Math.min(0.95, 0.4 + valor / 20)}" class="cuerpo-svg__visceral"/>`
-          : `<rect class="cuerpo-svg__nivel" x="0" y="${y}" width="48" height="${alto}" fill="url(#${id}g)"/>
-             ${m.id === 'agua_pct' ? `<path class="cuerpo-svg__ola" d="M-4 ${y} q4 -1.4 8 0 t8 0 t8 0 t8 0 t8 0 t8 0 t8 0 v2.4 h-56z" fill="${m.color}" opacity=".7"/>` : ''}`}
+          ? `<ellipse cx="25" cy="38" rx="${5 + Math.min(7, valor * 0.5)}" ry="${4 + Math.min(5, valor * 0.35)}" fill="${m.color}" opacity="${Math.min(0.95, 0.4 + valor / 20)}" class="cuerpo-svg__visceral"/>`
+          : `<rect class="cuerpo-svg__nivel" x="0" y="${y}" width="50" height="${alto + 2}" fill="url(#${id}g)"/>
+             ${m.id === 'agua_pct' ? `<path class="cuerpo-svg__ola" d="M-6 ${y} q6 -2.5 12 0 t12 0 t12 0 t12 0 t12 0 v4 h-60z" fill="${m.color}" opacity=".7"/>` : ''}`}
       </g>
-      <rect class="cuerpo-svg__trazo" width="48" height="48" mask="url(#${id}l)"/>
-      ${m.nivel ? `<line class="cuerpo-svg__linea" x1="9" x2="39" y1="${y}" y2="${y}" stroke="${m.color}"/>` : ''}
+      ${m.nivel ? `<line class="cuerpo-svg__linea" x1="2" x2="48" y1="${y}" y2="${y}" stroke="${m.color}"/>` : ''}
     </svg>`;
 }
 

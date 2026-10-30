@@ -85,56 +85,33 @@ export function zonasDe(grupos) {
   return [...cuenta.entries()].sort((a, b) => b[1] - a[1]).map(([z]) => z);
 }
 
-// La figura de Bloq: un pictograma de línea, como las señales deportivas (cabeza redonda, extremidades
-// como tubos huecos con punta redondeada, separadas del tronco por un pequeño hueco).
-// POSE es la figura de Cuerpo y del menú: estirando de costado. Se dibuja con máscaras: cada pieza es un
-// trazo grueso blanco con uno más fino negro encima (queda el contorno), y las piezas de adelante abren
-// antes un hueco en lo que tapan. viewBox 0 0 48 48 (la figura ocupa x 9.5–38.5).
-const POSE_W = 4.6, POSE_T = 1.6, POSE_G = 1.3;
-const POSE = {
-  fondo: [
-    ['poli', 'M22.4 14.6L26 17L21.2 29L14.6 24.8Z'],
-    ['tubo', 'M12.2 45.5L14.6 24.8L22.4 14.6L22.8 2.8L31.6 2.6'],
-  ],
-  frente: [
-    ['tubo', 'M22.2 31.6L27.8 45.5'],
-    ['tubo', 'M31.8 19.6L36 25.8L28.6 30.4'],
-    ['circ', [34.6, 11, 2.7]],
-  ],
-};
-function capaPose([tipo, d], color, extra, w0 = POSE_W) {
-  const w = Math.max(0.01, w0 + extra);
-  if (tipo === 'circ') return `<circle cx="${d[0]}" cy="${d[1]}" r="${d[2] + w / 2}" fill="${color}"/>`;
-  return `<path d="${d}" stroke="${color}" stroke-width="${w}" fill="${tipo === 'poli' ? color : 'none'}"/>`;
-}
-const lineaPose = (w = POSE_W, t = POSE_T, g = POSE_G) => POSE.fondo.map((p) => capaPose(p, '#fff', 0, w)).join('')
-  + POSE.fondo.map((p) => capaPose(p, '#000', -2 * t, w)).join('')
-  + POSE.frente.map((p) => capaPose(p, '#000', 2 * g, w) + capaPose(p, '#fff', 0, w) + capaPose(p, '#000', -2 * t, w)).join('');
-const LINEA_POSE = lineaPose();
-// En tamaño ícono (24 px) la línea va más gruesa para que pese igual que los demás íconos.
-const LINEA_ICONO = lineaPose(5.4, 2.3, 1.4);
-const SILUETA_POSE = POSE.fondo.map((p) => capaPose(p, '#fff', 0)).join('')
-  + POSE.frente.map((p) => capaPose(p, '#000', 2 * POSE_G) + capaPose(p, '#fff', 0)).join('');
-const mascara = (id, contenido) => `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48"><g stroke-linecap="round" stroke-linejoin="round">${contenido}</g></mask>`;
-/** Máscaras de la pose: `${id}l` es la línea (el dibujo), `${id}s` la silueta entera (para llenarla con un dato). */
-export const mascarasPose = (id) => mascara(`${id}l`, LINEA_POSE) + mascara(`${id}s`, SILUETA_POSE);
+// La figura de Bloq: el pictograma deportivo clásico (cabeza redonda suelta, tronco que se angosta a la
+// cadera, brazos y piernas gruesos con un hueco fino que los separa del tronco). Es sólida y se dibuja con
+// una máscara: lo blanco se ve, lo negro abre los huecos. La misma en Yo, en el menú y en el mapa de los
+// ejercicios. viewBox 0 0 50 94.
+const HUECO = 1.3;
+const TORSO = 'M19 18.5h12a6.5 6.5 0 0 1 6.5 6.5L34.6 53H15.4L12.5 25a6.5 6.5 0 0 1 6.5-6.5z';
+const BRAZOS = ['M12.4 23.5L9.6 54', 'M37.6 23.5L40.4 54'];
+const CORTES = ['M11.9 30L9.6 54', 'M38.1 30L40.4 54'];
+const PIERNAS = ['M20.2 50V88.5', 'M29.8 50V88.5'];
+const SILUETA = '<g stroke-linecap="round">'
+  + `<circle cx="25" cy="8.4" r="7.4" fill="#fff"/><path d="${TORSO}" fill="#fff"/>`
+  + PIERNAS.map((d) => `<path d="${d}" stroke="#fff" stroke-width="8.6" fill="none"/>`).join('')
+  + `<path d="M25 52V90" stroke="#000" stroke-width="${HUECO}"/>`
+  + CORTES.map((d) => `<path d="${d}" stroke="#000" stroke-width="${7 + 2 * HUECO}" fill="none"/>`).join('')
+  + BRAZOS.map((d) => `<path d="${d}" stroke="#fff" stroke-width="7" fill="none"/>`).join('')
+  + '</g>';
+/** Máscara con la forma de la figura: lo que se pinta debajo de ella toma su forma. */
+export const mascaraFigura = (id) => `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="-2" width="50" height="98">${SILUETA}</mask>`;
 /** El ícono de la figura, en el color del texto. */
-export const iconoCuerpo = (id = 'fig-ic', clase = 'icono') => `<svg class="${clase}" viewBox="7 -1 34 50" aria-hidden="true"><defs>${mascara(id, LINEA_ICONO)}</defs><rect width="48" height="48" fill="currentColor" stroke="none" mask="url(#${id})"/></svg>`;
+export const iconoCuerpo = (id = 'fig-ic', clase = 'icono') => `<svg class="${clase}" viewBox="-20 -1 90 96" aria-hidden="true"><defs>${mascaraFigura(id)}</defs><rect x="0" y="-2" width="50" height="98" fill="currentColor" stroke="none" mask="url(#${id})"/></svg>`;
 
-// Figura de pie (frente y espalda) para el mapa de músculos de los ejercicios, con el mismo lenguaje:
-// cabeza redonda, tronco que se angosta, brazos y piernas de trazo grueso. viewBox 0 0 50 94.
-export const FIGURA = '<circle cx="25" cy="6" r="5.5"/>'
-  + '<path d="M19.5 15.5h11c2.6 0 4.4 1.6 4.2 4.1L32.4 47.2a2.5 2.5 0 0 1-2.5 2.3h-9.8a2.5 2.5 0 0 1-2.5-2.3L15.3 19.6c-.2-2.5 1.6-4.1 4.2-4.1z"/>'
-  + '<g stroke-linecap="round" fill="none"><path d="M12.4 19.5L10.8 44" stroke-width="5"/><path d="M37.6 19.5L39.2 44" stroke-width="5"/>'
-  + '<path d="M21 55.5V89.5" stroke-width="6"/><path d="M29 55.5V89.5" stroke-width="6"/></g>';
-/** Máscara con la forma de la figura (para llenarla con un dato o encender zonas). */
-export const mascaraFigura = (id) => `<mask id="${id}" maskUnits="userSpaceOnUse" x="-5" y="-5" width="60" height="104"><g fill="#fff" stroke="#fff">${FIGURA}</g></mask>`;
 let idMascara = 0;
 function figura(bloques, zonas, dx) {
   const id = `fig${++idMascara}`;
   return `<g transform="translate(${dx} 0)">
     <defs>${mascaraFigura(id)}</defs>
-    <g class="mapa__base">${FIGURA}</g>
+    <rect class="mapa__base" x="0" y="-2" width="50" height="98" mask="url(#${id})"/>
     <g mask="url(#${id})">${bloques.filter(([zona]) => zona !== 'cabeza' && zona !== 'cadera').map(([zona, x, y, w, h, r]) =>
       `<rect class="${zonas.has(zona) ? 'mapa__on' : 'mapa__off'}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}"/>`).join('')}</g>
   </g>`;

@@ -703,7 +703,7 @@ span.serie--hecha { opacity: 0.85; }
 .mapa { flex-shrink: 0; display: block; }
 .mapa rect { transition: fill 0.3s ease; }
 .mapa__neutro { fill: #575C6B; }
-.mapa__base { fill: #5D6271; stroke: #5D6271; }
+.mapa__base { fill: #5D6271; }
 .mapa__off { fill: transparent; }
 .mapa__on { fill: var(--volt); }
 @keyframes encender { from { fill: #7A8091; } to { fill: var(--volt); } }
@@ -1919,9 +1919,8 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .cuerpo-hero { margin-top: 14px; padding: 16px 16px 12px; overflow: hidden; }
 .cuerpo-hero__fila { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 16px; align-items: center; min-height: 190px; }
 .cuerpo-hero__visual { display: flex; justify-content: center; }
-.cuerpo-svg { width: 112px; height: 180px; overflow: visible; }
-.cuerpo-svg__base { fill: #2F333D; }
-.cuerpo-svg__trazo { fill: #9DA2AE; }
+.cuerpo-svg { width: 100px; height: 184px; overflow: visible; }
+.cuerpo-svg__base { fill: #4A4F5C; }
 .cuerpo-svg__nivel { animation: cuerpo-sube .9s var(--suave) both; transform-origin: bottom; transform-box: fill-box; }
 .cuerpo-svg__ola { animation: cuerpo-ola 3s ease-in-out infinite alternate; }
 .cuerpo-svg__visceral { animation: cuerpo-late 2.4s ease-in-out infinite; transform-origin: center; transform-box: fill-box; filter: blur(2px); }
@@ -2009,7 +2008,7 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .chatia__pdf { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; padding: 4px 0; }
 .chatia__adjunto--pdf img { display: none; }
 .chatia__adjunto--pdf::before { content: '📄'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 30px; background: var(--grafito-2); }
-.cuerpo-svg__linea { stroke-width: .35; stroke-dasharray: .9 .9; opacity: .9; }
+.cuerpo-svg__linea { stroke-width: .6; stroke-dasharray: 1.5 1.5; opacity: .9; }
 
 /* Semana v3: más clara */
 .sem2-titulo { margin: 0 0 10px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--tiza-2); }
