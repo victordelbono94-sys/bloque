@@ -19,28 +19,28 @@ export const iconoTipo = (tipo) => ICONO_TIPO[tipo] ?? ICONO_TIPO.gym;
 // Una figura de bloques redondeados (como el logo), de frente y de espalda.
 // Cada bloque es una zona; se iluminan las que trabaja la rutina.
 const FRENTE = [
-  ['cabeza', 20, 1, 10, 11, 4],
-  ['trapecios', 16, 13, 18, 4, 2],
-  ['hombros', 8, 17, 8, 8, 3], ['hombros', 34, 17, 8, 8, 3],
-  ['pecho', 17, 18, 7.6, 10, 3], ['pecho', 25.4, 18, 7.6, 10, 3],
-  ['biceps', 7.5, 26, 7, 11, 3], ['biceps', 35.5, 26, 7, 11, 3],
-  ['antebrazos', 6, 38, 6.5, 12, 3], ['antebrazos', 37.5, 38, 6.5, 12, 3],
-  ['core', 18, 29.5, 14, 16, 3],
-  ['cadera', 18, 46.5, 14, 5, 2],
-  ['cuadriceps', 17, 52.5, 7.4, 21, 3], ['cuadriceps', 25.6, 52.5, 7.4, 21, 3],
-  ['pantorrillas', 17.6, 75, 6.2, 18, 3], ['pantorrillas', 26.2, 75, 6.2, 18, 3],
+  ['cabeza', 18, 1, 14, 15, 7],
+  ['trapecios', 17, 18, 16, 4, 2],
+  ['hombros', 8, 17, 8.4, 10, 3], ['hombros', 33.6, 17, 8.4, 10, 3],
+  ['pecho', 17.6, 22.5, 7, 9, 2.5], ['pecho', 25.4, 22.5, 7, 9, 2.5],
+  ['biceps', 8, 28, 8.4, 11, 3], ['biceps', 33.6, 28, 8.4, 11, 3],
+  ['antebrazos', 8, 40, 8.4, 16, 3], ['antebrazos', 33.6, 40, 8.4, 16, 3],
+  ['core', 18, 33, 14, 18, 3],
+  ['cadera', 17, 51, 16, 4, 2],
+  ['cuadriceps', 16.5, 52.5, 8.2, 20, 3], ['cuadriceps', 25.3, 52.5, 8.2, 20, 3],
+  ['pantorrillas', 16.5, 74, 8.2, 18, 3], ['pantorrillas', 25.3, 74, 8.2, 18, 3],
 ];
 const ESPALDA = [
-  ['cabeza', 20, 1, 10, 11, 4],
-  ['trapecios', 15, 13, 20, 8, 3],
-  ['hombros', 8, 17, 8, 8, 3], ['hombros', 34, 17, 8, 8, 3],
-  ['espalda', 17, 22, 16, 13, 3],
-  ['triceps', 7.5, 26, 7, 11, 3], ['triceps', 35.5, 26, 7, 11, 3],
-  ['antebrazos', 6, 38, 6.5, 12, 3], ['antebrazos', 37.5, 38, 6.5, 12, 3],
-  ['lumbar', 19, 36, 12, 9.5, 3],
-  ['gluteos', 17, 46.5, 16, 9, 3.5],
-  ['isquios', 17, 56.5, 7.4, 17, 3], ['isquios', 25.6, 56.5, 7.4, 17, 3],
-  ['pantorrillas', 17.6, 75, 6.2, 18, 3], ['pantorrillas', 26.2, 75, 6.2, 18, 3],
+  ['cabeza', 18, 1, 14, 15, 7],
+  ['trapecios', 16.5, 17, 17, 9, 3],
+  ['hombros', 8, 17, 8.4, 10, 3], ['hombros', 33.6, 17, 8.4, 10, 3],
+  ['espalda', 17.6, 27, 14.8, 12, 3],
+  ['triceps', 8, 28, 8.4, 11, 3], ['triceps', 33.6, 28, 8.4, 11, 3],
+  ['antebrazos', 8, 40, 8.4, 16, 3], ['antebrazos', 33.6, 40, 8.4, 16, 3],
+  ['lumbar', 19, 40, 12, 8.5, 3],
+  ['gluteos', 16.5, 49.5, 17, 9, 3.5],
+  ['isquios', 16.5, 59.5, 8.2, 14, 3], ['isquios', 25.3, 59.5, 8.2, 14, 3],
+  ['pantorrillas', 16.5, 74, 8.2, 18, 3], ['pantorrillas', 25.3, 74, 8.2, 18, 3],
 ];
 
 // Nombre corto de cada zona para las etiquetas.
@@ -89,17 +89,17 @@ export function zonasDe(grupos) {
 // cadera, brazos y piernas gruesos con un hueco fino que los separa del tronco). Es sólida y se dibuja con
 // una máscara: lo blanco se ve, lo negro abre los huecos. La misma en Yo, en el menú y en el mapa de los
 // ejercicios. viewBox 0 0 50 94.
-const HUECO = 1.3;
-const TORSO = 'M19 18.5h12a6.5 6.5 0 0 1 6.5 6.5L34.6 53H15.4L12.5 25a6.5 6.5 0 0 1 6.5-6.5z';
-const BRAZOS = ['M12.4 23.5L9.6 54', 'M37.6 23.5L40.4 54'];
-const CORTES = ['M11.9 30L9.6 54', 'M38.1 30L40.4 54'];
-const PIERNAS = ['M20.2 50V88.5', 'M29.8 50V88.5'];
+// Se arma como un cartel: hombros redondeados de lado a lado, brazos rectos que caen desde el borde de
+// los hombros, tronco recto y piernas que salen del ancho exacto de la cadera; los huecos son cortes rectos,
+// así todo queda alineado.
+const HUECO = 1.4;
 const SILUETA = '<g stroke-linecap="round">'
-  + `<circle cx="25" cy="8.4" r="7.4" fill="#fff"/><path d="${TORSO}" fill="#fff"/>`
-  + PIERNAS.map((d) => `<path d="${d}" stroke="#fff" stroke-width="8.6" fill="none"/>`).join('')
-  + `<path d="M25 52V90" stroke="#000" stroke-width="${HUECO}"/>`
-  + CORTES.map((d) => `<path d="${d}" stroke="#000" stroke-width="${7 + 2 * HUECO}" fill="none"/>`).join('')
-  + BRAZOS.map((d) => `<path d="${d}" stroke="#fff" stroke-width="7" fill="none"/>`).join('')
+  + '<circle cx="25" cy="8.2" r="7.2" fill="#fff"/>'
+  + '<path d="M9 34V25.5A7.5 7.5 0 0 1 16.5 18h17a7.5 7.5 0 0 1 7.5 7.5V34z" fill="#fff"/>'
+  + '<path d="M12.5 30V51.5M37.5 30V51.5" stroke="#fff" stroke-width="7"/>'
+  + '<rect x="16" y="26" width="18" height="28" fill="#fff"/>'
+  + '<path d="M21 51V87.5M29 51V87.5" stroke="#fff" stroke-width="8"/>'
+  + `<path d="M16.7 29.5V55.5M33.3 29.5V55.5M25 55V96" stroke="#000" stroke-width="${HUECO}"/>`
   + '</g>';
 /** Máscara con la forma de la figura: lo que se pinta debajo de ella toma su forma. */
 export const mascaraFigura = (id) => `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="-2" width="50" height="98">${SILUETA}</mask>`;
