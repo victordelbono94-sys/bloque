@@ -1,6 +1,9 @@
 // Pantalla Perfil: mis datos, el hogar, exportar todo y cerrar sesión.
 import { sb, estado, datos, cargarPersonas } from '../db.js';
-import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
+import { esc, num, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
+import { IC } from '../iconos.js';
+import { edad } from '../nutricion.js';
+import { TIPOS as TIPOS_DIETA } from '../dieta.js';
 import { hoyISO, fechaCorta } from '../fechas.js';
 import {
   enApp, APK, estadoNativo, pedirPermisos, sincronizarAhora, alEventoNativo, abrirExterno, guardarArchivo, asegurarVinculo, buscarActualizacion,
@@ -25,77 +28,40 @@ let gimnasioActual = null; // el que ve la tarjeta de avisos
 
 export async function vistaPerfil(app) {
   const yo = estado.yo;
-  const [dispositivos, lugares] = await Promise.all([
-    sb.from('dispositivos').select('id, nombre, creado_en, ultimo_sync').order('creado_en').then(datos),
-    sb.from('lugares').select('*').eq('hogar_id', yo.hogar_id).eq('tipo', 'gimnasio').order('creado_en').limit(1).then(datos),
-  ]);
+  const lugares = await sb.from('lugares').select('*').eq('hogar_id', yo.hogar_id).eq('tipo', 'gimnasio').order('creado_en').limit(1).then(datos);
   const gimnasio = lugares[0] ?? null;
   gimnasioActual = gimnasio;
+  const eq = estado.equipo;
+  const otros = estado.personas.filter((p) => p.id !== yo.id);
   app.innerHTML = `
     <header class="encabezado encabezado--fijo">
-      <div>
-        <h1 class="titulo">Perfil</h1>
-        <p class="subtitulo">${esc(estado.usuario?.email ?? '')}</p>
-      </div>
+      <div><h1 class="titulo">Perfil</h1></div>
     </header>
+
+    <section class="tarjeta per-hero">
+      <button type="button" class="per-hero__foto" id="foto-abrir" aria-label="Cambiar foto de perfil">
+        <span class="avatar avatar--grande" id="foto-actual">${cara(yo)}</span>
+        <span class="per-hero__cam">${IC.camara}</span>
+      </button>
+      <div class="per-hero__txt">
+        <h2 class="per-hero__nombre">${esc(yo.nombre)}</h2>
+        <p class="quieto per-hero__mail">${esc(estado.usuario?.email ?? '')}</p>
+        ${eq ? `<span class="per-hero__hogar">${ICONO_HOGAR}${eq.personal ? 'Espacio personal' : esc(eq.nombre)}${otros.length ? ` · con ${esc(otros.map((p) => p.nombre).join(', '))}` : ''}</span>` : ''}
+      </div>
+    </section>
+
+    <section class="seccion" aria-labelledby="t-yo">
+      <h2 class="seccion__titulo" id="t-yo">Sobre ti</h2>
+      <div class="per-menu">
+        ${filaMenu('mis-datos', IC.nota, 'Mis datos', resumenDatos(yo))}
+        ${filaMenu('mi-dieta', IC.manzana, 'Mi alimentación', resumenDieta())}
+      </div>
+    </section>
 
     <div id="mis-objetivos-cont"><section class="tarjeta mis-objetivos"><h2 class="seccion__titulo" style="margin:0">Mis objetivos</h2><p class="quieto" style="margin:8px 0 0">Cargando…</p></section></div>
 
-    <form class="tarjeta pila" id="perfil" novalidate>
-      <h2 class="seccion__titulo" style="margin:0">Mis datos</h2>
-      <div class="foto-perfil">
-        <span class="avatar avatar--grande" id="foto-actual">${cara(yo)}</span>
-        <div class="foto-perfil__botones">
-          <button type="button" class="boton boton--sec boton--chico" id="foto-subir">${yo.avatar_url ? 'Cambiar foto' : 'Subir foto'}</button>
-          ${fotoGoogle() && yo.avatar_url !== fotoGoogle() ? '<button type="button" class="boton boton--texto boton--chico" id="foto-google">Usar la de Google</button>' : ''}
-          ${yo.avatar_url ? '<button type="button" class="boton boton--texto boton--chico" id="foto-quitar">Quitar</button>' : ''}
-        </div>
-        <input type="file" id="foto-archivo" accept="image/*" hidden>
-      </div>
-      <p class="ayuda">Se usan para calcular metas de calorías y el metabolismo.</p>
-      <div class="campo">
-        <label for="nombre">Nombre</label>
-        <input id="nombre" type="text" maxlength="40" required value="${esc(yo.nombre)}">
-      </div>
-      <div class="grilla-2">
-        <div class="campo">
-          <label for="fecha_nacimiento">Fecha de nacimiento</label>
-          <input id="fecha_nacimiento" type="date" max="${hoyISO()}" value="${esc(yo.fecha_nacimiento ?? '')}">
-        </div>
-        <div class="campo">
-          <label for="altura_cm">Altura (cm)</label>
-          <input id="altura_cm" type="number" inputmode="decimal" min="100" max="250" step="0.5" value="${esc(yo.altura_cm ?? '')}">
-        </div>
-        <div class="campo">
-          <label for="experiencia">Experiencia en el gym</label>
-          <select id="experiencia">
-            <option value="">Sin indicar</option>
-            <option value="principiante" ${yo.experiencia === 'principiante' ? 'selected' : ''}>Principiante (menos de 1 año)</option>
-            <option value="intermedio" ${yo.experiencia === 'intermedio' ? 'selected' : ''}>Intermedio (1 a 3 años)</option>
-            <option value="avanzado" ${yo.experiencia === 'avanzado' ? 'selected' : ''}>Avanzado (más de 3 años)</option>
-          </select>
-        </div>
-        <div class="campo">
-          <label for="sexo">Sexo</label>
-          <select id="sexo">
-            <option value="">Sin indicar</option>
-            <option value="m" ${yo.sexo === 'm' ? 'selected' : ''}>Masculino</option>
-            <option value="f" ${yo.sexo === 'f' ? 'selected' : ''}>Femenino</option>
-          </select>
-        </div>
-        <div class="campo">
-          <label for="nivel_actividad">Nivel de actividad</label>
-          <select id="nivel_actividad">
-            <option value="">Sin indicar</option>
-            ${Object.entries(NIVELES).map(([v, t]) => `<option value="${v}" ${yo.nivel_actividad === v ? 'selected' : ''}>${t}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      <button type="submit" class="boton" id="guardar">Guardar</button>
-    </form>
-
     <section class="seccion" aria-labelledby="equipo">
-      <h2 class="seccion__titulo" id="equipo">${estado.equipo?.personal ? 'Tu espacio' : 'Hogar'}</h2>
+      <h2 class="seccion__titulo" id="equipo">${eq?.personal ? 'Tu espacio' : 'Hogar'}</h2>
       ${htmlEquipo()}
     </section>
 
@@ -119,58 +85,21 @@ export async function vistaPerfil(app) {
         ${enApp ? htmlNativo(estadoNativo()) : `
           <p class="quieto" style="margin:0">Los datos de la banda llegan desde la app Bloq para Android, que lee Health Connect.</p>
           <a class="boton boton--sec" href="${APK}">Descargar la app Bloq</a>`}
-        ${dispositivos.length ? `
-          <div class="pila" style="gap:10px;margin-top:4px">
-            <p class="seccion__titulo" style="margin:6px 0 0">Teléfonos conectados</p>
-            ${dispositivos.map((d) => `
-              <div class="fila fila--entre">
-                <div>
-                  <strong>${esc(d.nombre)}</strong>
-                  <p class="quieto" style="margin:2px 0 0">${d.ultimo_sync ? `Sincronizó ${esc(haceCuanto(d.ultimo_sync))}` : 'Todavía no sincronizó'}</p>
-                </div>
-                <button type="button" class="boton boton--peligro boton--chico" data-quitar="${esc(d.id)}" aria-label="Quitar ${esc(d.nombre)}">Quitar</button>
-              </div>`).join('')}
-          </div>` : ''}
       </div>
     </section>
 
-    <section class="seccion" aria-labelledby="datos">
-      <h2 class="seccion__titulo" id="datos">Tus datos son tuyos</h2>
-      <div class="tarjeta pila">
-        <p class="quieto" style="margin:0">Descarga una copia completa de los datos de tu hogar en cualquier momento.</p>
-        <button type="button" class="boton boton--sec" id="exportar-json">Exportar todo (JSON)</button>
-        <button type="button" class="boton boton--sec" id="exportar-csv">Exportar mediciones (CSV)</button>
+    <section class="seccion" aria-labelledby="t-cuenta">
+      <h2 class="seccion__titulo" id="t-cuenta">Cuenta y datos</h2>
+      <div class="per-menu">
+        ${filaMenu('exportar-json', IC.documento, 'Descargar todo', 'Una copia completa de tu hogar (JSON)')}
+        ${filaMenu('exportar-csv', IC.grafico, 'Descargar mediciones', 'Peso y composición en una planilla (CSV)')}
+        ${filaMenu('salir', ICONO_SALIR, 'Cerrar sesión', '')}
+        ${filaMenu('eliminar-cuenta', ICONO_BORRAR, 'Eliminar mi cuenta', 'Borra tu cuenta y tus datos para siempre', true)}
       </div>
-    </section>
+    </section>`;
 
-    <button type="button" class="boton boton--texto boton--bloque" style="margin-top:20px" id="salir">Cerrar sesión</button>`;
-
-  app.querySelector('#perfil').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const nombre = app.querySelector('#nombre').value.trim();
-    if (!nombre) return aviso('El nombre no puede quedar vacío.', 'error');
-    const alturaTexto = app.querySelector('#altura_cm').value;
-    const altura = alturaTexto === '' ? null : Number(alturaTexto);
-    if (altura != null && (altura < 100 || altura > 250)) return aviso('Revisa la altura (entre 100 y 250 cm).', 'error');
-    const boton = app.querySelector('#guardar');
-    boton.disabled = true;
-    try {
-      datos(await sb.from('personas').update({
-        nombre,
-        fecha_nacimiento: app.querySelector('#fecha_nacimiento').value || null,
-        altura_cm: altura,
-        sexo: app.querySelector('#sexo').value || null,
-        experiencia: app.querySelector('#experiencia').value || null,
-        nivel_actividad: app.querySelector('#nivel_actividad').value || null,
-      }).eq('id', yo.id));
-      await cargarPersonas();
-      aviso('Perfil guardado.');
-    } catch (err) {
-      avisoError(err);
-    } finally {
-      boton.disabled = false;
-    }
-  });
+  app.querySelector('#mis-datos').addEventListener('click', () => dialogoMisDatos(app));
+  app.querySelector('#mi-dieta').addEventListener('click', () => import('../dieta.js').then((D) => D.dialogoDieta(() => vistaPerfil(app))));
 
   // Mis objetivos (deporte, gym, objetivo, experiencia) con la IA para cambiarlos.
   const pintarObjetivos = () => import('../objetivos.js').then(async (O) => {
@@ -185,18 +114,162 @@ export async function vistaPerfil(app) {
   conectarNativo(app);
   conectarGimnasio(app, gimnasio);
   conectarAvisos(app);
-  app.querySelectorAll('[data-quitar]').forEach((b) => b.addEventListener('click', async () => {
-    try {
-      datos(await sb.from('dispositivos').delete().eq('id', b.dataset.quitar));
-      aviso('Teléfono desvinculado.');
-      vistaPerfil(app);
-    } catch (err) {
-      avisoError(err);
-    }
-  }));
   app.querySelector('#exportar-json').addEventListener('click', exportarJSON);
   app.querySelector('#exportar-csv').addEventListener('click', exportarCSV);
   app.querySelector('#salir').addEventListener('click', () => sb.auth.signOut());
+  app.querySelector('#eliminar-cuenta').addEventListener('click', eliminarCuenta);
+}
+
+const ICONO_HOGAR = '<svg class="icono-ui" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5"/><path d="M6 9.5V19h12V9.5"/></svg>';
+const ICONO_SALIR = '<svg class="icono-ui" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 8l-4 4 4 4M6 12h9"/></svg>';
+const ICONO_BORRAR = '<svg class="icono-ui" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v5M14 11v5"/></svg>';
+const CHEVRON = '<svg class="icono-ui per-fila__ir" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+
+function filaMenu(id, icono, titulo, sub, peligro = false) {
+  return `<button type="button" class="per-fila${peligro ? ' per-fila--peligro' : ''}" id="${id}">
+    <span class="per-fila__ic">${icono}</span>
+    <span class="per-fila__txt"><strong>${esc(titulo)}</strong>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
+    ${CHEVRON}
+  </button>`;
+}
+
+function resumenDatos(p) {
+  const partes = [];
+  const e = edad(p.fecha_nacimiento);
+  if (e) partes.push(`${e} años`);
+  if (p.altura_cm) partes.push(`${num(p.altura_cm, 0)} cm`);
+  if (p.experiencia) partes.push({ principiante: 'Principiante', intermedio: 'Intermedio', avanzado: 'Avanzado' }[p.experiencia]);
+  if (p.nivel_actividad) partes.push(`Actividad ${NIVELES[p.nivel_actividad].toLowerCase()}`);
+  return partes.length ? partes.join(' · ') : 'Completa edad, altura y actividad';
+}
+
+function resumenDieta() {
+  const d = estado.yo?.dieta;
+  if (!d?.tipo) return 'Cuéntale a Bloq cómo comes';
+  const n = d.restricciones?.length ?? 0;
+  return TIPOS_DIETA[d.tipo] + (n ? ` · ${n} ${n === 1 ? 'restricción' : 'restricciones'}` : '');
+}
+
+function dialogoMisDatos(app) {
+  const yo = estado.yo;
+  const d = abrirDialogo(`
+    <form class="dialogo" id="perfil" novalidate>
+      <h2 class="tarjeta__titulo">Mis datos</h2>
+      <p class="ayuda" style="margin:0">Se usan para calcular tus metas de calorías y el metabolismo.</p>
+      <div class="campo">
+        <label for="nombre">Nombre</label>
+        <input id="nombre" type="text" maxlength="40" required value="${esc(yo.nombre)}">
+      </div>
+      <div class="grilla-2">
+        <div class="campo">
+          <label for="fecha_nacimiento">Fecha de nacimiento</label>
+          <input id="fecha_nacimiento" type="date" max="${hoyISO()}" value="${esc(yo.fecha_nacimiento ?? '')}">
+        </div>
+        <div class="campo">
+          <label for="altura_cm">Altura (cm)</label>
+          <input id="altura_cm" type="text" inputmode="decimal" value="${esc(yo.altura_cm ?? '')}">
+        </div>
+        <div class="campo">
+          <label for="sexo">Sexo</label>
+          <select id="sexo">
+            <option value="">Sin indicar</option>
+            <option value="m" ${yo.sexo === 'm' ? 'selected' : ''}>Masculino</option>
+            <option value="f" ${yo.sexo === 'f' ? 'selected' : ''}>Femenino</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="nivel_actividad">Nivel de actividad</label>
+          <select id="nivel_actividad">
+            <option value="">Sin indicar</option>
+            ${Object.entries(NIVELES).map(([v, t]) => `<option value="${v}" ${yo.nivel_actividad === v ? 'selected' : ''}>${t}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="campo">
+        <label for="experiencia">Experiencia en el gym</label>
+        <select id="experiencia">
+          <option value="">Sin indicar</option>
+          <option value="principiante" ${yo.experiencia === 'principiante' ? 'selected' : ''}>Principiante (menos de 1 año)</option>
+          <option value="intermedio" ${yo.experiencia === 'intermedio' ? 'selected' : ''}>Intermedio (1 a 3 años)</option>
+          <option value="avanzado" ${yo.experiencia === 'avanzado' ? 'selected' : ''}>Avanzado (más de 3 años)</option>
+        </select>
+      </div>
+      <div class="dialogo__pie">
+        <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
+        <button type="submit" class="boton" id="guardar">Guardar</button>
+      </div>
+    </form>`, 'Mis datos');
+  d.querySelector('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nombre = d.querySelector('#nombre').value.trim();
+    if (!nombre) return aviso('El nombre no puede quedar vacío.', 'error');
+    const alturaTexto = d.querySelector('#altura_cm').value.trim().replace(',', '.');
+    const altura = alturaTexto === '' ? null : Number(alturaTexto);
+    if (altura != null && !(altura >= 100 && altura <= 250)) return aviso('Revisa la altura (entre 100 y 250 cm).', 'error');
+    const boton = d.querySelector('#guardar');
+    boton.disabled = true;
+    try {
+      datos(await sb.from('personas').update({
+        nombre,
+        fecha_nacimiento: d.querySelector('#fecha_nacimiento').value || null,
+        altura_cm: altura,
+        sexo: d.querySelector('#sexo').value || null,
+        experiencia: d.querySelector('#experiencia').value || null,
+        nivel_actividad: d.querySelector('#nivel_actividad').value || null,
+      }).eq('id', yo.id));
+      await cargarPersonas();
+      d.close();
+      aviso('Datos guardados.');
+      vistaPerfil(app);
+    } catch (err) {
+      avisoError(err);
+      boton.disabled = false;
+    }
+  });
+}
+
+function eliminarCuenta() {
+  const otros = estado.personas.filter((p) => p.id !== estado.yo.id);
+  const hogar = !estado.equipo?.personal && otros.length
+    ? `<p style="margin:0">El hogar <strong>${esc(estado.equipo.nombre)}</strong> sigue para ${esc(otros.map((p) => p.nombre).join(' y '))}, con las rutinas y recetas compartidas.</p>`
+    : '';
+  const d = abrirDialogo(`
+    <form class="dialogo" novalidate>
+      <h2 class="tarjeta__titulo">¿Eliminar tu cuenta?</h2>
+      <p style="margin:0">Se borran para siempre tu perfil, tus mediciones, entrenos, comidas y chats con Bloq. No se puede deshacer.</p>
+      ${hogar}
+      <p class="ayuda" style="margin:0">Si quieres una copia, descárgala antes desde "Descargar todo".</p>
+      <div class="campo">
+        <label for="borrar-ok">Escribe <strong>ELIMINAR</strong> para confirmar</label>
+        <input id="borrar-ok" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      </div>
+      <div class="dialogo__pie">
+        <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
+        <button type="submit" class="boton boton--peligro" id="borrar-si" disabled>Eliminar</button>
+      </div>
+    </form>`, 'Eliminar cuenta');
+  const campo = d.querySelector('#borrar-ok');
+  const boton = d.querySelector('#borrar-si');
+  campo.addEventListener('input', () => { boton.disabled = campo.value.trim().toUpperCase() !== 'ELIMINAR'; });
+  d.querySelector('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (boton.disabled) return;
+    boton.disabled = true;
+    boton.textContent = 'Eliminando…';
+    try {
+      await sb.storage.from('avatares').remove([`${estado.yo.id}/avatar.jpg`]).catch(() => {});
+      datos(await sb.rpc('eliminar_mi_cuenta'));
+      d.close();
+      aviso('Tu cuenta y tus datos se eliminaron.');
+      await sb.auth.signOut().catch(() => {});
+      try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+      setTimeout(() => location.reload(), 600);
+    } catch (err) {
+      avisoError(err);
+      boton.disabled = false;
+      boton.textContent = 'Eliminar';
+    }
+  });
 }
 
 function descargar(nombre, contenido, tipo) {
@@ -711,14 +784,112 @@ const fotoGoogle = () => {
   return url?.startsWith('https://') ? url : null;
 };
 
-/** Recorta al centro en cuadrado, achica a 384 px y devuelve un JPEG. */
-async function fotoCuadrada(archivo) {
-  const img = await createImageBitmap(archivo);
-  const lado = Math.min(img.width, img.height);
-  const lienzo = document.createElement('canvas');
-  lienzo.width = lienzo.height = Math.min(384, lado);
-  lienzo.getContext('2d').drawImage(img, (img.width - lado) / 2, (img.height - lado) / 2, lado, lado, 0, 0, lienzo.width, lienzo.height);
-  return new Promise((ok) => lienzo.toBlob(ok, 'image/jpeg', 0.86));
+/** Elige un archivo de imagen. Con camara=true abre la cámara frontal; si no, el selector del
+ *  teléfono (Galería, Google Fotos, Archivos). */
+function elegirImagen(camara) {
+  return new Promise((ok) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    if (camara) input.setAttribute('capture', 'user');
+    input.style.display = 'none';
+    input.addEventListener('change', () => { ok(input.files?.[0] ?? null); input.remove(); });
+    input.addEventListener('cancel', () => { ok(null); input.remove(); });
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+const LADO_FOTO = 512;
+
+/** Editor: arrastra para encuadrar, pellizca o usa la barra para el zoom. Devuelve un JPEG cuadrado o null. */
+async function editarFoto(archivo) {
+  let img;
+  try { img = await createImageBitmap(archivo, { imageOrientation: 'from-image' }); } catch {
+    aviso('No pude abrir esa imagen. Prueba con otra.', 'error');
+    return null;
+  }
+  return new Promise((resolver) => {
+    const d = abrirDialogo(`
+      <div class="dialogo reg editor-foto">
+        <h2 class="tarjeta__titulo">Ajusta tu foto</h2>
+        <div class="editor-foto__marco"><canvas width="${LADO_FOTO}" height="${LADO_FOTO}"></canvas><span class="editor-foto__mascara" aria-hidden="true"></span></div>
+        <label class="editor-foto__zoom">
+          <svg class="icono-ui" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M8.5 11h5M20 20l-4.5-4.5"/></svg>
+          <input type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom">
+          <svg class="icono-ui" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M8.5 11h5M11 8.5v5M20 20l-4.5-4.5"/></svg>
+        </label>
+        <p class="ayuda" style="margin:0;text-align:center">Arrastra para encuadrar.</p>
+        <div class="dialogo__pie">
+          <button type="button" class="boton boton--sec" id="ef-descartar">Descartar</button>
+          <button type="button" class="boton" id="ef-guardar">Guardar</button>
+        </div>
+      </div>`, 'Ajustar foto');
+    const lienzo = d.querySelector('canvas');
+    const ctx = lienzo.getContext('2d');
+    const barra = d.querySelector('input[type=range]');
+    const base = LADO_FOTO / Math.min(img.width, img.height); // escala que cubre el cuadrado
+    let zoom = 1;
+    let cx = img.width / 2; // centro visible, en píxeles de la imagen
+    let cy = img.height / 2;
+    let listo = null;
+
+    const limitar = () => {
+      const medio = LADO_FOTO / (base * zoom) / 2;
+      cx = Math.min(img.width - medio, Math.max(medio, cx));
+      cy = Math.min(img.height - medio, Math.max(medio, cy));
+    };
+    const pintar = () => {
+      limitar();
+      const lado = LADO_FOTO / (base * zoom);
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0, 0, LADO_FOTO, LADO_FOTO);
+      ctx.drawImage(img, cx - lado / 2, cy - lado / 2, lado, lado, 0, 0, LADO_FOTO, LADO_FOTO);
+    };
+    const ponerZoom = (z) => { zoom = Math.min(4, Math.max(1, z)); barra.value = String(zoom); pintar(); };
+    barra.addEventListener('input', () => ponerZoom(Number(barra.value)));
+
+    // Arrastrar con un dedo, pellizcar con dos.
+    const punteros = new Map();
+    let distInicial = 0;
+    let zoomInicial = 1;
+    const escalaPantalla = () => LADO_FOTO / lienzo.getBoundingClientRect().width;
+    lienzo.addEventListener('pointerdown', (e) => {
+      lienzo.setPointerCapture(e.pointerId);
+      punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (punteros.size === 2) {
+        const [a, b] = [...punteros.values()];
+        distInicial = Math.hypot(a.x - b.x, a.y - b.y);
+        zoomInicial = zoom;
+      }
+    });
+    lienzo.addEventListener('pointermove', (e) => {
+      const antes = punteros.get(e.pointerId);
+      if (!antes) return;
+      punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (punteros.size === 1) {
+        const k = escalaPantalla() / (base * zoom);
+        cx -= (e.clientX - antes.x) * k;
+        cy -= (e.clientY - antes.y) * k;
+        pintar();
+      } else if (punteros.size === 2 && distInicial) {
+        const [a, b] = [...punteros.values()];
+        ponerZoom(zoomInicial * Math.hypot(a.x - b.x, a.y - b.y) / distInicial);
+      }
+    });
+    const soltar = (e) => { punteros.delete(e.pointerId); if (punteros.size < 2) distInicial = 0; };
+    lienzo.addEventListener('pointerup', soltar);
+    lienzo.addEventListener('pointercancel', soltar);
+    lienzo.addEventListener('wheel', (e) => { e.preventDefault(); ponerZoom(zoom * (e.deltaY < 0 ? 1.08 : 0.93)); }, { passive: false });
+
+    d.querySelector('#ef-descartar').addEventListener('click', () => d.close());
+    d.querySelector('#ef-guardar').addEventListener('click', () => {
+      pintar();
+      lienzo.toBlob((blob) => { listo = blob; d.close(); }, 'image/jpeg', 0.88);
+    });
+    d.addEventListener('close', () => resolver(listo));
+    pintar();
+  });
 }
 
 function conectarFoto(app) {
@@ -729,32 +900,44 @@ function conectarFoto(app) {
     aviso(mensaje);
     vistaPerfil(app);
   };
-  const archivo = app.querySelector('#foto-archivo');
-  app.querySelector('#foto-subir').addEventListener('click', () => archivo.click());
-  archivo.addEventListener('change', async () => {
-    const f = archivo.files?.[0];
-    archivo.value = '';
+  const subir = async (blob) => {
+    const ruta = `${yo.id}/avatar.jpg`;
+    datos(await sb.storage.from('avatares').upload(ruta, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '3600' }));
+    const { data } = sb.storage.from('avatares').getPublicUrl(ruta);
+    await guardar(`${data.publicUrl}?v=${Date.now()}`, 'Foto actualizada.');
+  };
+  const desde = async (camara) => {
+    const f = await elegirImagen(camara);
     if (!f) return;
-    const boton = app.querySelector('#foto-subir');
-    boton.disabled = true;
-    boton.textContent = 'Subiendo…';
-    try {
-      const blob = await fotoCuadrada(f);
-      const ruta = `${yo.id}/avatar.jpg`;
-      datos(await sb.storage.from('avatares').upload(ruta, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '3600' }));
-      const { data } = sb.storage.from('avatares').getPublicUrl(ruta);
-      await guardar(`${data.publicUrl}?v=${Date.now()}`, 'Foto actualizada.');
-    } catch (err) {
-      avisoError(err);
-      boton.disabled = false;
-      boton.textContent = 'Cambiar foto';
-    }
-  });
-  app.querySelector('#foto-google')?.addEventListener('click', () => guardar(fotoGoogle(), 'Listo: tu foto de Google.').catch(avisoError));
-  app.querySelector('#foto-quitar')?.addEventListener('click', async () => {
-    try {
-      await sb.storage.from('avatares').remove([`${yo.id}/avatar.jpg`]);
-      await guardar(null, 'Foto quitada.');
-    } catch (err) { avisoError(err); }
+    const blob = await editarFoto(f);
+    if (!blob) return;
+    try { await subir(blob); } catch (err) { avisoError(err); }
+  };
+
+  app.querySelector('#foto-abrir').addEventListener('click', () => {
+    const google = fotoGoogle();
+    const d = abrirDialogo(`
+      <div class="dialogo">
+        <h2 class="tarjeta__titulo">Foto de perfil</h2>
+        <div class="per-menu">
+          ${filaMenu('fo-galeria', ICONO_FOTO, 'Galería o Google Fotos', 'Elige una foto que ya tengas')}
+          ${filaMenu('fo-camara', IC.camara, 'Tomar una foto', 'Abre la cámara')}
+          ${google && yo.avatar_url !== google ? filaMenu('fo-google', ICONO_G, 'Usar la de mi cuenta de Google', '') : ''}
+          ${yo.avatar_url ? filaMenu('fo-quitar', ICONO_BORRAR, 'Quitar foto', '', true) : ''}
+        </div>
+      </div>`, 'Foto de perfil');
+    d.querySelector('#fo-galeria').addEventListener('click', () => { d.close(); desde(false); });
+    d.querySelector('#fo-camara').addEventListener('click', () => { d.close(); desde(true); });
+    d.querySelector('#fo-google')?.addEventListener('click', () => { d.close(); guardar(google, 'Listo: tu foto de Google.').catch(avisoError); });
+    d.querySelector('#fo-quitar')?.addEventListener('click', async () => {
+      d.close();
+      try {
+        await sb.storage.from('avatares').remove([`${yo.id}/avatar.jpg`]);
+        await guardar(null, 'Foto quitada.');
+      } catch (err) { avisoError(err); }
+    });
   });
 }
+
+const ICONO_G = '<svg class="icono-ui" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12.2c0 4.2-3 7.3-7.3 7.3a7.5 7.5 0 1 1 5-13.1"/><path d="M12.5 12h7"/></svg>';
+const ICONO_FOTO = '<svg class="icono-ui" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="9.5" r="1.6"/><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4"/></svg>';

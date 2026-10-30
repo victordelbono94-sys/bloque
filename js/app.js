@@ -14,7 +14,7 @@ import { vistaCompletar } from './vistas/completar.js';
 import { recordarInvitacion, invitacionPendiente } from './equipo.js';
 import { vigilarActualizaciones } from './actualizar.js';
 import { estaInstalada, puedeSeguirEnNavegador, pantallaInstalar } from './instalar.js';
-import { enApp, loginEnApp, asegurarVinculo, desvincular, alEventoNativo, sincronizarAgenda } from './nativo.js';
+import { enApp, loginEnApp, asegurarVinculo, desvincular, alEventoNativo, sincronizarAgenda, sincronizarAhora } from './nativo.js';
 
 const app = document.getElementById('app');
 const nav = document.getElementById('nav');
@@ -179,10 +179,12 @@ async function arrancar() {
     const invitacion = invitacionPendiente();
     if (invitacion && !location.hash.startsWith('#/unirme/')) history.replaceState(null, '', `${location.pathname}#/unirme/${invitacion}`);
     await mostrarRuta();
+    escucharHogar();
     // En la app: conectar este teléfono con la cuenta para traer los datos de la banda.
     if (enApp) {
       asegurarVinculo().catch((e) => console.error('vínculo con la app', e));
       sincronizarAgenda().catch((e) => console.error('agenda para avisos', e));
+      sincronizarAlAbrir();
     }
   } catch (e) {
     avisoError(e);
@@ -216,6 +218,61 @@ const revisarDia = async () => {
   }
 };
 document.addEventListener('visibilitychange', revisarDia);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && estado.yo && enApp) sincronizarAlAbrir(); });
+
+// Al abrir (o volver a) la app: se traen ya los datos del reloj (como mucho cada 3 minutos).
+let ultimaSync = 0;
+function sincronizarAlAbrir() {
+  if (Date.now() - ultimaSync < 3 * 60e3) return;
+  ultimaSync = Date.now();
+  try { sincronizarAhora(); } catch { /* sin puente */ }
+}
+
+// Tiempo real: si alguien del hogar registra algo (una comida, agua, un entreno, una medición), la pantalla se actualiza sola.
+let canal = null, refrescoPendiente = null;
+function escucharHogar() {
+  if (canal || !estado.yo) return;
+  const tablas = ['comidas', 'porciones', 'calendario', 'sesiones', 'series', 'mediciones_corporales', 'estado_diario', 'hidratacion', 'molestias', 'despensa', 'objetivos', 'sesiones_banda'];
+  canal = sb.channel(`hogar-${estado.yo.hogar_id}`);
+  for (const t of tablas) canal.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => refrescarPronto());
+  canal.subscribe();
+}
+function refrescarPronto() {
+  clearTimeout(refrescoPendiente);
+  refrescoPendiente = setTimeout(refrescarCallado, 900);
+}
+// Vuelve a dibujar la pantalla actual sin animación y sin mover el scroll; no interrumpe si estás escribiendo o con una hoja abierta.
+async function refrescarCallado() {
+  if (!estado.yo || document.hidden) return;
+  const ruta = location.hash.replace(/^#\/?/, '').split('/')[0] || 'hoy';
+  if (['sesion', 'comenzar'].includes(ruta)) return;
+  if (document.querySelector('dialog[open]') || app.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) {
+    return refrescarPronto();
+  }
+  const vista = RUTAS[ruta] ?? RUTAS.hoy;
+  const lienzo = document.createElement('div');
+  lienzo.className = 'vista';
+  try { await vista(lienzo); } catch { return; }
+  if (document.querySelector('dialog[open]')) return;
+  const y = app.scrollTop;
+  app.replaceChildren(lienzo);
+  app.scrollTop = y;
+}
+
+// Sin conexión: un aviso arriba; los datos que se ven son los últimos guardados.
+const avisoRed = () => {
+  let b = document.getElementById('sin-red');
+  if (navigator.onLine) { b?.remove(); return; }
+  if (b) return;
+  b = document.createElement('div');
+  b.id = 'sin-red';
+  b.className = 'sin-red';
+  b.textContent = 'Sin conexión · ves lo último guardado. La IA y los registros nuevos vuelven con internet.';
+  document.body.appendChild(b);
+};
+window.addEventListener('online', () => { avisoRed(); refrescarPronto(); });
+window.addEventListener('offline', avisoRed);
+avisoRed();
 setInterval(revisarDia, 10 * 60 * 1000);
 
 iniciar();

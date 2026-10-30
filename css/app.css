@@ -2197,3 +2197,40 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .racha-pill { flex: 0 0 auto; }
 .nav__item svg.nav__figura { fill: currentColor; stroke: none; }
 .nav__item svg.nav__figura .trazo { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.sin-red { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top) + 8px); z-index: 2000; max-width: calc(100% - 32px); padding: 8px 14px; border-radius: 999px; background: rgba(42, 45, 53, .95); box-shadow: 0 6px 20px rgba(0, 0, 0, .4), inset 0 0 0 1px rgba(232, 163, 23, .5); color: var(--tiza); font-size: 12px; text-align: center; animation: chip-entra .3s var(--suave) both; }
+
+/* ---------- Perfil ---------- */
+.per-hero { display: flex; align-items: center; gap: 16px; padding: 18px; background: linear-gradient(135deg, rgba(198, 244, 50, .10), rgba(53, 57, 69, .4) 60%), var(--grafito); }
+.per-hero__foto { position: relative; flex: none; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 24px; }
+.per-hero__foto .avatar--grande { width: 84px; height: 84px; border-radius: 26px; font-size: 36px; box-shadow: 0 0 0 3px var(--asfalto), 0 0 0 5px rgba(198, 244, 50, .55); }
+.per-hero__cam { position: absolute; right: -4px; bottom: -4px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--volt); color: var(--asfalto); box-shadow: 0 0 0 3px var(--grafito); transition: transform .2s var(--resorte); }
+.per-hero__cam .icono-ui { width: 16px; height: 16px; stroke-width: 2.2; }
+.per-hero__foto:active .per-hero__cam { transform: scale(.88); }
+.per-hero__txt { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.per-hero__nombre { margin: 0; font-family: var(--titulo); font-size: 24px; line-height: 1.1; overflow-wrap: anywhere; }
+.per-hero__mail { margin: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.per-hero__hogar { align-self: flex-start; margin-top: 6px; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: rgba(244, 242, 236, .08); font-size: 12px; font-weight: 600; color: var(--tiza-2); max-width: 100%; }
+.per-hero__hogar .icono-ui { width: 14px; height: 14px; flex: none; }
+
+.per-menu { display: flex; flex-direction: column; border-radius: var(--radio); background: var(--grafito); overflow: hidden; }
+.dialogo .per-menu { background: var(--grafito-2); }
+.per-fila { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 60px; padding: 12px 14px; border: 0; background: none; color: var(--tiza); text-align: left; font: inherit; cursor: pointer; transition: background .15s; }
+.per-fila + .per-fila { border-top: 1px solid rgba(62, 66, 80, .7); }
+.per-fila:active { background: rgba(244, 242, 236, .05); }
+.per-fila__ic { flex: none; width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: rgba(198, 244, 50, .12); color: var(--volt); }
+.per-fila__ic .icono-ui { width: 19px; height: 19px; }
+.per-fila__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.per-fila__txt strong { font-size: 15px; font-weight: 600; }
+.per-fila__txt small { font-size: 12.5px; color: var(--gris); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.per-fila__ir { flex: none; width: 18px; height: 18px; color: var(--gris); }
+.per-fila--peligro, .per-fila--peligro .per-fila__txt strong { color: var(--error); }
+.per-fila--peligro .per-fila__ic { background: rgba(214, 69, 69, .14); color: var(--error); }
+
+.editor-foto__marco { position: relative; width: min(100%, 300px); aspect-ratio: 1; margin: 4px auto 0; border-radius: 18px; overflow: hidden; touch-action: none; }
+.editor-foto__marco canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+.editor-foto__marco canvas:active { cursor: grabbing; }
+.editor-foto__mascara { position: absolute; inset: 0; pointer-events: none; border-radius: 31%; box-shadow: 0 0 0 999px rgba(21, 23, 28, .6), inset 0 0 0 2px rgba(244, 242, 236, .85); }
+.editor-foto__zoom { display: flex; align-items: center; gap: 10px; color: var(--gris); }
+.editor-foto__zoom input { flex: 1; accent-color: var(--volt); }
+.editor-foto__zoom .icono-ui { width: 20px; height: 20px; flex: none; }
+#mis-objetivos-cont { display: block; margin-top: 20px; }
