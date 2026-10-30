@@ -6,7 +6,7 @@ import { esc, aviso, avisoError, abrirDialogo } from './ui.js';
 
 export const TIPOS = {
   omnivora: 'Como de todo',
-  flexitariana: 'Poca carne',
+  flexitariana: 'Como poca carne',
   pescetariana: 'Pescetariana',
   vegetariana: 'Vegetariana',
   vegana: 'Vegana',
@@ -15,9 +15,12 @@ export const TIPOS = {
 };
 export const RESTRICCIONES = {
   sin_gluten: 'Sin gluten', sin_lactosa: 'Sin lactosa', sin_lacteos: 'Sin lácteos', sin_huevo: 'Sin huevo',
-  sin_mariscos: 'Sin mariscos', sin_frutos_secos: 'Sin frutos secos / maní', sin_cerdo: 'Sin cerdo', sin_frutas: 'No come frutas',
-  sin_verduras: 'Casi no come verduras', sin_azucar: 'Sin azúcar',
+  sin_mariscos: 'Sin mariscos', sin_frutos_secos: 'Sin frutos secos / maní', sin_cerdo: 'Sin cerdo', sin_frutas: 'No como frutas',
+  sin_verduras: 'Casi no como verduras', sin_azucar: 'Sin azúcar',
 };
+
+// Las etiquetas hablan en primera persona («No como frutas»); a la IA se le cuenta en tercera.
+const PARA_IA = { omnivora: 'come de todo', flexitariana: 'come poca carne', sin_frutas: 'no come frutas', sin_verduras: 'casi no come verduras' };
 
 export const dietaDe = (p = estado.yo) => p?.dieta ?? null;
 export const tieneDieta = (p = estado.yo) => !!dietaDe(p)?.tipo;
@@ -28,7 +31,7 @@ const tiene = (d, r) => d?.restricciones?.includes(r);
 export function dietaParaIA(p = estado.yo) {
   const d = dietaDe(p);
   if (!d?.tipo) return 'no la dijo todavía: no asumas que come carne; sugiere opciones variadas y, si viene al caso, pregúntale';
-  return [TIPOS[d.tipo] ?? d.tipo, ...(d.restricciones ?? []).map((r) => RESTRICCIONES[r] ?? r), d.no_le_gusta ? `no le gusta: ${d.no_le_gusta}` : null, d.nota].filter(Boolean).join(' · ');
+  return [PARA_IA[d.tipo] ?? TIPOS[d.tipo] ?? d.tipo, ...(d.restricciones ?? []).map((r) => PARA_IA[r] ?? RESTRICCIONES[r] ?? r), d.no_le_gusta ? `no le gusta: ${d.no_le_gusta}` : null, d.nota].filter(Boolean).join(' · ');
 }
 
 /** Fuentes de proteína que encajan con su dieta (para textos y sugerencias). */
