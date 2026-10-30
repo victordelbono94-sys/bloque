@@ -15,7 +15,8 @@ const json = (cuerpo: unknown, estado = 200) =>
 
 const INSTRUCCIONES = `Eres el coach de una app de entrenamiento y nutrición; hablas en español de Ecuador, cercano y breve (1 a 3 frases).
 La persona te cuenta un cambio en su plan y tú lo conviertes en "acciones" que la app aplica cuando la persona confirma.
-El contexto trae su deporte, su objetivo corporal, su experiencia, qué días va al gym y al deporte, la agenda de las próximas semanas,
+El contexto trae su deporte, su objetivo corporal, su experiencia, qué días va al gym y al deporte, la agenda de las próximas semanas
+(con la rutina de cada gym), las rutinas del hogar,
 los cambios que ya hizo, la lista de deportes posibles (clave y nombre) y las personas del hogar (los entrenos "juntos" son de todos).
 
 Acciones posibles (pon solo las que correspondan):
@@ -26,6 +27,15 @@ Acciones posibles (pon solo las que correspondan):
 - "objetivo": foco = recomposicion (bajar grasa y ganar músculo), masa_muscular (ganar peso y músculo), perder_grasa, mantenimiento o cardio.
 - "deporte": cambia de deporte; deporte = la clave exacta de la lista.
 - "experiencia": principiante, intermedio o avanzado.
+- "cambiar_dia": un día puntual cambia un entreno por otro ("el sábado en vez de derby vamos al gym a hacer pliometría",
+  "mañana no voy al gym, mejor descanso", "el jueves cambio el gym por derby"). fecha = ese día en AAAA-MM-DD (usa hoy y
+  dia_de_hoy del contexto; "el sábado" = el próximo sábado, hoy incluido si hoy es sábado). de = lo que había: "deporte", "gym"
+  u "otro" ("cualquiera" si no lo dice). a = lo que hará: "gym", "deporte", "descanso" u "otro".
+  Si a = "gym": si una de rutinas_del_hogar encaja con lo que pide, pon su nombre EXACTO en rutina; si pide algo que no existe
+  (ej. pliometría y no hay rutina de pliometría), deja rutina vacío y pon en crear_rutina qué rutina armar en pocas palabras
+  ("pliometría para derby"): la app ofrece armarla con el entrenador. Si no dice qué hará en el gym, usa la rutina que tocaba
+  ese día o la que sigue en la rotación. hora = "HH:MM" solo si la dice (si no, se usa la del entreno que reemplaza).
+  Ejemplo de resumen: "Sábado 31: gym (pliometría) en vez de derby".
 "quien": "yo" si es solo para quien escribe, "todos" si es para todo el hogar. Si hay más de una persona en el hogar y no queda claro
 si el cambio es solo suyo o de todos (ej. "no vamos a derby" = todos; "no voy a derby" = yo), y la acción toca entrenos juntos, pregúntalo:
 pon la pregunta en "duda", 2 opciones en "opciones" y no pongas acciones todavía.
@@ -44,7 +54,11 @@ const ESQUEMA = {
       items: {
         type: "OBJECT",
         properties: {
-          tipo: { type: "STRING", enum: ["pausa", "frecuencia_gym", "objetivo", "deporte", "experiencia"] },
+          tipo: { type: "STRING", enum: ["pausa", "frecuencia_gym", "objetivo", "deporte", "experiencia", "cambiar_dia"] },
+          fecha: { type: "STRING" },
+          de: { type: "STRING", enum: ["deporte", "gym", "otro", "cualquiera"] },
+          a: { type: "STRING", enum: ["gym", "deporte", "descanso", "otro"] },
+          rutina: { type: "STRING" }, crear_rutina: { type: "STRING" }, hora: { type: "STRING" },
           actividad: { type: "STRING", enum: ["deporte", "gym", "todo"] },
           desde: { type: "STRING" }, hasta: { type: "STRING" },
           dias: { type: "ARRAY", items: { type: "NUMBER" } },
@@ -102,7 +116,13 @@ function limpiar(d: Record<string, unknown>) {
       dias: [...new Set((Array.isArray(a.dias) ? a.dias : []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))],
       foco: a.foco ?? null, deporte: /^[a-z_]{2,30}$/.test(String(a.deporte ?? "")) ? a.deporte : null,
       experiencia: a.experiencia ?? null, quien: a.quien === "todos" ? "todos" : "yo", resumen: texto(a.resumen, 160),
-    })).filter((a) => ["pausa", "frecuencia_gym", "objetivo", "deporte", "experiencia"].includes(a.tipo)),
+      fecha: fecha(a.fecha),
+      de: ["deporte", "gym", "otro", "cualquiera"].includes(String(a.de)) ? a.de : "cualquiera",
+      a: ["gym", "deporte", "descanso", "otro"].includes(String(a.a)) ? a.a : null,
+      rutina: texto(a.rutina, 80) || null, crear_rutina: texto(a.crear_rutina, 120) || null,
+      hora: /^\d{2}:\d{2}$/.test(String(a.hora ?? "")) ? a.hora : null,
+    })).filter((a) => ["pausa", "frecuencia_gym", "objetivo", "deporte", "experiencia", "cambiar_dia"].includes(a.tipo)
+      && (a.tipo !== "cambiar_dia" || (a.fecha && a.a))),
   };
 }
 

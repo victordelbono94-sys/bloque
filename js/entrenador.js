@@ -204,7 +204,7 @@ export async function abrirEntrenador({ rutinaId = null, enCurso = false, mensaj
       if (e.existente) continue;
       e.existente = datos(await sb.from('ejercicios').insert({
         hogar_id: hogar, nombre: e.nombre, grupo_muscular: e.grupo_muscular, unidad: e.unidad, por_lado: e.por_lado,
-        descripcion: e.nota, tecnica: e.nota ? [e.nota] : null,
+        descripcion: e.nota || null, tecnica: e.nota ? [e.nota] : [],
       }).select('id, nombre, grupo_muscular, unidad, por_lado').single());
       datosCtx.catalogo.push(e.existente);
     }

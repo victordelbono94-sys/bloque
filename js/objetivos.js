@@ -17,11 +17,12 @@ const fechaTxt = (f) => `${diaCorto(f)} ${Number(f.slice(8))}/${Number(f.slice(5
 
 async function cargar() {
   const yo = estado.yo, hoy = hoyISO();
-  const [agenda, obj, cambios] = await Promise.all([
+  const [agenda, obj, cambios, rutinas] = await Promise.all([
     sb.from('calendario').select('id, fecha, tipo, actividad, asistencia, persona_id, rutina_id, hora_inicio, omitido').eq('hogar_id', yo.hogar_id)
       .gte('fecha', hoy).lte('fecha', sumarDias(hoy, 27)).order('fecha').then(datos),
     sb.from('objetivos').select('foco').eq('persona_id', yo.id).order('desde', { ascending: false }).limit(1).then(datos).catch(() => []),
     sb.from('cambios_plan').select('*').eq('persona_id', yo.id).order('creada_en', { ascending: false }).limit(10).then(datos).catch(() => []),
+    sb.from('rutinas').select('id, nombre, foco').eq('hogar_id', yo.hogar_id).order('creada_en').then(datos).catch(() => []),
   ]);
   const mios = agenda.filter((e) => !e.omitido && (e.asistencia === 'juntos' || e.persona_id === yo.id));
   const dos = mios.filter((e) => e.fecha < sumarDias(hoy, 14));
@@ -31,7 +32,7 @@ async function cargar() {
     return { porSemana: Math.round(evs.length / 2 * 10) / 10, dias };
   };
   return {
-    agenda, mios, foco: obj[0]?.foco ?? 'recomposicion',
+    agenda, mios, rutinas, foco: obj[0]?.foco ?? 'recomposicion',
     gym: patron(['gym']), deporte: patron(['derby', 'otro']),
     cambios: cambios.filter((c) => !c.hasta || c.hasta >= hoy),
   };
@@ -53,7 +54,7 @@ export async function htmlMisObjetivos() {
       </div>
       ${d.cambios.length ? `<div class="obj-cambios"><small>Cambios activos</small>${d.cambios.slice(0, 4).map((c) => `<span class="obj-cambio">${esc(c.descripcion ?? '')}</span>`).join('')}</div>` : ''}
       <button type="button" class="boton boton--ia boton--bloque" id="obj-ia">${'<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>'} Cambiar mis objetivos</button>
-      <p class="ayuda" style="margin:0">Ej.: «esta semana no hago derby», «voy a ir 2 veces al gym», «ahora quiero ganar músculo». Tu dieta y tus entrenos se readaptan solos.</p>
+      <p class="ayuda" style="margin:0">Ej.: «esta semana no hago derby», «el sábado en vez de derby vamos al gym», «ahora quiero ganar músculo». Tu dieta y tus entrenos se readaptan solos.</p>
     </section>`;
 }
 
@@ -114,6 +115,7 @@ async function aplicar(a, d) {
     await registrar({ desde });
     return `Gym ${a.dias.length} ${a.dias.length === 1 ? 'vez' : 'veces'} por semana (${a.dias.sort((x, y) => ((x + 6) % 7) - ((y + 6) % 7)).map((x) => DIAS[x]).join(', ')})`;
   }
+  if (a.tipo === 'cambiar_dia') return cambiarDia(a, d);
   if (a.tipo === 'objetivo') {
     if (!OBJETIVOS[a.foco]) throw new Error('Objetivo no válido.');
     datos(await sb.from('objetivos').delete().eq('persona_id', yo.id).eq('desde', hoy).select('id'));
@@ -138,6 +140,40 @@ async function aplicar(a, d) {
   return 'Listo';
 }
 
+// Un día puntual: saca el entreno que había (para ti o para todos) y pone el nuevo, con su rutina.
+const normal = (t) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+async function cambiarDia(a, d) {
+  const yo = estado.yo;
+  if (!a.fecha || a.fecha < hoyISO()) throw new Error('Ese día ya pasó.');
+  const deTipos = a.de === 'gym' ? ['gym'] : a.de === 'deporte' ? ['derby', 'otro', 'clase'] : a.de === 'otro' ? ['otro', 'clase'] : ['gym', 'derby', 'otro', 'clase'];
+  const evs = d.agenda.filter((e) => e.fecha === a.fecha && !e.omitido && deTipos.includes(e.tipo)
+    && (a.quien === 'todos' || e.asistencia === 'juntos' || e.persona_id === yo.id));
+  const hora = a.hora ?? evs.find((e) => e.hora_inicio)?.hora_inicio ?? null;
+  for (const e of evs) await sacarDe(e, a.quien);
+  let nuevo = null;
+  if (a.a !== 'descanso') {
+    const rutina = a.a === 'gym' && a.rutina ? d.rutinas.find((r) => normal(r.nombre) === normal(a.rutina))
+      ?? d.rutinas.find((r) => normal(r.nombre).includes(normal(a.rutina)) || normal(a.rutina).includes(normal(r.nombre))) : null;
+    const tipo = a.a === 'gym' ? 'gym' : a.a === 'deporte' ? (estado.equipo?.deporte === 'roller_derby' ? 'derby' : 'otro') : 'otro';
+    const soloYo = a.quien === 'yo' && estado.personas.length > 1;
+    // Si ese día ya tenía un gym (y no era lo que se cambió), no se duplica: se le pone la rutina nueva.
+    const yaHay = tipo === 'gym' && d.agenda.find((e) => e.fecha === a.fecha && e.tipo === 'gym' && !e.omitido && !evs.includes(e)
+      && (e.asistencia === 'juntos' || e.persona_id === yo.id));
+    if (yaHay) {
+      if (rutina) datos(await sb.from('calendario').update({ rutina_id: rutina.id }).eq('id', yaHay.id).select('id'));
+      nuevo = { id: yaHay.id };
+    } else nuevo = datos(await sb.from('calendario').insert({
+      hogar_id: yo.hogar_id, fecha: a.fecha, tipo, hora_inicio: hora, rutina_id: rutina?.id ?? null,
+      actividad: tipo === 'otro' && a.a === 'deporte' ? estado.equipo?.deporte ?? null : null,
+      asistencia: soloYo ? 'solo' : 'juntos', persona_id: soloYo ? yo.id : null,
+    }).select('id').single());
+    // Si pidió una rutina que no existe, después se ofrece armarla y queda asignada a este día.
+    if (a.a === 'gym' && !rutina && a.crear_rutina) a.pendiente = { eventoId: nuevo.id, que: a.crear_rutina };
+  }
+  await sb.from('cambios_plan').insert({ persona_id: yo.id, tipo: 'cambiar_dia', descripcion: a.resumen, desde: a.fecha, hasta: a.fecha }).then(() => {}, () => {});
+  return a.resumen || `${fechaTxt(a.fecha)}: cambiado`;
+}
+
 // ---------- El chat ----------
 export function abrirObjetivosIA({ alCambiar = () => {} } = {}) {
   const dlg = abrirDialogo(`
@@ -146,12 +182,13 @@ export function abrirObjetivosIA({ alCambiar = () => {} } = {}) {
       <div class="chatia__cuerpo" id="ob-chat" aria-live="polite">
         <div id="ob-hola">${htmlBienvenida({
           titulo: '¿Qué cambió?',
-          texto: 'Cuéntame si vas a dejar el deporte unos días, si cambias de deporte, si vas a ir más o menos al gym o si cambia tu objetivo. Yo readapto tu plan, tu dieta y tus entrenos.',
+          texto: 'Cuéntame si vas a dejar el deporte unos días, si un día cambias un entreno por otro, si cambias de deporte, si vas a ir más o menos al gym o si cambia tu objetivo. Yo readapto tu plan, tu dieta y tus entrenos.',
           sugerencias: [
             { icono: IC.pausa, texto: 'Esta semana no voy a hacer mi deporte' },
             { icono: IC.pesa, texto: 'Voy a ir solo 2 veces al gym' },
             { icono: IC.objetivo, texto: 'Ahora quiero ganar músculo' },
             { icono: IC.cambio, texto: 'Cambié de deporte' },
+            { icono: IC.calendario, texto: 'Un día cambio el deporte por gym' },
           ],
         })}</div>
       </div>
@@ -181,9 +218,10 @@ export function abrirObjetivosIA({ alCambiar = () => {} } = {}) {
       gym: d ? { veces_por_semana: d.gym.porSemana, dias: d.gym.dias.map((x) => DIAS[x]) } : null,
       deporte_agenda: d ? { veces_por_semana: d.deporte.porSemana, dias: d.deporte.dias.map((x) => DIAS[x]) } : null,
       agenda_proximas_3_semanas: (d?.agenda ?? []).filter((e) => e.fecha < sumarDias(hoyISO(), 21) && e.tipo !== 'descanso').map((e) => ({
-        fecha: e.fecha, dia: DIAS[diaSemana(e.fecha)], tipo: e.tipo, actividad: e.actividad, quien: e.asistencia === 'juntos' ? 'juntos' : (estado.personas.find((p) => p.id === e.persona_id)?.nombre ?? ''), cancelado: e.omitido,
+        fecha: e.fecha, dia: DIAS[diaSemana(e.fecha)], tipo: e.tipo, actividad: e.actividad, rutina: d.rutinas.find((r) => r.id === e.rutina_id)?.nombre ?? null, quien: e.asistencia === 'juntos' ? 'juntos' : (estado.personas.find((p) => p.id === e.persona_id)?.nombre ?? ''), cancelado: e.omitido,
       })),
       cambios_activos: (d?.cambios ?? []).map((c) => c.descripcion),
+      rutinas_del_hogar: (d?.rutinas ?? []).map((r) => r.nombre),
       deportes_posibles: LISTA.map((x) => `${x.clave}: ${x.nombre}`).join('; '),
     };
   };
@@ -222,6 +260,24 @@ export function abrirObjetivosIA({ alCambiar = () => {} } = {}) {
             aviso('Plan actualizado: tu dieta y tus entrenos ya se readaptaron.');
             import('./nativo.js').then((m) => m.sincronizarAgenda?.().catch(() => {}));
             alCambiar();
+            // Una rutina que no existía (ej. pliometría): se ofrece armarla y queda puesta en ese día.
+            for (const a of r.acciones.filter((x) => x.pendiente)) {
+              const o = burbuja('ia', `<span>No tienen una rutina de ${esc(a.pendiente.que)}. ¿Te la armo y la dejo puesta para el ${esc(fechaTxt(a.fecha))}?</span><div class="chips"><button type="button" class="chip chip--mini chip--sugerencia" data-armar>✦ Sí, armar la rutina</button></div>`);
+              o.querySelector('[data-armar]').addEventListener('click', async (ev) => {
+                ev.currentTarget.closest('.chips').remove();
+                const { abrirEntrenador } = await import('./entrenador.js');
+                abrirEntrenador({
+                  mensaje: `Ármame una rutina de ${a.pendiente.que} para el ${fechaTxt(a.fecha)} (va en lugar del ${a.de === 'gym' ? 'gym de siempre' : nombreDeporte(estado.equipo?.deporte).toLowerCase()} de ese día).`,
+                  alAplicar: async (id) => {
+                    try {
+                      datos(await sb.from('calendario').update({ rutina_id: id }).eq('id', a.pendiente.eventoId).select('id'));
+                      aviso(`Rutina puesta para el ${fechaTxt(a.fecha)}.`);
+                      alCambiar();
+                    } catch (err) { avisoError(err); }
+                  },
+                });
+              });
+            }
             // Si cambió el deporte o la frecuencia, se ofrece ajustar las rutinas.
             if (r.acciones.some((a) => a.tipo === 'deporte' || a.tipo === 'frecuencia_gym')) {
               const o = burbuja('ia', `<span>¿Ajusto tus rutinas al nuevo plan?</span><div class="chips"><button type="button" class="chip chip--mini chip--sugerencia" data-rutinas>✦ Sí, ajustar rutinas</button></div>`);
@@ -241,8 +297,10 @@ export function abrirObjetivosIA({ alCambiar = () => {} } = {}) {
   };
   const compositor = conectarCompositor(dlg, { texto: '#ob-texto', enviar: '#ob-enviar', alEnviar: () => enviar() });
   dlg.querySelectorAll('[data-sugerencia]').forEach((b) => b.addEventListener('click', () => {
-    const t = ['Esta semana no voy a hacer mi deporte', 'Voy a ir solo 2 veces al gym', 'Ahora quiero ganar músculo', 'Cambié de deporte'][Number(b.dataset.sugerencia)];
-    if (Number(b.dataset.sugerencia) === 3) { $('#ob-texto').value = 'Cambié de deporte a '; $('#ob-texto').focus(); compositor.actualizar(); return; }
+    const k = Number(b.dataset.sugerencia);
+    const t = ['Esta semana no voy a hacer mi deporte', 'Voy a ir solo 2 veces al gym', 'Ahora quiero ganar músculo', 'Cambié de deporte'][k];
+    const prellenar = { 3: 'Cambié de deporte a ', 4: `El sábado en vez de ${nombreDeporte(estado.equipo?.deporte).toLowerCase()} vamos al gym a hacer ` }[k];
+    if (prellenar) { $('#ob-texto').value = prellenar; $('#ob-texto').focus(); compositor.actualizar(); return; }
     enviar(t);
   }));
   return dlg;
