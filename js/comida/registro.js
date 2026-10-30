@@ -56,6 +56,7 @@ export function abrirRegistro(ctx, op = {}) {
   let reparto = items.some((it) => it.persona) ? 'distinto' : 'compartido';
   let paso = 1;
   let fotoPendiente = null;
+  let sopaOfrecida = false; // ya se ofreció sumar el caldo de una sopa
   const chatLog = [];      // la conversación con la IA sobre este plato (se mantiene al volver del paso 2)
   const historial = [];    // lo mismo en texto, para que la IA recuerde lo hablado
 
@@ -101,36 +102,39 @@ export function abrirRegistro(ctx, op = {}) {
     paso = 1;
     $('#r-paso').textContent = varios ? 'Paso 1 de 2' : '';
     $('#r-momento-btn').hidden = false;
+    // Arriba (lo que se desplaza): tu plato con su desglose y la conversación con la IA.
+    // Abajo, fijo como en una app de mensajes: el total + «Seguir», y el cuadro para escribirle a la IA o mandar una foto.
     $('#r-cuerpo').innerHTML = `
-      <section class="ia-caja ia-caja--compacta" id="r-ia">
-        <div class="ia-foto" id="r-foto" hidden>
-          <img alt="Foto del plato">
-          <button type="button" class="ia-foto__quitar" id="r-foto-quitar" aria-label="Quitar la foto">${ICONO.x}</button>
-        </div>
-        <textarea id="r-texto" rows="2" maxlength="600" placeholder="Cuéntale a la IA qué comiste, o saca una foto">${esc(op.texto ?? '')}</textarea>
-        <div class="ia-comp__barra">
-          <label class="ia-icono" aria-label="Sacar foto">${ICONO.camara}<input type="file" id="r-camara" accept="image/*" capture="environment" hidden></label>
-          <label class="ia-icono" aria-label="Elegir de la galería">${ICONO.galeria}<input type="file" id="r-galeria" accept="image/*" hidden></label>
-          <button type="button" class="boton boton--ia boton--chico ia-comp__leer" id="r-leer">${ICONO.chispa}<span>Enviar</span></button>
-        </div>
-        <p class="ia-estado" id="r-estado" hidden></p>
-      </section>
-      <div class="ia-chat" id="r-chat" aria-live="polite">${chatLog.join('')}</div>
-
-      <div class="frecuentes reg__rapidos" aria-label="Agregar rápido">
+      <div class="frecuentes reg__rapidos" id="r-rapidos" aria-label="Agregar rápido">
         <button type="button" class="chip chip--mini chip--buscar" id="r-buscar-abrir">${ICONO.buscar} Buscar</button>
         ${lista.map((f, i) => `<button type="button" class="chip chip--mini" data-frec="${i}">+ ${esc(nombreCorto(f.alimento))}</button>`).join('')}
       </div>
       <div id="r-buscar" hidden></div>
-
+      <p class="reg__vacio" id="r-vacio">Escríbele abajo qué comiste o mándale una foto: la IA arma el plato y te dice cómo vas.</p>
       <div id="r-items" class="pila" style="gap:8px"></div>
-      <div class="comida-total" id="r-total"></div>
       <div class="consejo" id="r-consejo" hidden>
         <div class="consejo__meta" id="r-meta"></div>
-      </div>`;
+      </div>
+      ${editar ? '<button type="button" class="boton boton--texto boton--chico reg__borrar" id="r-borrar">Eliminar esta comida</button>' : ''}
+      <div class="ia-chat" id="r-chat" aria-live="polite">${chatLog.join('')}</div>`;
     $('#r-pie').innerHTML = `
-      ${editar ? '<button type="button" class="boton boton--peligro" id="r-borrar">Eliminar</button>' : ''}
-      <button type="button" class="boton reg__seguir" id="r-seguir" disabled>${varios ? 'Seguir' : (editar ? 'Guardar cambios' : 'Guardar')}</button>`;
+      <div class="reg__resumen" id="r-resumen" hidden>
+        <span class="comida-total" id="r-total"></span>
+        <button type="button" class="boton boton--chico reg__seguir" id="r-seguir" disabled>${varios ? 'Seguir ›' : (editar ? 'Guardar cambios' : 'Guardar')}</button>
+      </div>
+      <section class="reg__compositor" id="r-ia">
+        <div class="ia-foto ia-foto--mini" id="r-foto" hidden>
+          <img alt="Foto del plato">
+          <button type="button" class="ia-foto__quitar" id="r-foto-quitar" aria-label="Quitar la foto">${ICONO.x}</button>
+        </div>
+        <p class="ia-estado" id="r-estado" hidden></p>
+        <div class="reg__fila-escribir">
+          <label class="ia-icono" aria-label="Sacar foto">${ICONO.camara}<input type="file" id="r-camara" accept="image/*" capture="environment" hidden></label>
+          <label class="ia-icono" aria-label="Elegir de la galería">${ICONO.galeria}<input type="file" id="r-galeria" accept="image/*" hidden></label>
+          <textarea id="r-texto" rows="1" maxlength="600" placeholder="¿Qué comiste?">${esc(op.texto ?? '')}</textarea>
+          <button type="button" class="reg__enviar" id="r-leer" aria-label="Enviar a la IA">${ICONO.chispa}</button>
+        </div>
+      </section>`;
     conectarPaso1();
     pintarItems();
     if (fotoPendiente) mostrarFoto(fotoPendiente);
@@ -172,7 +176,10 @@ export function abrirRegistro(ctx, op = {}) {
     const total = sumar(items.map((it) => macros(it.alimento, it.gramos)));
     $('#r-total').innerHTML = items.length ? `<strong>${kc(total.kcal)} kcal</strong> · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}` : '';
     $('#r-seguir').disabled = !items.length;
-    if ($('#r-texto') && !fotoPendiente) $('#r-texto').placeholder = items.length ? 'Agrega, corrige o pregúntale algo' : 'Cuéntale a la IA qué comiste, o saca una foto';
+    $('#r-resumen').hidden = !items.length;
+    if ($('#r-vacio')) $('#r-vacio').hidden = !!items.length || chatLog.length > 0;
+    if ($('#r-rapidos')) $('#r-rapidos').hidden = items.length > 2;
+    if ($('#r-texto') && !fotoPendiente) $('#r-texto').placeholder = items.length ? 'Agrega, corrige o pregunta…' : '¿Qué comiste?';
     pintarMeta();
 
     const pasoDe = (it) => (Number(it.alimento.porcion_g) > 0 && Number(it.alimento.porcion_g) <= 250 ? Number(it.alimento.porcion_g) : 10);
@@ -196,10 +203,11 @@ export function abrirRegistro(ctx, op = {}) {
     const k = PRINCIPALES.indexOf(momento);
     const parte = PARTE_COMIDA[momento] ?? 0.25;
     const resto = k >= 0 ? PRINCIPALES.slice(k).reduce((a, m) => a + (PARTE_COMIDA[m] ?? 0), 0) : 1;
-    const metaKcal = k >= 0 ? disponible * (parte / resto) : Math.min(info.metas.kcal * parte, disponible);
+    // Con tope: si te queda mucho para la cena, la meta no puede ser «todo el día» de una vez.
+    const metaKcal = Math.min(k >= 0 ? disponible * (parte / resto) : disponible, info.metas.kcal * parte * 1.75);
     const meta = Math.round(metaKcal / 10) * 10;
     const protDisp = Math.max(0, info.metas.proteina - (info.comido.proteina - Number(antes?.proteina ?? 0)));
-    const protMeta = Math.round(k >= 0 ? protDisp * (parte / resto) : Math.min(info.metas.proteina * parte, protDisp));
+    const protMeta = Math.round(Math.min(k >= 0 ? protDisp * (parte / resto) : protDisp, info.metas.proteina * parte * 1.75));
     const restoDia = disponible - mio.kcal;
     const quemado = Math.round(info.metas.medido || info.metas.ejercicio || 0);
     return { info, mio, meta, protMeta, falta: meta - mio.kcal, restoDia, disponible, quemado, medido: !!info.metas.medido };
@@ -211,14 +219,34 @@ export function abrirRegistro(ctx, op = {}) {
     caja.hidden = !b;
     if (!b) return;
     const nombre = MOMENTOS[momento].toLowerCase();
+    const femenino = ['merienda', 'cena'].includes(momento);
+    const unBuen = `${femenino ? 'una buena' : 'un buen'} ${nombre}`;
     const pct = Math.min(100, Math.round((b.mio.kcal / b.meta) * 100));
-    const estadoTxt = b.falta > 120 ? `<strong class="consejo__falta">Te faltan ~${kc(b.falta)} kcal</strong> para un buen ${esc(nombre)}`
-      : b.falta < -b.meta * 0.35 ? `<strong class="consejo__falta">Te pasaste ~${kc(-b.falta)} kcal</strong> de lo ideal para un ${esc(nombre)}`
-      : `<strong class="hecho">Buen ${esc(nombre)} ✓</strong>`;
+    // El veredicto depende del objetivo y del DÍA, no solo de esta comida: pasarse un poco es bueno para ganar masa,
+    // neutro para mantener y algo a cuidar para bajar de peso. Solo «reta» cuando de verdad importa.
+    const ganar = b.info.foco === 'masa_muscular' || b.info.metas.magro;
+    const bajar = b.info.foco === 'perder_grasa';
+    const exceso = -b.restoDia;                      // > 0: con esta comida te pasas del día
+    const tope = b.info.metas.kcal;
+    const bien = (t) => `<strong class="hecho">${t}</strong>`;
+    const ojo = (t) => `<strong class="consejo__falta">${t}</strong>`;
+    let estadoTxt;
+    if (b.falta > 120 && !bajar) estadoTxt = `${ojo(`Te faltan ~${kc(b.falta)} kcal`)} para ${esc(unBuen)}`;
+    else if (b.falta > 120) estadoTxt = `Te quedan ~${kc(b.falta)} kcal para ${femenino ? 'esta' : 'este'} ${esc(nombre)}, sin salirte del déficit`;
+    else if (b.falta >= -b.meta * 0.35) estadoTxt = bien(`${femenino ? 'Buena' : 'Buen'} ${esc(nombre)} ✓`);
+    else if (exceso <= 0) estadoTxt = `${bien('Comida grande, pero vas bien en el día ✓')}`;
+    else if (ganar) estadoTxt = exceso <= tope * 0.15
+      ? bien(`Te pasas ~${kc(exceso)} kcal del día: para ganar masa está bien ✓`)
+      : `${ojo(`Te pasas ~${kc(exceso)} kcal del día`)}: es mucho incluso para ganar masa`;
+    else if (bajar) estadoTxt = `${ojo(`Te pasas ~${kc(exceso)} kcal del día`)}: para bajar de peso conviene achicar una porción`;
+    else estadoTxt = exceso <= tope * 0.05
+      ? bien('Casi justo en el día ✓')
+      : `${ojo(`Te pasas ~${kc(exceso)} kcal del día`)}: si puedes, achica una porción`;
+    const despues = fecha !== hoyISO() ? '' : b.restoDia >= 0 ? ` · después te quedan ${kc(b.restoDia)} kcal en el día` : '';
     $('#r-meta').innerHTML = `
       <div class="meta-comida__fila"><span>${MOMENTOS[momento]}${varios ? ' · tu parte' : ''}</span><span><strong>${kc(b.mio.kcal)}</strong> / ~${kc(b.meta)} kcal · P ${Math.round(b.mio.proteina)}/${b.protMeta} g</span></div>
       <div class="meta-comida__barra"><span style="width:${pct}%"></span></div>
-      <p class="meta-comida__txt">${estadoTxt}${fecha === hoyISO() ? ` · después te quedan ${kc(Math.max(0, b.restoDia))} kcal en el día` : ''}</p>
+      <p class="meta-comida__txt">${estadoTxt}${despues}</p>
       <p class="meta-comida__base">Antes de esta comida te quedaban <strong>${kc(b.disponible)} kcal</strong>${b.quemado ? ` · ${b.medido ? 'quemaste' : 'entrenos de hoy:'} ~${kc(b.quemado)} kcal${b.medido ? ' según tu reloj' : ''} (ya sumadas)` : ''}</p>`;
   };
 
@@ -314,6 +342,13 @@ export function abrirRegistro(ctx, op = {}) {
       const aguaAntes = aguaDelPlato();
       await aplicarCambios(r);
       const aguaSumada = aguaDelPlato() - aguaAntes;
+      // Sopas, ramen, udon…: si el caldo no quedó en el plato, se ofrece sumarlo (cuenta como agua).
+      const sopa = `${texto} ${items.map((it) => it.alimento.nombre).join(' ')}`.match(/\b(ramen|ud[oó]n|pho|sopa|caldo|locro|encebollado|sancocho|consom[eé]|fideos instant[aá]neos)/i);
+      if (sopa && !aguaDelPlato() && !sopaOfrecida) {
+        sopaOfrecida = true;
+        const nombreSopa = /fideos instant/i.test(sopa[1]) ? 'ramen' : sopa[1].toLowerCase();
+        r.sugerencias = [...(r.sugerencias ?? []), { nombre: /^(sopa|caldo)$/i.test(nombreSopa) ? `Caldo de ${nombreSopa === 'sopa' ? 'sopa' : 'carne'}` : `Caldo de ${nombreSopa}`, gramos: 400, cantidad: '💧 400 ml de', kcal: 15, proteina_g: 1, carbohidratos_g: 1, grasas_g: 0.5 }];
+      }
       if (aguaSumada >= 50) r.respuesta = `${r.respuesta ?? ''} 💧 Suma ~${Math.round(aguaSumada / 10) * 10} ml a tu agua del día.`.trim();
       historial.push({ rol: 'ia', texto: [r.respuesta, r.duda].filter(Boolean).join(' ') });
       const html = `<span class="ia-logo ia-logo--mini" aria-hidden="true">${ICONO.chispa}</span><span>${esc(r.respuesta || 'Listo.')}</span>
@@ -422,13 +457,13 @@ export function abrirRegistro(ctx, op = {}) {
     if (!caja) return;
     caja.hidden = false;
     caja.querySelector('img').src = URL.createObjectURL(archivo);
-    $('#r-texto').placeholder = 'Opcional: lo que no se ve («le puse 100 g de mozzarella y 2 cucharadas de aceite»)';
+    $('#r-texto').placeholder = 'Algo que no se ve, o pregunta…';
     
   };
   const quitarFoto = () => {
     fotoPendiente = null;
     $('#r-foto').hidden = true;
-    $('#r-texto').placeholder = '«3 huevos en tortilla con 200 g de fideos y un café con leche»';
+    $('#r-texto').placeholder = items.length ? 'Agrega, corrige o pregunta…' : '¿Qué comiste?';
     
   };
   const leer = async () => {
@@ -468,7 +503,7 @@ export function abrirRegistro(ctx, op = {}) {
 
   const conectarPaso1 = () => {
     const texto = $('#r-texto');
-    const ajustar = () => { texto.style.height = 'auto'; texto.style.height = `${Math.min(160, texto.scrollHeight)}px`; };
+    const ajustar = () => { texto.style.height = 'auto'; texto.style.height = `${Math.min(120, texto.scrollHeight)}px`; };
     texto.addEventListener('input', ajustar);
     $('#r-leer').addEventListener('click', leer);
     $('#r-texto').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); leer(); } });

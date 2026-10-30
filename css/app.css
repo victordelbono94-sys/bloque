@@ -1610,3 +1610,32 @@ dialog.pantalla > .estirar .dialogo__pie { position: sticky; bottom: calc(-1 * (
 .ia-msg__duda { flex-basis: 100%; margin: 2px 0 0; font-weight: 600; }
 .ia-msg__opciones .chip { border-color: rgba(198, 244, 50, 0.5); color: var(--volt); }
 .meta-comida__base { margin: 4px 0 0; font-size: 12px; color: var(--gris); }
+
+/* Agregar comida: el plato y la conversación arriba; el cuadro para escribirle a la IA fijo abajo */
+.reg__vacio { margin: 8px 0 0; color: var(--gris); font-size: 14px; text-align: center; padding: 18px 8px; border: 1px dashed var(--linea); border-radius: var(--radio); }
+.reg__borrar { align-self: flex-start; color: var(--error); }
+.reg .reg__pie { flex-direction: column; gap: 8px; padding: 8px 12px calc(env(safe-area-inset-bottom) + 10px); }
+.reg__resumen { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 4px; }
+.reg__resumen .comida-total { font-size: 14px; }
+.reg__resumen .reg__seguir { flex: 0 0 auto; min-height: 38px; padding: 0 18px; }
+.reg__compositor { display: flex; flex-direction: column; gap: 6px; }
+.reg__fila-escribir { display: flex; align-items: flex-end; gap: 6px; padding: 4px; border-radius: 26px; background: var(--grafito-2); border: 1px solid var(--linea); transition: border-color .2s ease, box-shadow .2s ease; }
+.reg__fila-escribir:focus-within { border-color: rgba(198, 244, 50, 0.6); box-shadow: 0 0 0 3px rgba(198, 244, 50, 0.12); }
+.reg__fila-escribir textarea { flex: 1; min-height: 40px; max-height: 120px; resize: none; border: 0; background: transparent; color: var(--tiza); font: inherit; font-size: 16px; padding: 9px 4px; box-shadow: none; }
+.reg__fila-escribir textarea:focus-visible { outline: none; }
+.reg__fila-escribir .ia-icono { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 50%; }
+.reg__enviar { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 50%; border: 0; background: linear-gradient(120deg, #C6F432, #5EE6C8); color: var(--asfalto); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .15s ease; }
+.reg__enviar:active { transform: scale(0.9); }
+.reg__enviar:disabled { opacity: .5; }
+.reg__enviar .icono { width: 20px; height: 20px; fill: currentColor; stroke: none; }
+.ia-foto--mini { max-height: 120px; width: 120px; border-radius: 12px; }
+.ia-foto--mini img { max-height: 120px; height: 120px; }
+.reg__compositor .ia-estado { margin: 0 6px; font-size: 13px; }
+.reg__compositor.ia-caja--pensando .reg__fila-escribir { border-color: rgba(94, 230, 200, 0.6); animation: compositor-piensa 1.2s ease-in-out infinite; }
+@keyframes compositor-piensa { 50% { box-shadow: 0 0 0 4px rgba(94, 230, 200, 0.15); } }
+/* Burbujas que entran con un pequeño salto */
+.ia-msg { animation: burbuja-entra .32s cubic-bezier(.2, .9, .3, 1.2) both; transform-origin: bottom left; }
+.ia-msg--yo { transform-origin: bottom right; }
+@keyframes burbuja-entra { from { opacity: 0; transform: translateY(10px) scale(.94); } to { opacity: 1; transform: none; } }
+.ia-chat { margin-top: 4px; }
+.reg__fila-escribir textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
