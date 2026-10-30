@@ -1556,3 +1556,28 @@ dialog.pantalla .entrenador { display: flex; flex-direction: column; height: 100
 }
 @keyframes latido-numero { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.18); } 30% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .descanso--final, .descanso--final .descanso__texto strong { animation: none; } }
+
+/* Entreno en curso: el ejercicio de ahora arriba y destacado; los terminados plegados al final */
+.ejercicio { position: relative; scroll-margin-top: 96px; }
+.ejercicio--ahora { border: 1.5px solid var(--volt); box-shadow: 0 0 0 4px rgba(198, 244, 50, 0.1), 0 12px 32px rgba(0, 0, 0, 0.35); padding-top: 34px; }
+.ejercicio--ahora::before {
+  content: 'Ahora'; position: absolute; top: 12px; left: 16px; padding: 2px 10px; border-radius: 999px;
+  background: var(--volt); color: var(--asfalto); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.ejercicio--siguiente { padding-top: 34px; }
+.ejercicio--siguiente::before {
+  content: 'Siguiente'; position: absolute; top: 12px; left: 16px; padding: 2px 10px; border-radius: 999px;
+  background: var(--grafito-2); color: var(--gris); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.ejercicios-hechos { margin-top: 18px; }
+.ejercicios-hechos > summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+  border-radius: var(--radio); background: var(--grafito); font-weight: 700;
+}
+.ejercicios-hechos > summary::-webkit-details-marker { display: none; }
+.ejercicios-hechos > summary::after { content: '▾'; margin-left: auto; color: var(--gris); transition: transform 0.2s ease; }
+.ejercicios-hechos[open] > summary::after { transform: rotate(180deg); }
+.ejercicios-hechos__check { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(198, 244, 50, 0.16); color: var(--volt); font-size: 13px; }
+.ejercicios-hechos .pila { margin-top: 12px; }
+.ejercicio--hecho { opacity: 0.85; }
+::view-transition-group(*) { animation-duration: 0.35s; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }

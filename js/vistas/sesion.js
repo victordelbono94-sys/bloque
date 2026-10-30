@@ -168,6 +168,10 @@ export async function vistaSesion(app) {
     <div class="pila" id="ejercicios">
       ${items.map((it, i) => tarjetaEjercicio(it, i)).join('')}
     </div>
+    <details class="ejercicios-hechos" id="hechos" hidden>
+      <summary><span class="ejercicios-hechos__check" aria-hidden="true">✓</span> Terminados <span class="quieto" id="hechos-n"></span></summary>
+      <div class="pila" id="hechos-lista"></div>
+    </details>
 
     ${yoParticipo ? `
       <button type="button" class="boton boton--bloque" style="margin-top:20px" id="terminar" ${terminé ? 'disabled' : ''}>
@@ -175,6 +179,7 @@ export async function vistaSesion(app) {
       </button>` : ''}`;
 
   conectar(app);
+  ordenarEjercicios(app, { inicial: true });
   app.querySelector('#ajustar-ia')?.addEventListener('click', () => abrirEntrenador({ rutinaId: sesion.rutina_id, enCurso: true, alAplicar: () => vistaSesion(app) }));
   // Agua durante el entreno: un toque por vaso; se suma a la hidratación del día.
   let aguaSesion = 0;
@@ -247,7 +252,7 @@ function tarjetaEjercicio(it, i) {
   const mio = ejercicioDe(it, estado.yo.id);
   const cambiado = mio.id !== it.ejercicio.id;
   return `
-    <article class="tarjeta" id="ej-${esc(it.id)}">
+    <article class="tarjeta ejercicio" id="ej-${esc(it.id)}" data-item="${esc(it.id)}" style="view-transition-name: ej-${i}">
       <button type="button" class="ejercicio__cabeza" data-ficha="${esc(it.id)}" aria-label="Cómo se hace ${esc(mio.nombre)}">
         ${miniatura(mio, 64)}
         <span style="min-width:0;flex:1">
@@ -312,6 +317,48 @@ function filaPersona(it, p) {
     <div class="series ${soyYo ? '' : 'series--otro'}" style="margin-top:6px">${huecos}${extra}</div>
     ${antes.length ? `<p class="ultima">La vez pasada: ${esc(textoUltima(antes, ej.unidad === 'segundos'))}</p>` : ''}
     ${sugerencia ? `<p class="sugerencia">${esc(sugerencia)}</p>` : ''}`;
+}
+
+// ---------- El ejercicio que estoy haciendo, arriba ----------
+// «Ahora»: el último en el que anoté una serie, si le faltan; si ya lo terminé, el siguiente pendiente (en el orden
+// de la rutina). Después, los que faltan, y los terminados se pliegan al final para que no se mezclen.
+function ordenarEjercicios(app, { inicial = false } = {}) {
+  if (!actual) return;
+  const yo = actual.participantes.find((p) => p.id === estado.yo.id) ?? actual.participantes[0];
+  if (!yo) return;
+  const planeadas = (it) => it.metas[yo.id]?.series ?? it.series_base;
+  const completo = (it) => seriesDe(it, yo.id).length >= planeadas(it);
+  const mias = actual.series.filter((x) => x.persona_id === yo.id).sort((a, b) => new Date(b.hecha_en) - new Date(a.hecha_en));
+  const ultimo = mias.length ? actual.items.find((it) => seriesDe(it, yo.id).some((x) => x.id === mias[0].id)) : null;
+  const pendientes = actual.items.filter((it) => !completo(it));
+  const ahora = ultimo && !completo(ultimo) ? ultimo : (pendientes.find((it) => ultimo && actual.items.indexOf(it) > actual.items.indexOf(ultimo)) ?? pendientes[0] ?? null);
+  const hechos = actual.items.filter(completo);
+  // Lo que sigue: primero los que vienen después del actual en la rutina, después los que quedaron atrás.
+  const pos = ahora ? actual.items.indexOf(ahora) : -1;
+  const siguientes = pendientes.filter((it) => it !== ahora)
+    .sort((a, b) => ((actual.items.indexOf(a) - pos + actual.items.length) % actual.items.length) - ((actual.items.indexOf(b) - pos + actual.items.length) % actual.items.length));
+
+  const lista = app.querySelector('#ejercicios'), hechosCaja = app.querySelector('#hechos'), hechosLista = app.querySelector('#hechos-lista');
+  if (!lista || !hechosCaja) return;
+  const tarjeta = (it) => app.querySelector(`#ej-${CSS.escape(it.id)}`);
+  const antes = lista.firstElementChild?.dataset.item;
+  const mover = () => {
+    for (const it of [ahora, ...siguientes].filter(Boolean)) lista.appendChild(tarjeta(it));
+    for (const it of hechos) hechosLista.appendChild(tarjeta(it));
+    actual.items.forEach((it) => {
+      const t = tarjeta(it);
+      t.classList.toggle('ejercicio--ahora', it === ahora);
+      t.classList.toggle('ejercicio--siguiente', it === siguientes[0] && !!ahora);
+      t.classList.toggle('ejercicio--hecho', hechos.includes(it));
+    });
+    hechosCaja.hidden = !hechos.length;
+    app.querySelector('#hechos-n').textContent = hechos.length ? `${hechos.length} de ${actual.items.length}` : '';
+  };
+  const cambio = !inicial && antes !== (ahora?.id ?? antes);
+  if (cambio && document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.startViewTransition(mover);
+  else mover();
+  // Si pasé a otro ejercicio, lo muestro arriba.
+  if (cambio && ahora) setTimeout(() => tarjeta(ahora)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
 }
 
 function repintarFila(app, it, p) {
@@ -523,6 +570,7 @@ function registrarSerie(app, it, numero) {
       d.close();
       sugerir(it, { reps: r, peso: p, esfuerzo: esf, meta, segundos });
       repintarFila(app, it, estado.yo);
+      ordenarEjercicios(app);
       if (!existente) {
         const quedan = (meta?.series ?? it.series_base) - seriesDe(it, estado.yo.id).length;
         const seg = meta?.descanso_seg ?? it.descanso_base;
@@ -539,6 +587,7 @@ function registrarSerie(app, it, numero) {
     try {
       datos(await sb.from('series').delete().eq('id', existente.id));
       actual.series = actual.series.filter((s) => s.id !== existente.id);
+      setTimeout(() => ordenarEjercicios(app), 0);
       d.close();
       repintarFila(app, it, estado.yo);
     } catch (err) {
