@@ -6,10 +6,13 @@ import { htmlCabecera, htmlCompositor, conectarCompositor, burbujaPensando, baja
 import { fotoBase64 } from './comida/comun.js';
 import { deporte } from './deportes.js';
 import { OBJETIVOS, edad } from './nutricion.js';
+import { IC } from './iconos.js';
 
 const CAMPOS = {
   peso_kg: ['Peso', 'kg'], grasa_pct: ['Grasa', '%'], masa_muscular_kg: ['Músculo', 'kg'], masa_magra_kg: ['Masa magra', 'kg'],
   agua_pct: ['Agua', '%'], grasa_visceral: ['Grasa visceral', ''], masa_osea_kg: ['Masa ósea', 'kg'], metabolismo_basal_kcal: ['Metabolismo basal', 'kcal'],
+  masa_grasa_kg: ['Masa grasa', 'kg'], musculo_esqueletico_kg: ['Músculo esquelético', 'kg'], agua_intracelular_l: ['Agua intracelular', 'L'],
+  agua_extracelular_l: ['Agua extracelular', 'L'], angulo_fase: ['Ángulo de fase', '°'],
 };
 const ORIGEN = { manual: 'escrita', balanza: 'de la balanza', hospital: 'de la hoja de resultados' };
 
@@ -23,7 +26,7 @@ const leerArchivo = (f) => new Promise((ok, no) => {
 async function contexto(semana) {
   const yo = estado.yo;
   const [meds, notas, obj] = await Promise.all([
-    sb.from('mediciones_corporales').select('medido_en, origen, peso_kg, grasa_pct, masa_muscular_kg, masa_magra_kg, agua_pct, grasa_visceral, metabolismo_basal_kcal')
+    sb.from('mediciones_corporales').select('*')
       .eq('persona_id', yo.id).order('medido_en', { ascending: false }).limit(12).then(datos),
     sb.from('notas_cuerpo').select('tipo, texto, valor, creada_en').eq('persona_id', yo.id).order('creada_en', { ascending: false }).limit(10).then(datos).catch(() => []),
     sb.from('objetivos').select('foco').eq('persona_id', yo.id).order('desde', { ascending: false }).limit(1).then(datos).catch(() => []),
@@ -62,10 +65,10 @@ export function abrirCuerpoIA({ alGuardar = () => {}, manual = null } = {}) {
           titulo: 'Nueva medición',
           texto: 'Escribe tu peso, o mándame una foto de la balanza o el PDF de tu bioimpedancia. También puedes contarme cómo vas y reajusto tu proyección.',
           sugerencias: [
-            { icono: '📷', texto: 'Foto de la balanza' },
-            { icono: '📄', texto: 'PDF o foto de la bioimpedancia' },
-            { icono: '📉', texto: '¿Cómo voy con mi objetivo?' },
-            ...(manual ? [{ icono: '✋', texto: 'Cargar a mano' }] : []),
+            { icono: IC.camara, texto: 'Foto de la balanza' },
+            { icono: IC.documento, texto: 'PDF o foto de la bioimpedancia' },
+            { icono: IC.grafico, texto: '¿Cómo voy con mi objetivo?' },
+            ...(manual ? [{ icono: IC.mano, texto: 'Cargar a mano' }] : []),
           ],
         })}</div>
       </div>
@@ -163,7 +166,7 @@ export function abrirCuerpoIA({ alGuardar = () => {}, manual = null } = {}) {
       }
       if (r.aprendizaje) {
         sb.from('notas_cuerpo').insert({ persona_id: estado.yo.id, tipo: 'aprendizaje', texto: r.aprendizaje }).then(() => {}, () => {});
-        burbuja('nota', `📝 Anotado para la próxima: ${esc(r.aprendizaje)}`);
+        burbuja('nota', `${IC.nota} Anotado para la próxima: ${esc(r.aprendizaje)}`);
       }
     } catch (e) {
       pensando.terminar(`<span class="quieto">${esc(e.message)}</span>`);

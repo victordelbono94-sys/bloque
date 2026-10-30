@@ -85,11 +85,17 @@ export function zonasDe(grupos) {
   return [...cuenta.entries()].sort((a, b) => b[1] - a[1]).map(([z]) => z);
 }
 
+// La silueta de Bloq: sin género, en bloques de una sola pieza y con la cabeza cuadrada como el logo (la misma en Cuerpo y en el mapa de los ejercicios). viewBox 0 0 50 94.
+export const SILUETA = 'M21.5 0.5h7a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-7a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3z M22 13H28V15.5H37.5L42 20V52H38V27H34.8V92H26.5V56H23.5V92H15.2V27H12V52H8V20L12.5 15.5H22Z';
+let idClip = 0;
 function figura(bloques, zonas, dx) {
-  return bloques.map(([zona, x, y, w, h, r]) => {
-    const clase = zona === 'cabeza' || zona === 'cadera' ? 'mapa__neutro' : zonas.has(zona) ? 'mapa__on' : 'mapa__off';
-    return `<rect class="${clase}" x="${x + dx}" y="${y}" width="${w}" height="${h}" rx="${r}"/>`;
-  }).join('');
+  const id = `sil${++idClip}`;
+  return `<g transform="translate(${dx} 0)">
+    <defs><clipPath id="${id}"><path d="${SILUETA}"/></clipPath></defs>
+    <path class="mapa__base" d="${SILUETA}"/>
+    <g clip-path="url(#${id})">${bloques.filter(([zona]) => zona !== 'cabeza' && zona !== 'cadera').map(([zona, x, y, w, h, r]) =>
+      `<rect class="${zonas.has(zona) ? 'mapa__on' : 'mapa__off'}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}"/>`).join('')}</g>
+  </g>`;
 }
 
 /** Mapa del cuerpo de frente y de espalda con las zonas encendidas. */
@@ -106,3 +112,27 @@ export function mapaCuerpo(zonas, { alto = 72, etiqueta = '' } = {}) {
 export function chipsZonas(zonas, cuantas = 3) {
   return `<span class="zonas">${zonas.slice(0, cuantas).map((z) => `<span class="zona">${NOMBRE_ZONA[z]}</span>`).join('')}</span>`;
 }
+
+// Íconos de línea para la interfaz (en vez de emojis). Heredan el color del texto.
+const ic = (d) => `<svg class="icono icono-ui" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+export const IC = {
+  objetivo: ic('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'),
+  ritmo: ic('<path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/>'),
+  fuego: ic('<path d="M12 21c-4 0-6.5-2.6-6.5-6 0-3.5 2.5-5.5 3.5-8 1.5 1.5 2 3 2 4.5 1-1 1.8-2.6 1.8-4.5 3 2 5.7 5 5.7 8.3 0 3.3-2.5 5.7-6.5 5.7z"/>'),
+  comida: ic('<path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5M17 3c-2 1.5-3 4-3 7h3v11"/>'),
+  proteina: ic('<path d="M15.5 4.5a5 5 0 0 1 0 7l-4 4a3 3 0 1 1-4-4l4-4a5 5 0 0 1 4-3z"/><path d="M7.5 15.5l-3 3M6 21l-1.5-1.5"/>'),
+  pesa: ic('<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>'),
+  sueno: ic('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),
+  agua: ic('<path d="M12 3.5c3 4 6 7.2 6 10.5a6 6 0 0 1-12 0c0-3.3 3-6.5 6-10.5z"/>'),
+  pasos: ic('<path d="M8 3.5c1.7 0 2.5 1.8 2.5 4S9.5 12 8 12 5.5 9.7 5.5 7.5 6.3 3.5 8 3.5zM16 9c1.7 0 2.5 1.8 2.5 4s-1 4.5-2.5 4.5-2.5-2.3-2.5-4.5S14.3 9 16 9zM6 15h4M14 20.5h4"/>'),
+  nota: ic('<path d="M5 4h10l4 4v12H5z"/><path d="M8 11h8M8 15h6"/>'),
+  camara: ic('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
+  documento: ic('<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>'),
+  grafico: ic('<path d="M4 20V4M4 20h16"/><path d="M8 16l3-4 3 2 5-7"/>'),
+  mano: ic('<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-.5a5 5 0 0 1-4.2-2.3L4 14.5a1.5 1.5 0 0 1 2.5-1.6L8 15"/>'),
+  check: ic('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+  alerta: ic('<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.5v.5"/>'),
+  balanza: ic('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9.5a4 4 0 0 1 6 0M12 9.5l1.5-1.5"/>'),
+  calendario: ic('<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
+  racha: ic('<path d="M12 21c-4 0-6.5-2.6-6.5-6 0-3.5 2.5-5.5 3.5-8 1.5 1.5 2 3 2 4.5 1-1 1.8-2.6 1.8-4.5 3 2 5.7 5 5.7 8.3 0 3.3-2.5 5.7-6.5 5.7z"/>'),
+};

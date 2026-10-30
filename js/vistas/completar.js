@@ -83,7 +83,7 @@ export async function vistaCompletar(app) {
         <p class="subtitulo">Si lo conectas, Bloq sabe cuánto dormiste, cuánto quemaste y marca solo los entrenos que hiciste.</p>
         <div class="opciones">
           ${opcion('reloj', 'si', 'Sí, uso uno', 'Xiaomi, Samsung, Garmin, Fitbit… (vía Health Connect)', s.reloj)}
-          ${opcion('reloj', 'no', 'No', 'Igual funciona: los entrenos se marcan desde la app.', s.reloj)}
+          ${opcion('reloj', 'no', 'No', 'Igual funciona: los entrenos se marcan en Bloq.', s.reloj)}
         </div>
         <div id="c-reloj-extra" ${s.reloj === 'si' ? '' : 'hidden'}>
           ${enApp

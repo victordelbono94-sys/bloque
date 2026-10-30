@@ -42,7 +42,7 @@ export async function vistaComida(app) {
     // La base todavía no tiene las tablas de la dieta (falta aplicar la migración).
     if (['PGRST205', '42P01', 'PGRST200'].includes(err?.code) || /alimentos|despensa|comida_items/.test(err?.message ?? '')) {
       app.innerHTML = `
-        <header class="encabezado encabezado--fijo"><div><h1 class="titulo">Comida</h1></div></header>
+        <header class="encabezado encabezado--fijo"><div><h1 class="titulo">Alimentación</h1></div></header>
         <div class="tarjeta"><p style="margin:0"><strong>Casi lista.</strong> Falta terminar de preparar la base de datos de la dieta.</p></div>`;
       return;
     }
@@ -98,7 +98,7 @@ async function vistaDia(app, fecha) {
   app.innerHTML = `
     <header class="encabezado encabezado--fijo">
       <div>
-        <h1 class="titulo">Comida</h1>
+        <h1 class="titulo">Alimentación</h1>
         <p class="subtitulo">${esc(esHoy ? 'Hoy' : diaLargo(fecha))}</p>
       </div>
       <div class="fila nav-dias">
@@ -358,7 +358,7 @@ async function vistaSemana(app, { enHoja = false } = {}) {
   const tendencia = filas.at(-1).tendencia;
 
   app.innerHTML = `
-    ${enHoja ? '' : '<header class="encabezado encabezado--fijo"><div><h1 class="titulo">Comida</h1><p class="subtitulo">Últimos 7 días</p></div></header>'}
+    ${enHoja ? '' : '<header class="encabezado encabezado--fijo"><div><h1 class="titulo">Alimentación</h1><p class="subtitulo">Últimos 7 días</p></div></header>'}
     <section class="tarjeta">
       ${conDatos.length ? `
         <div class="grilla-2">
@@ -423,7 +423,7 @@ async function vistaDespensa(app, { enHoja = false } = {}) {
   const recargar = () => vistaDespensa(app, { enHoja });
 
   app.innerHTML = `
-    ${enHoja ? '' : '<header class="encabezado encabezado--fijo"><div><h1 class="titulo">Comida</h1><p class="subtitulo">Lo que hay en casa</p></div></header>'}
+    ${enHoja ? '' : '<header class="encabezado encabezado--fijo"><div><h1 class="titulo">Alimentación</h1><p class="subtitulo">Lo que hay en casa</p></div></header>'}
     <section class="tarjeta pila" style="gap:10px">
       <h2 class="seccion__titulo" style="margin:0">Agregar lo que compraste</h2>
       <div class="chatia__compositor--suelto">${htmlCompositor({

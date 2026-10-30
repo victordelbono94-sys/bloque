@@ -3,6 +3,7 @@
 import { sb, estado, datos, nombrePersona } from '../db.js';
 import { esc, num, aviso, avisoError, abrirDialogo, grupoChips, valorChips, cara } from '../ui.js';
 import { fabIA, htmlCabecera } from '../chatia.js';
+import { SILUETA, IC } from '../iconos.js';
 import { fechaCorta, ahoraLocalInput } from '../fechas.js';
 
 const CAMPOS = [
@@ -14,48 +15,55 @@ const CAMPOS = [
   { id: 'grasa_visceral', etiqueta: 'Grasa visceral', unidad: '', min: 1, max: 60, paso: 0.5 },
   { id: 'masa_osea_kg', etiqueta: 'Masa ósea', unidad: 'kg', min: 0.5, max: 10, paso: 0.01 },
   { id: 'metabolismo_basal_kcal', etiqueta: 'Metabolismo basal', unidad: 'kcal', min: 600, max: 4500, paso: 1 },
+  { id: 'masa_grasa_kg', etiqueta: 'Masa grasa', unidad: 'kg', min: 1, max: 200, paso: 0.1 },
+  { id: 'musculo_esqueletico_kg', etiqueta: 'Músculo esquelético', unidad: 'kg', min: 5, max: 100, paso: 0.1 },
+  { id: 'agua_intracelular_l', etiqueta: 'Agua intracelular', unidad: 'L', min: 5, max: 60, paso: 0.1 },
+  { id: 'agua_extracelular_l', etiqueta: 'Agua extracelular', unidad: 'L', min: 3, max: 40, paso: 0.1 },
+  { id: 'angulo_fase', etiqueta: 'Ángulo de fase', unidad: '°', min: 1, max: 15, paso: 0.1 },
 ];
 
 const ORIGENES = { manual: 'A mano', balanza: 'Balanza', hospital: 'Hospital deportivo', health_connect: 'Health Connect' };
 
-// Lo que se puede ver en el cuerpo (el que tenga datos). bueno: hacia dónde es mejor que vaya (según el objetivo para el peso).
+// Todo lo que trae una bioimpedancia. nivel: cuánto se «llena» la silueta. bueno: hacia dónde conviene que vaya.
 const METRICAS = [
-  { id: 'peso_kg', nombre: 'Peso', unidad: 'kg', color: '#C6F432' },
-  { id: 'grasa_pct', nombre: 'Grasa', unidad: '%', color: '#F5B841', bueno: -1, nivel: (v) => Math.min(1, v / 45) },
-  { id: 'masa_muscular_kg', nombre: 'Músculo', unidad: 'kg', color: '#7CF2B6', bueno: 1 },
-  { id: 'agua_pct', nombre: 'Agua', unidad: '%', color: '#4FC3F7', bueno: 1, nivel: (v) => v / 100 },
-  { id: 'grasa_visceral', nombre: 'Visceral', unidad: '', color: '#FF8B6B', bueno: -1 },
+  { id: 'peso_kg', nombre: 'Peso', unidad: 'kg', color: '#C6F432', info: 'Lo que pesas en total. Mira la tendencia de semanas, no un día.' },
+  { id: 'grasa_pct', nombre: 'Grasa', unidad: '%', color: '#F5B841', bueno: -1, nivel: (v) => Math.min(1, v / 45), info: 'Porcentaje de tu peso que es grasa.' },
+  { id: 'masa_grasa_kg', nombre: 'Masa grasa', unidad: 'kg', color: '#F5B841', bueno: -1, nivel: (v, p) => (p ? Math.min(1, v / p / 0.45) : 0.4), info: 'Los kilos de grasa total.' },
+  { id: 'grasa_visceral', nombre: 'Visceral', unidad: '', color: '#FF8B6B', bueno: -1, info: 'Grasa alrededor de los órganos del abdomen. En la mayoría de balanzas, 1–12 es el rango habitual.' },
+  { id: 'masa_muscular_kg', nombre: 'Músculo', unidad: 'kg', color: '#7CF2B6', bueno: 1, nivel: (v, p) => (p ? Math.min(1, v / p / 0.6) : 0.6), info: 'Kilos de músculo (incluye el agua del músculo).' },
+  { id: 'musculo_esqueletico_kg', nombre: 'Esquelético', unidad: 'kg', color: '#5EE6C8', bueno: 1, nivel: (v, p) => (p ? Math.min(1, v / p / 0.5) : 0.5), info: 'El músculo que mueves al entrenar: el que más importa para la fuerza.' },
+  { id: 'masa_magra_kg', nombre: 'Masa magra', unidad: 'kg', color: '#9AD0FF', bueno: 1, nivel: (v, p) => (p ? Math.min(1, v / p) : 0.8), info: 'Todo lo que no es grasa: músculo, huesos, órganos y agua.' },
+  { id: 'agua_pct', nombre: 'Agua', unidad: '%', color: '#4FC3F7', bueno: 1, nivel: (v) => v / 100, info: 'Agua corporal total. Se ve afectada por lo que tomaste, la sal y el entreno del día.' },
+  { id: 'masa_osea_kg', nombre: 'Ósea', unidad: 'kg', color: '#D7D9DE', info: 'Estimación de los minerales de tus huesos. Cambia muy poco.' },
+  { id: 'metabolismo_basal_kcal', nombre: 'Basal', unidad: 'kcal', color: '#FF8B6B', bueno: 1, dec: 0, info: 'Calorías que tu cuerpo gasta en reposo. Sube cuando ganas músculo.' },
+  { id: 'angulo_fase', nombre: 'Ángulo de fase', unidad: '°', color: '#B79CFF', bueno: 1, nivel: (v) => Math.min(1, v / 10), info: 'Refleja la salud y la hidratación de tus células: más alto suele ser mejor.' },
 ];
+const PRINCIPALES = ['peso_kg', 'grasa_pct', 'masa_muscular_kg', 'agua_pct', 'grasa_visceral', 'metabolismo_basal_kcal'];
 
-// Silueta sin género, con los mismos bloques redondeados que el mapa de los ejercicios pero de una sola pieza.
-const BLOQUES = [
-  [20, 1, 10, 11, 4],        // cabeza
-  [22.5, 11, 5, 3, 1],       // cuello
-  [15, 13, 20, 38, 4],       // tronco
-  [7.5, 15, 9, 22, 4], [33.5, 15, 9, 22, 4],   // brazos
-  [6.5, 34, 7.5, 17, 3.5], [36, 34, 7.5, 17, 3.5], // antebrazos
-  [16, 47, 8.6, 46, 3.5], [25.4, 47, 8.6, 46, 3.5], // piernas
-];
-const rects = (cls = '') => BLOQUES.map(([x, y, w, h, r]) => `<rect ${cls} x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}"/>`).join('');
+/** Completa lo que se puede calcular de una misma medición (masa grasa y magra a partir del peso y el %). */
+function completar(m) {
+  const x = { ...m };
+  if (x.masa_grasa_kg == null && x.peso_kg != null && x.grasa_pct != null) x.masa_grasa_kg = Math.round(Number(x.peso_kg) * Number(x.grasa_pct)) / 100;
+  if (x.masa_magra_kg == null && x.peso_kg != null && x.masa_grasa_kg != null) x.masa_magra_kg = Math.round((Number(x.peso_kg) - Number(x.masa_grasa_kg)) * 10) / 10;
+  return x;
+}
 
 function htmlCuerpoVisual(m, valor, peso) {
-  let nivel = 1;
-  if (m.id === 'masa_muscular_kg' && peso) nivel = Math.min(1, valor / peso / 0.6);
-  else if (m.nivel) nivel = m.nivel(valor);
+  const nivel = m.nivel ? m.nivel(valor, peso) : 1;
   const alto = 94 * nivel, y = 94 - alto;
   const id = `c${Math.random().toString(36).slice(2, 7)}`;
   return `
     <svg class="cuerpo-svg" viewBox="0 0 50 94" aria-hidden="true">
-      <defs><clipPath id="${id}">${rects()}</clipPath>
+      <defs><clipPath id="${id}"><path d="${SILUETA}"/></clipPath>
         <linearGradient id="${id}g" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="${m.color}"/><stop offset="1" stop-color="${m.color}" stop-opacity=".55"/></linearGradient></defs>
-      <g class="cuerpo-svg__base">${rects()}</g>
+      <path class="cuerpo-svg__base" d="${SILUETA}"/>
       <g clip-path="url(#${id})">
         ${m.id === 'grasa_visceral'
           ? `<ellipse cx="25" cy="40" rx="${5 + Math.min(7, valor * 0.5)}" ry="${4 + Math.min(5, valor * 0.35)}" fill="${m.color}" opacity="${Math.min(0.95, 0.4 + valor / 20)}" class="cuerpo-svg__visceral"/>`
           : `<rect class="cuerpo-svg__nivel" x="0" y="${y}" width="50" height="${alto}" fill="url(#${id}g)"/>
              ${m.id === 'agua_pct' ? `<path class="cuerpo-svg__ola" d="M-6 ${y} q6 -2.5 12 0 t12 0 t12 0 t12 0 t12 0 v4 h-60z" fill="${m.color}" opacity=".7"/>` : ''}`}
       </g>
-      ${m.nivel || m.id === 'masa_muscular_kg' ? `<line class="cuerpo-svg__linea" x1="2" x2="48" y1="${y}" y2="${y}" stroke="${m.color}"/>` : ''}
+      ${m.nivel ? `<line class="cuerpo-svg__linea" x1="2" x2="48" y1="${y}" y2="${y}" stroke="${m.color}"/>` : ''}
     </svg>`;
 }
 
@@ -112,14 +120,52 @@ function resumenProgreso(filas, foco) {
   if (!g) falta.push('Carga tu % de grasa (bioimpedancia) para ver si cambia grasa o músculo, no solo el peso.');
   return { logros, falta };
 }
+const tabs = (per) => `<div class="cuerpo-hero__tabs hist-tabs" role="tablist">${[...PERIODOS, ['semana', 'Por semana'], ['mes', 'Por mes']].map(([k, t]) => `<button type="button" class="cuerpo-tab" data-per="${k}" aria-selected="${k === per}" style="--c:#C6F432">${t}</button>`).join('')}</div>`;
 function abrirHistorial(persona, mediciones, foco, soyYo, recargar) {
   const d = abrirDialogo(`<div class="reg chatia">${htmlCabecera({ titulo: 'Tu progreso', sub: `${mediciones.length} medicion${mediciones.length === 1 ? '' : 'es'}` })}<div class="chatia__cuerpo" id="hist"></div></div>`, 'Historial', { pantalla: true });
   const cont = d.querySelector('#hist');
+  // Por semana o por mes: el promedio de cada período y cuánto cambió frente al anterior.
+  const agrupado = (modo) => {
+    const clave = (f) => {
+      const x = new Date(f);
+      if (modo === 'mes') return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`;
+      const l = new Date(x); l.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+      return `${l.getFullYear()}-${String(l.getMonth() + 1).padStart(2, '0')}-${String(l.getDate()).padStart(2, '0')}`;
+    };
+    const grupos = new Map();
+    for (const m of [...mediciones].reverse()) { const k = clave(m.medido_en); (grupos.get(k) ?? grupos.set(k, []).get(k)).push(m); }
+    const ids = ['peso_kg', 'grasa_pct', 'masa_muscular_kg', 'agua_pct'];
+    const filas = [...grupos.entries()].map(([k, ms]) => ({ k, v: Object.fromEntries(ids.map((id) => { const xs = ms.map((m) => m[id]).filter((v) => v != null).map(Number); return [id, xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null]; })) }));
+    const nombre = (k) => (modo === 'mes'
+      ? new Date(`${k}-15T12:00`).toLocaleDateString('es-EC', { month: 'long', year: 'numeric' }).replace(/^./, (c) => c.toUpperCase())
+      : `Semana del ${new Date(`${k}T12:00`).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })}`);
+    const cols = ids.filter((id) => filas.some((f) => f.v[id] != null));
+    return `
+      <div class="per-tabla" style="--cols:${cols.length}">
+        <div class="per-tabla__cab"><span></span>${cols.map((id) => `<span>${METRICAS.find((m) => m.id === id).nombre}</span>`).join('')}</div>
+        ${filas.slice(-12).reverse().map((f, i, arr) => {
+          const prev = arr[i + 1];
+          return `<div class="per-tabla__fila"><span class="per-tabla__nombre">${esc(nombre(f.k))}</span>${cols.map((id) => {
+            const v = f.v[id], p = prev?.v[id];
+            const m = METRICAS.find((x) => x.id === id);
+            const bueno = id === 'peso_kg' ? ({ masa_muscular: 1, perder_grasa: -1, recomposicion: -1 }[foco] ?? 0) : (m.bueno ?? 0);
+            const dif = v != null && p != null ? v - p : null;
+            const tono = dif == null || Math.abs(dif) < 0.1 || !bueno ? '' : Math.sign(dif) === bueno ? 'bien' : 'ojo';
+            return `<span>${v == null ? '<em>—</em>' : `<strong>${num(v)}</strong>${dif != null && Math.abs(dif) >= 0.1 ? `<small class="per-dif per-dif--${tono}">${dif > 0 ? '+' : ''}${num(dif)}</small>` : ''}`}</span>`;
+          }).join('')}</div>`;
+        }).join('')}
+      </div>`;
+  };
   const pintar = (per) => {
+    if (per === 'semana' || per === 'mes') {
+      cont.innerHTML = `${tabs(per)}${agrupado(per)}<p class="ayuda" style="margin:0">Promedio de las mediciones de cada ${per === 'mes' ? 'mes' : 'semana'}; al lado, cuánto cambió frente al anterior (verde si va hacia tu objetivo).</p>`;
+      cont.querySelectorAll('[data-per]').forEach((b) => b.addEventListener('click', () => pintar(b.dataset.per)));
+      return;
+    }
     const filas = compararPeriodo(mediciones, per, foco);
     const { logros, falta } = resumenProgreso(filas, foco);
     cont.innerHTML = `
-      <div class="cuerpo-hero__tabs" role="tablist">${PERIODOS.map(([k, t]) => `<button type="button" class="cuerpo-tab" data-per="${k}" aria-selected="${k === per}" style="--c:#C6F432">${t}</button>`).join('')}</div>
+      ${tabs(per)}
       ${filas.length ? `
         <section class="prog">
           <p class="sem2-titulo">Antes y ahora <span>desde ${esc(fechaCorta(filas[0].desde))}</span></p>
@@ -132,7 +178,7 @@ function abrirHistorial(persona, mediciones, foco, soyYo, recargar) {
               <span class="prog__cambio">${f.cambio > 0 ? '+' : ''}${num(f.cambio)}</span>
             </div>`).join('')}
         </section>
-        ${logros.length ? `<section class="prog-caja prog-caja--bien"><strong>✓ Lo que mejoraste</strong>${logros.map((t) => `<p>${esc(t)}</p>`).join('')}</section>` : ''}
+        ${logros.length ? `<section class="prog-caja prog-caja--bien"><strong>${IC.check} Lo que mejoraste</strong>${logros.map((t) => `<p>${esc(t)}</p>`).join('')}</section>` : ''}
         ${falta.length ? `<section class="prog-caja prog-caja--ojo"><strong>Qué falta mejorar</strong>${falta.map((t) => `<p>${esc(t)}</p>`).join('')}</section>` : ''}`
         : '<p class="vacio">Con dos mediciones o más en este período aparece la comparación.</p>'}
       <section class="seccion" style="margin:0">
@@ -150,10 +196,11 @@ export async function vistaCuerpo(app) {
   const persona = estado.personas.find((p) => p.id === param) ?? estado.yo;
   const soyYo = persona.id === estado.yo.id;
 
-  const [mediciones, objetivo] = await Promise.all([
+  const [crudas, objetivo] = await Promise.all([
     sb.from('mediciones_corporales').select('*').eq('persona_id', persona.id).order('medido_en', { ascending: false }).limit(200).then(datos),
     sb.from('objetivos').select('foco').eq('persona_id', persona.id).order('desde', { ascending: false }).limit(1).then(datos).catch(() => []),
   ]);
+  const mediciones = crudas.map(completar);
   const foco = objetivo[0]?.foco ?? 'recomposicion';
   const cronologico = [...mediciones].reverse();
   const conDatos = METRICAS.filter((m) => mediciones.some((x) => x[m.id] != null));
@@ -170,7 +217,7 @@ export async function vistaCuerpo(app) {
     const cambio = u.valor - hace.valor;
     const bueno = m.id === 'peso_kg' ? ({ masa_muscular: 1, perder_grasa: -1, recomposicion: -1 }[foco] ?? 0) : (m.bueno ?? 0);
     const tono = !puntos.length || hace === u || Math.abs(cambio) < 0.05 || !bueno ? '' : Math.sign(cambio) === bueno ? 'bien' : 'ojo';
-    const dec = m.id === 'grasa_visceral' ? 1 : 1;
+    const dec = m.dec ?? 1;
     return `
       <div class="cuerpo-hero__visual">${htmlCuerpoVisual(m, u.valor, pesoActual)}</div>
       <div class="cuerpo-hero__datos">
@@ -179,14 +226,33 @@ export async function vistaCuerpo(app) {
         ${hace !== u ? `<span class="cuerpo-hero__cambio cuerpo-hero__cambio--${tono}">${cambio > 0 ? '▲' : cambio < 0 ? '▼' : '='} ${num(Math.abs(cambio), dec)} ${m.unidad} <span>desde ${esc(fechaCorta(hace.fecha))}</span></span>` : ''}
         ${sparkline(puntos.slice(-14), m.color)}
         <span class="cuerpo-hero__fecha">Última medición: ${esc(fechaCorta(u.fecha))}</span>
-      </div>`;
+      </div>
+      <p class="cuerpo-hero__info">${esc(m.info)}</p>`;
   };
+  // Tiles con todo lo de la bioimpedancia (lo que no tiene dato queda en gris, invitando a cargarlo).
+  const ultimoDe = (id) => mediciones.find((x) => x[id] != null);
+  const visibles = METRICAS.filter((m) => PRINCIPALES.includes(m.id) || ultimoDe(m.id));
+  const htmlTiles = (sel) => visibles.map((m) => {
+    const u = ultimoDe(m.id);
+    return `<button type="button" class="cuerpo-tile ${u ? '' : 'cuerpo-tile--sin'}" data-metrica="${m.id}" aria-pressed="${m.id === sel}" style="--c:${m.color}" ${u ? '' : 'data-sin="1"'}>
+      <small>${m.nombre}</small><strong>${u ? num(Number(u[m.id]), m.dec ?? 1) : '—'}${u && m.unidad ? `<em>${m.unidad}</em>` : ''}</strong></button>`;
+  }).join('');
+  // ¿La última bioimpedancia (con % de grasa) tiene más de un mes?
+  const bio = mediciones.find((x) => x.grasa_pct != null || x.masa_muscular_kg != null);
+  const diasBio = bio ? Math.floor((Date.now() - new Date(bio.medido_en)) / 864e5) : null;
+  const avisoBio = soyYo && (diasBio == null || diasBio > 30) ? `
+    <section class="tarjeta aviso-bio">
+      <span class="aviso-bio__icono">${IC.balanza}</span>
+      <div><strong>${diasBio == null ? 'Haz una prueba de bioimpedancia' : 'Tus datos de composición están desactualizados'}</strong>
+      <p>${diasBio == null ? 'Con tu % de grasa, músculo y agua, Bloq calcula tus metas sobre tu masa magra y ves si cambia grasa o músculo.' : `Tu última bioimpedancia es de hace ${diasBio} días. Se aconseja una nueva una vez al mes para que tus metas sigan precisas.`}</p>
+      <button type="button" class="boton boton--sec boton--chico" id="cargar-bio">Cargar resultados</button></div>
+    </section>` : '';
 
   app.innerHTML = `
     <header class="encabezado encabezado--fijo">
       <div>
         <h1 class="titulo">Cuerpo</h1>
-        <p class="subtitulo">${soyYo ? 'Tu peso y composición' : `Peso y composición de ${esc(persona.nombre)}`}</p>
+        <p class="subtitulo">${soyYo ? 'Tu peso y composición esta semana' : `Peso y composición de ${esc(persona.nombre)}`}</p>
       </div>
       <button type="button" class="boton boton--sec boton--chico nav-dia" id="ver-historial" aria-label="Historial y progreso">${ICONO_HISTORIAL}</button>
     </header>
@@ -200,10 +266,9 @@ export async function vistaCuerpo(app) {
     ${conDatos.length ? `
       <section class="tarjeta cuerpo-hero">
         <div class="cuerpo-hero__fila" id="cuerpo-metrica">${htmlMetrica(elegida)}</div>
-        <div class="cuerpo-hero__tabs" role="tablist" aria-label="Qué ver">
-          ${conDatos.map((m) => `<button type="button" role="tab" class="cuerpo-tab" data-metrica="${m.id}" aria-selected="${m.id === elegida}" style="--c:${m.color}">${m.nombre}</button>`).join('')}
-        </div>
-      </section>` : `
+        <div class="cuerpo-tiles" aria-label="Tu composición">${htmlTiles(elegida)}</div>
+      </section>
+      ${avisoBio}` : `
       <section class="tarjeta cuerpo-vacio">
         <p style="margin:0"><strong>${soyYo ? 'Carga tu primera medición' : `${esc(persona.nombre)} todavía no tiene mediciones`}</strong></p>
         ${soyYo ? '<p class="quieto" style="margin:6px 0 0">Toca «Nueva medición»: escribe tu peso o mándale a la IA una foto de la balanza o el PDF de tu bioimpedancia.</p>' : ''}
@@ -217,9 +282,12 @@ export async function vistaCuerpo(app) {
     </section>`;
 
   const recargar = () => vistaCuerpo(app);
+  const abrirIA = async () => (await import('../cuerpoia.js')).abrirCuerpoIA({ alGuardar: recargar, manual: (v) => dialogoMedicion(recargar, v ?? {}) });
+  app.querySelector('#cargar-bio')?.addEventListener('click', abrirIA);
   app.querySelectorAll('[data-metrica]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.sin) { if (soyYo) abrirIA(); return; }
     try { sessionStorage.setItem('bloque-cuerpo-metrica', b.dataset.metrica); } catch { /* nada */ }
-    app.querySelectorAll('[data-metrica]').forEach((o) => o.setAttribute('aria-selected', String(o === b)));
+    app.querySelectorAll('[data-metrica]').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
     const cont = app.querySelector('#cuerpo-metrica');
     cont.classList.remove('fundido'); void cont.offsetWidth;
     cont.innerHTML = htmlMetrica(b.dataset.metrica);
@@ -227,7 +295,7 @@ export async function vistaCuerpo(app) {
   }));
   app.querySelector('#ver-historial').addEventListener('click', () => abrirHistorial(persona, mediciones, foco, soyYo, recargar));
   if (soyYo) {
-    fabIA('Nueva medición', async () => (await import('../cuerpoia.js')).abrirCuerpoIA({ alGuardar: recargar, manual: (v) => dialogoMedicion(recargar, v ?? {}) }), /^#\/cuerpo/);
+    fabIA('Nueva medición', abrirIA, /^#\/cuerpo/);
   } else document.querySelector('.fab-ia')?.remove();
 
   // La semana (ritmo del peso, proyección, gasto real e indicadores).

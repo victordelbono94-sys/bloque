@@ -117,7 +117,7 @@ export function dialogoMolestia(alGuardar = () => {}) {
         <div class="chips" id="m-int">${Object.entries(INTENSIDAD).map(([k, t]) => `<button type="button" class="chip" data-valor="${k}" aria-pressed="${k === '2'}">${t}</button>`).join('')}</div>
       </fieldset>
       <div class="campo"><label for="m-nota">Nota (opcional)</label><input id="m-nota" maxlength="200" placeholder="Ej.: me caí en el derby, duele al flexionar"></div>
-      <p class="ayuda" style="margin:0">Mientras dure, la app te avisa en los ejercicios que cargan esa zona y la IA puede adaptar la rutina. Si el dolor es fuerte, punzante, hay hinchazón o no mejora en 1–2 semanas, consulta a un fisioterapeuta o médico.</p>
+      <p class="ayuda" style="margin:0">Mientras dure, Bloq te avisa en los ejercicios que cargan esa zona y la IA puede adaptar la rutina. Si el dolor es fuerte, punzante, hay hinchazón o no mejora en 1–2 semanas, consulta a un fisioterapeuta o médico.</p>
       <div class="dialogo__pie">
         <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
         <button type="submit" class="boton">Guardar</button>

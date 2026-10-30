@@ -19,7 +19,9 @@ El contexto trae sus últimas mediciones, su objetivo, el ritmo de peso esperado
 (de sus comidas registradas y sus pesajes), la semana (comidas, entrenos, sueño) y lo que ya aprendiste de ella antes.
 
 1) MEDICIONES: si escribe datos ("peso 78,4", "grasa 24 %") o manda una foto de la balanza o un PDF/hoja de bioimpedancia,
-   léelos y ponlos en "medicion" (solo los que aparecen; no inventes). Si la hoja trae fecha, ponla en medido_en (AAAA-MM-DD).
+   léelos y ponlos en "medicion" (solo los que aparecen; no inventes). Una hoja de bioimpedancia puede traer: peso, % de grasa, masa grasa (kg),
+   grasa visceral, masa muscular, músculo esquelético (SMM), masa magra / libre de grasa, agua corporal total (% ; si viene en litros,
+   conviértela a % del peso), agua intracelular y extracelular (L), masa ósea / minerales, metabolismo basal (TMB) y ángulo de fase (°). Si la hoja trae fecha, ponla en medido_en (AAAA-MM-DD).
    origen: "balanza" para foto de balanza, "hospital" para hojas o PDFs de laboratorio/centro deportivo, "manual" si lo escribe.
    En la respuesta di qué leíste y compáralo con su medición anterior en una frase. La persona confirma antes de guardar.
    Si la foto no se lee bien o hay un número dudoso, pregúntalo en vez de adivinar.
@@ -43,6 +45,7 @@ const ESQUEMA = {
       properties: {
         peso_kg: NUM, grasa_pct: NUM, masa_muscular_kg: NUM, masa_magra_kg: NUM, agua_pct: NUM,
         grasa_visceral: NUM, masa_osea_kg: NUM, metabolismo_basal_kcal: NUM,
+        masa_grasa_kg: NUM, musculo_esqueletico_kg: NUM, agua_intracelular_l: NUM, agua_extracelular_l: NUM, angulo_fase: NUM,
         medido_en: { type: "STRING" }, origen: { type: "STRING", enum: ["manual", "balanza", "hospital"] },
       },
     },
@@ -55,6 +58,7 @@ const ESQUEMA = {
 const RANGOS: Record<string, [number, number]> = {
   peso_kg: [30, 250], grasa_pct: [2, 70], masa_muscular_kg: [5, 120], masa_magra_kg: [10, 150], agua_pct: [20, 80],
   grasa_visceral: [1, 60], masa_osea_kg: [0.5, 10], metabolismo_basal_kcal: [600, 4500],
+  masa_grasa_kg: [1, 200], musculo_esqueletico_kg: [5, 100], agua_intracelular_l: [5, 60], agua_extracelular_l: [3, 40], angulo_fase: [1, 15],
 };
 
 async function leerClave(): Promise<string | null> {
