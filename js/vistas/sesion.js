@@ -723,7 +723,7 @@ function empezarDescanso(segundos, titulo = '') {
     const s = Math.ceil(resta / 1000);
     barra.querySelector('strong').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
     barra.querySelector('.descanso__barra span').style.transform = `scaleX(${resta / descanso.total})`;
-    // Últimos 10 s: se pone roja y late; los últimos 5, además vibra una vez por segundo.
+    // Últimos 10 s: se pone verde (color de la app) y late; los últimos 5, además vibra una vez por segundo.
     barra.classList.toggle('descanso--final', resta > 0 && s <= 10);
     if (resta > 0 && s <= 5 && descanso.vibrado !== s && document.visibilityState === 'visible') {
       descanso.vibrado = s;
