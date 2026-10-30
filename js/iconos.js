@@ -85,11 +85,13 @@ export function zonasDe(grupos) {
   return [...cuenta.entries()].sort((a, b) => b[1] - a[1]).map(([z]) => z);
 }
 
-// La figura de Bloq: estilo pictograma (extremidades de trazo grueso y redondeado) con la cabeza cuadrada como el logo.
+// La figura de Bloq: el pictograma deportivo clásico (cabeza suelta, tronco que se angosta, brazos y piernas de trazo grueso
+// separados del tronco), con la cabeza cuadrada como el cubo del logo.
 // Es la misma en Cuerpo y en el mapa de los ejercicios. viewBox 0 0 50 94.
-export const FIGURA = '<rect x="19" y="0.5" width="12" height="12" rx="3"/><g stroke-linecap="round" fill="none">'
-  + '<path d="M25 20.5V45" stroke-width="11.5"/><path d="M19.8 19.5L13 44" stroke-width="5.6"/><path d="M30.2 19.5L37 44" stroke-width="5.6"/>'
-  + '<path d="M22.2 49L20.4 89" stroke-width="6.6"/><path d="M27.8 49L29.6 89" stroke-width="6.6"/></g>';
+export const FIGURA = '<rect x="19.5" y="0.5" width="11" height="11" rx="2.5"/>'
+  + '<path d="M18.5 15.5h13a1.5 1.5 0 0 1 1.5 1.6l-2.2 30.4a1.5 1.5 0 0 1-1.5 1.4h-8.6a1.5 1.5 0 0 1-1.5-1.4L17 17.1a1.5 1.5 0 0 1 1.5-1.6z" stroke-width="2.4" stroke-linejoin="round"/>'
+  + '<g stroke-linecap="round" fill="none"><path d="M13.6 18.5L10.6 43" stroke-width="5.2"/><path d="M36.4 18.5L39.4 43" stroke-width="5.2"/>'
+  + '<path d="M22.3 55L21.3 89.5" stroke-width="6.2"/><path d="M27.7 55L28.7 89.5" stroke-width="6.2"/></g>';
 /** Máscara con la forma de la figura (para llenarla con un dato o encender zonas). */
 export const mascaraFigura = (id) => `<mask id="${id}" maskUnits="userSpaceOnUse" x="-5" y="-5" width="60" height="104"><g fill="#fff" stroke="#fff">${FIGURA}</g></mask>`;
 let idMascara = 0;
