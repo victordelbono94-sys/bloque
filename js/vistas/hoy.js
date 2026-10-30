@@ -5,7 +5,7 @@ import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia, fechaCorta, hora } fr
 import { TIPOS, horaEfectiva, textoAsistencia, nombreEvento, iconoEvento } from '../eventos.js';
 import { iconoTipo, mapaCuerpo, chipsZonas } from '../iconos.js';
 import { resumenRutinas } from '../rutinas.js';
-import { actividad, emparejar, minutos } from '../actividades.js';
+import { actividad, actividadDe, emparejar, minutos, porConfirmar } from '../actividades.js';
 import { calcularSemaforo, esDescanso, textoSemaforo } from '../semaforo.js';
 import { empezarSesion } from './sesion.js';
 import { cargarCumplimiento, cargarSyncs } from '../hecho.js';
@@ -15,6 +15,7 @@ import { litros } from '../hidratacion.js';
 import { abrirDialogo } from '../ui.js';
 import { asistentes, htmlAsistentes, esIndividual } from '../asistentes.js';
 import { recuperar } from './semana.js';
+import { cargarPorConfirmar, htmlPorConfirmar, conectarPorConfirmar } from '../confirmar.js';
 
 export async function vistaHoy(app) {
   const hoy = hoyISO();
@@ -23,6 +24,7 @@ export async function vistaHoy(app) {
   const ids = estado.personas.map((p) => p.id);
 
   const desdeAyer = new Date(`${ayer}T00:00:00`).toISOString();
+  const porConfirmarP = cargarPorConfirmar().catch(() => []);
   const [eventos, estados, mediciones, extrasTodos, actividadDia, entrenosBanda] = await Promise.all([
     sb.from('calendario').select('*').eq('hogar_id', hogar)
       .gte('fecha', ayer).lte('fecha', sumarDias(hoy, 7))
@@ -32,7 +34,7 @@ export async function vistaHoy(app) {
       .in('persona_id', ids).order('medido_en', { ascending: false }).limit(40).then(datos),
     sb.from('actividades_extra').select('*').in('persona_id', ids).eq('fecha', ayer).then(datos),
     sb.from('actividad_diaria').select('*').in('persona_id', ids).in('fecha', [ayer, hoy]).then(datos),
-    sb.from('sesiones_banda').select('persona_id, inicio, fin, tipo, calorias, calorias_estimadas, fc_promedio')
+    sb.from('sesiones_banda').select('persona_id, inicio, fin, tipo, calorias, calorias_estimadas, fc_promedio, confirmado').or('confirmado.is.null,confirmado.neq.nada')
       .in('persona_id', ids).gte('inicio', desdeAyer).order('inicio').then(datos),
   ]);
   // Datos de la banda por persona: hoy (pasos, calorías), anoche (sueño) y entrenos de ayer.
@@ -68,6 +70,7 @@ export async function vistaHoy(app) {
   const quienesDe = (ev) => asistentes(ev, deHoy, entrenosBanda, syncs);
   // Gyms de la última semana que no hice y siguen sin recuperar.
   const pendientes = [...pasados, ...todosAyer].filter((e) => e.tipo === 'gym' && e.rutina_id && !e.omitido && cumplidoDe[estado.yo.id](e) === 'no_hecho');
+  const porConfirmarLista = await porConfirmarP;
 
   // Rutinas del día y entrenos ya empezados.
   const proximo = eventos.find((e) => e.fecha > hoy && e.tipo !== 'descanso');
@@ -123,6 +126,8 @@ export async function vistaHoy(app) {
         <span class="plan__flecha" aria-hidden="true">›</span>
       </a>` : ''}
 
+    <div id="por-confirmar" class="pila" style="gap:12px">${htmlPorConfirmar(porConfirmarLista)}</div>
+
     <section class="tarjeta" aria-labelledby="plan-hoy">
       ${pendientes.map((e) => `
         <div class="pendiente">
@@ -151,6 +156,7 @@ export async function vistaHoy(app) {
         ${tarjetaPersona(p, estados.find((e) => e.persona_id === p.id), mediciones.find((m) => m.persona_id === p.id), esDescanso(deHoy, p.id), banda(p.id), semaforoDe)}
       </section>`).join('')}`;
 
+  conectarPorConfirmar(app.querySelector('#por-confirmar'), porConfirmarLista, () => vistaHoy(app));
   conectarCheckIn(app, contexto, estados.find((e) => e.persona_id === estado.yo.id));
   conectarRapido(app, hoy);
   if (falta.length) avisarPerfil(falta);
@@ -184,7 +190,7 @@ function lineaDeTiempo(deHoy, entrenosHoy, rutinas, sesiones, resumen, quienesDe
   const pasos = deHoy.map((e) => ({ orden: horaEfectiva(e), html: htmlPlan(e, rutinas, sesiones, resumen, pares.get(e), quienesDe) }));
   const caminatas = sueltas.filter((s) => s.tipo === 'caminar');
   const otras = sueltas.filter((s) => s.tipo !== 'caminar');
-  for (const s of otras) pasos.push({ orden: horaLocal(s.inicio), html: htmlActividad(actividad(s.tipo).nombre, actividad(s.tipo).icono, horaLocal(s.inicio), datosSesion(s)) });
+  for (const s of otras) pasos.push({ orden: horaLocal(s.inicio), html: htmlActividad(actividadDe(s).nombre, actividadDe(s).icono, horaLocal(s.inicio), datosSesion(s)) });
   if (caminatas.length) {
     const total = { inicio: null, fin: null, calorias: caminatas.reduce((a, s) => a + (s.calorias ?? 0), 0) || null };
     const min = caminatas.reduce((a, s) => a + minutos(s), 0);

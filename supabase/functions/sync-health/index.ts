@@ -81,6 +81,17 @@ Deno.serve(async (req) => {
     return responder({ ok: true });
   }
 
+  // Respuesta desde la notificación «¿Qué fue este entreno?»: se guarda lo que eligió.
+  const conf = cuerpo.confirmar as Record<string, unknown> | undefined;
+  if (conf && typeof conf.id === 'string') {
+    const como = typeof conf.como === 'string' && /^[a-z0-9_]{2,40}$/.test(conf.como) ? conf.como : null;
+    if (!como) return responder({ error: 'opción inválida' }, 400);
+    const { error } = await sb.from('sesiones_banda').update({ confirmado: como === 'roller_derby' ? 'derby' : como, confirmado_en: new Date().toISOString() })
+      .eq('id', conf.id).eq('persona_id', persona);
+    if (error) return responder({ error: 'no se pudo guardar' }, 500);
+    return responder({ ok: true });
+  }
+
   // Resumen por día: pasos, calorías, sueño, frecuencia cardiaca en reposo.
   const dias = lista(cuerpo.dias, 400)
     .filter((d) => typeof d.fecha === 'string' && FECHA.test(d.fecha))
@@ -174,7 +185,7 @@ Deno.serve(async (req) => {
         .eq('hogar_id', per!.hogar_id).eq('fecha', hoy),
       sb.from('hidratacion').select('ml').eq('persona_id', persona).eq('fecha', hoy),
       sb.from('mediciones_corporales').select('peso_kg').eq('persona_id', persona).not('peso_kg', 'is', null).order('medido_en', { ascending: false }).limit(1),
-      sb.from('sesiones_banda').select('calorias').eq('persona_id', persona).gte('inicio', `${hoy}T05:00:00Z`),
+      sb.from('sesiones_banda').select('calorias').eq('persona_id', persona).gte('inicio', `${hoy}T05:00:00Z`).or('confirmado.is.null,confirmado.neq.nada'),
     ]);
     const liquido = /^(agua|caf[eé]|t[eé]\b|infusi|leche|jugo|zumo|batido|smoothie|bebida|gaseosa|cola|soda|limonada|isot[oó]nic|electrol|caldo|sopa|colada)/i;
     let ml = (agua ?? []).reduce((a, x) => a + Number(x.ml), 0);
@@ -197,7 +208,12 @@ Deno.serve(async (req) => {
     };
   } catch { /* sin «hoy»: los recordatorios avisan igual */ }
 
+  // Entrenos genéricos del reloj («otro entreno») sin confirmar: el teléfono pregunta qué fueron.
+  let porConfirmar: unknown[] = [];
+  try { porConfirmar = await entrenosPorConfirmar(persona); } catch { /* sin preguntas esta vez */ }
+
   return responder({
+    por_confirmar: porConfirmar,
     // deno-lint-ignore no-explicit-any
     nombre: (dispositivo as any).personas?.nombre ?? null,
     resumen,
@@ -205,3 +221,60 @@ Deno.serve(async (req) => {
     hoy: hoyInfo,
   });
 });
+
+// ---------- Entrenos por confirmar ----------
+
+const CONOCIDOS = new Set(['tipo_13', 'tipo_36', 'tipo_52', 'tipo_60', 'tipo_70', 'tipo_81']);
+const generico = (t: string) => t === 'tipo_0' || (/^tipo_\d+$/.test(t) && !CONOCIDOS.has(t));
+const NOMBRES: Record<string, string> = {
+  gym: 'Gym', derby: 'Derby', correr: 'Carrera', bicicleta: 'Bicicleta', escalada: 'Escalada', trekking: 'Trekking',
+  natacion: 'Natación', patinaje: 'Patinaje', yoga: 'Yoga', hiit: 'HIIT', baile: 'Baile', futbol: 'Fútbol', caminar: 'Caminata',
+};
+const NOMBRE_DEPORTE: Record<string, string> = {
+  crossfit: 'CrossFit', futbol: 'Fútbol', basquet: 'Básquet', voley: 'Vóley', ecuavoley: 'Ecuavóley', boxeo: 'Boxeo',
+  natacion: 'Natación', ciclismo: 'Ciclismo', running: 'Running', escalada: 'Escalada', yoga: 'Yoga', hockey: 'Hockey',
+  rugby: 'Rugby', tenis: 'Tenis', padel: 'Pádel', calistenia: 'Calistenia', jiu_jitsu: 'Jiu-jitsu',
+};
+const localFecha = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil' }).format(new Date(iso));
+const localHora = (iso: string) => new Intl.DateTimeFormat('es-EC', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
+
+async function entrenosPorConfirmar(persona: string) {
+  const desde = new Date(Date.now() - 2 * 86400e3).toISOString();
+  const { data: ses } = await sb.from('sesiones_banda').select('id, tipo, inicio, fin, calorias, fc_promedio')
+    .eq('persona_id', persona).is('confirmado', null).gte('inicio', desde).order('inicio', { ascending: false }).limit(10);
+  const pendientes = (ses ?? []).filter((s) => generico(s.tipo as string)
+    && (new Date(s.fin as string).getTime() - new Date(s.inicio as string).getTime()) >= 10 * 60e3);
+  if (!pendientes.length) return [];
+  const { data: per } = await sb.from('personas').select('hogar_id').eq('id', persona).single();
+  const [{ data: hogar }, { data: eventos }] = await Promise.all([
+    sb.from('hogares').select('deporte').eq('id', per!.hogar_id).maybeSingle(),
+    sb.from('calendario').select('fecha, hora_inicio, tipo, actividad, asistencia, persona_id').eq('hogar_id', per!.hogar_id)
+      .gte('fecha', localFecha(desde)).in('tipo', ['gym', 'derby', 'otro', 'clase']),
+  ]);
+  return pendientes.map((s) => {
+    const fecha = localFecha(s.inicio as string);
+    const t = new Date(s.inicio as string).getTime();
+    const dist = (e: Record<string, unknown>) => e.hora_inicio
+      ? Math.abs(new Date(`${e.fecha}T${String(e.hora_inicio).slice(0, 5)}:00-05:00`).getTime() - t) : 6 * 3600e3;
+    const delDia = (eventos ?? []).filter((e) => e.fecha === fecha && (e.asistencia === 'juntos' || e.persona_id === persona || e.persona_id === null))
+      .sort((a, b) => dist(a) - dist(b));
+    const ops: { como: string; nombre: string }[] = [];
+    const sumar = (como: string, nombre?: string) => {
+      const n = nombre ?? NOMBRES[como] ?? NOMBRE_DEPORTE[como];
+      if (n && !ops.some((o) => o.como === como || o.nombre === n)) ops.push({ como, nombre: n });
+    };
+    for (const e of delDia) {
+      if (e.tipo === 'gym') sumar('gym');
+      else if (e.tipo === 'derby') sumar('derby');
+      else if (e.actividad && !['otro', 'clase'].includes(e.actividad as string)) sumar(e.actividad as string);
+    }
+    const dep = hogar?.deporte as string | undefined;
+    if (dep) sumar(dep === 'roller_derby' ? 'derby' : dep);
+    sumar('gym');
+    const min = Math.round((new Date(s.fin as string).getTime() - t) / 60000);
+    return {
+      id: s.id, fecha, hora: localHora(s.inicio as string), minutos: min,
+      calorias: s.calorias, fc_promedio: s.fc_promedio, opciones: ops.slice(0, 2),
+    };
+  });
+}

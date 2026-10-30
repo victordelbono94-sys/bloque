@@ -65,6 +65,7 @@ object Avisos {
             .put("reloj", o.optBoolean("reloj"))
             .put("minutosAntes", o.optInt("minutosAntes", 10).coerceIn(0, 120))
             .put("despertar", o.optBoolean("despertar", true))
+            .put("confirmar", o.optBoolean("confirmar", true))
             .put("agua", o.optBoolean("agua"))
             .put("comidas", o.optBoolean("comidas"))
         prefs(c).edit().putString("config", limpio.toString()).apply()
@@ -142,6 +143,8 @@ object Avisos {
             .put("despertar", cfg.optBoolean("despertar", true))
             .put("agua", cfg.optBoolean("agua"))
             .put("comidas", cfg.optBoolean("comidas"))
+            .put("confirmar", cfg.optBoolean("confirmar", true))
+            .put("confirmable", true)
             .put("bienestar", true)
     }
 

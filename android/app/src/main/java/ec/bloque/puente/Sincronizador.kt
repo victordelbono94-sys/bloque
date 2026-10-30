@@ -66,6 +66,9 @@ object Sincronizador {
         // ¿Ya te despertaste? Una hora después se pregunta cómo amaneciste; y se guarda lo de hoy para los recordatorios.
         try { Bienestar.alSincronizar(context, cuerpo.getJSONArray("dias"), respuesta.optJSONObject("hoy")) } catch (e: Exception) { }
 
+        // Entrenos genéricos del reloj: se pregunta qué fueron en vez de asumir.
+        try { Bienestar.preguntarEntrenos(context, respuesta.optJSONArray("por_confirmar")) } catch (e: Exception) { }
+
         ajustes.primeraHecha = true
         ajustes.ultimaSync = System.currentTimeMillis()
         val r = respuesta.optJSONObject("resumen") ?: JSONObject()

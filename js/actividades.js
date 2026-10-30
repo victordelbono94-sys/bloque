@@ -1,6 +1,7 @@
 // Entrenos que registra el reloj (vía Health Connect): nombre, ícono, carga y
 // emparejamiento con lo agendado. Sin dependencias del navegador para poder probarlo.
 import { ICONO_TIPO } from './iconos.js';
+import { deporte } from './deportes.js';
 
 const svg = (c) => `<svg class="icono" viewBox="0 0 24 24" aria-hidden="true">${c}</svg>`;
 const PULSO = svg('<path d="M3 12h4l2.5-6 4 12 2.5-6H21"/>');
@@ -79,12 +80,26 @@ export function actividad(tipo) {
   return ACTIVIDADES[t] ?? POR_CODIGO[cod] ?? { nombre: 'Entreno', icono: PULSO, porHora: 1 };
 }
 
+/** Lo que la persona confirmó que fue un entreno genérico del reloj (o null). */
+export function confirmadoComo(c) {
+  if (!c) return null;
+  if (c === 'gym') return { nombre: 'Gym', icono: ICONO_TIPO.gym, porHora: 1 };
+  if (c === 'derby' || c === 'roller_derby') return { nombre: 'Derby', icono: ICONO_TIPO.derby, porHora: 1.4 };
+  if (c === 'esports') return { nombre: 'eSports', icono: PULSO, porHora: 0.1 };
+  if (c === 'nada') return { nombre: 'No fue ejercicio', icono: PULSO, porHora: 0 };
+  if (ACTIVIDADES[c]) return ACTIVIDADES[c];
+  const dep = deporte(c);
+  return dep ? { nombre: dep.nombre, icono: PULSO, porHora: (dep.met ?? 5) / 5 } : null;
+}
+/** Nombre, ícono y carga de un entreno del reloj, con lo que la persona confirmó si lo hizo. */
+export const actividadDe = (s) => confirmadoComo(s?.confirmado) ?? actividad(s?.tipo);
+
 export const minutos = (s) => (s.inicio && s.fin ? Math.max(0, Math.round((new Date(s.fin) - new Date(s.inicio)) / 60000)) : 0);
 
 /** Carga de un entreno del reloj: por calorías (350 kcal ≈ 1 punto); si no hay, por duración y tipo. */
 export function cargaSesion(s) {
   if (s.calorias) return s.calorias / 350;
-  return (minutos(s) / 60) * actividad(s.tipo).porHora;
+  return (minutos(s) / 60) * actividadDe(s).porHora;
 }
 
 // Qué tipos del reloj pueden ser cada evento agendado.
@@ -95,7 +110,7 @@ const COMPATIBLES = {
 };
 // «Otro entreno» genérico del reloj (tipo_0 o un número que la app no conoce): puede ser cualquier cosa,
 // hasta eSports o yoga suave. Solo cuenta como entreno agendado si hubo esfuerzo de verdad.
-const generico = (tipo) => tipo === 'tipo_0' || (/^tipo_\d+$/.test(tipo) && !CONOCIDOS.has(tipo));
+export const generico = (tipo) => tipo === 'tipo_0' || (/^tipo_\d+$/.test(tipo) && !CONOCIDOS.has(tipo));
 const CONOCIDOS = new Set(['tipo_13', 'tipo_36', 'tipo_52', 'tipo_60', 'tipo_70', 'tipo_81']);
 /** ¿Hubo esfuerzo? Pulso promedio ≥ 95, o al menos 2,5 kcal por minuto según el reloj. */
 export function conEsfuerzo(s) {
@@ -104,9 +119,23 @@ export function conEsfuerzo(s) {
   if (s.calorias && !s.calorias_estimadas && s.calorias / min >= 2.5) return true;
   return false;
 }
+/** Entreno genérico del reloj que la persona todavía no dijo qué fue (la app pregunta en vez de asumir). */
+export const porConfirmar = (s) => !!s && !s.confirmado && generico(s.tipo) && minutos(s) >= 10;
+
+const FUERZA = new Set(['gym', 'powerlifting', 'halterofilia', 'crossfit', 'calistenia', 'strongman', 'hyrox', 'fuerza', 'pesas']);
+const NO_ES_OTRO = new Set(['nada', 'caminar', 'esports', 'derby', 'roller_derby']);
+/** ¿Lo confirmado corresponde a este evento agendado? */
+function confirmadoEncaja(ev, c) {
+  if (c === 'nada') return false;
+  if (ev.tipo === 'gym') return FUERZA.has(c);
+  if (ev.tipo === 'derby') return c === 'derby' || c === 'roller_derby';
+  if (ev.tipo === 'otro' && ev.actividad && !['clase', 'otro'].includes(ev.actividad)) return c === ev.actividad || (ev.actividad === 'caminar' && c === 'trekking');
+  return !NO_ES_OTRO.has(c) && !FUERZA.has(c); // clase u «otro» sin detalle: cualquier deporte
+}
 const compatible = (ev, s) => {
   if (ev.tipo === 'descanso' || !s.tipo) return false;
-  if (generico(s.tipo) && !conEsfuerzo(s)) return false;
+  if (s.confirmado) return confirmadoEncaja(ev, s.confirmado);
+  if (generico(s.tipo)) return false; // se pregunta antes de asumir
   // «Otro»: lo que corresponde a su actividad; si es una clase u otra cosa, cualquiera menos caminar.
   const lista = ev.tipo === 'otro'
     ? (OTROS.find((o) => o.clave === ev.actividad)?.reloj ?? null)
@@ -145,7 +174,7 @@ export function emparejar(eventos, sesiones) {
 
 /** «caminata, escalada» → nombres en minúscula para los motivos, sin repetir. */
 export function nombresSesiones(sesiones) {
-  return [...new Set(sesiones.map((s) => actividad(s.tipo).nombre.toLowerCase()))];
+  return [...new Set(sesiones.map((s) => actividadDe(s).nombre.toLowerCase()))];
 }
 
 // ---------- Entrenos individuales (derby, otros): cada uno va o no por su cuenta ----------
@@ -164,8 +193,9 @@ export function finEvento(ev) {
  * 'fue' si su reloj tiene un entreno que coincide; 'no_fue' si el día ya pasó, o si su reloj sincronizó
  * más de una hora después del final y no hay nada; si no, 'pendiente'.
  */
-export function asistenciaIndividual(ev, sesion, ultimoSync, ahora = new Date()) {
+export function asistenciaIndividual(ev, sesion, ultimoSync, ahora = new Date(), esperando = false) {
   if (sesion) return 'fue';
+  if (esperando) return 'pendiente'; // hay un entreno del reloj sin confirmar ese día
   const fin = finEvento(ev);
   if (ahora < fin) return 'pendiente';
   const diaPasado = new Date(`${ev.fecha}T23:59:59`) < ahora;

@@ -2,7 +2,7 @@
 //   Día      → cuánto falta, registrar rápido (escribir, foto, frecuentes), qué comer ahora y lo comido
 //   Semana   → cómo vienen los últimos 7 días contra la meta
 //   Despensa → lo que hay en casa (cargado con Gemini) e ideas para cocinar con eso
-import { emparejar, esIndividual, asistenciaIndividual } from '../actividades.js';
+import { emparejar, esIndividual, asistenciaIndividual, porConfirmar } from '../actividades.js';
 import { cargarSyncs } from '../hecho.js';
 import { metaAgua, aguaDeComidas, cargarAgua, sumarAgua, borrarAgua, litros } from '../hidratacion.js';
 import { sb, estado, datos } from '../db.js';
@@ -324,7 +324,7 @@ async function vistaSemana(app) {
     sb.from('calendario').select('*').eq('hogar_id', estado.yo.hogar_id).gte('fecha', dias[0]).lte('fecha', hoy).then(datos),
     sb.from('mediciones_corporales').select('persona_id, medido_en, peso_kg, grasa_pct, masa_magra_kg').in('persona_id', ids).order('medido_en', { ascending: false }).limit(120).then(datos),
     sb.from('objetivos').select('*').in('persona_id', ids).order('desde', { ascending: false }).then(datos),
-    sb.from('sesiones_banda').select('persona_id, calorias, calorias_estimadas, inicio, fin, tipo, fc_promedio').in('persona_id', ids).gte('inicio', desde).then(datos),
+    sb.from('sesiones_banda').select('persona_id, calorias, calorias_estimadas, inicio, fin, tipo, fc_promedio, confirmado').or('confirmado.is.null,confirmado.neq.nada').in('persona_id', ids).gte('inicio', desde).then(datos),
     sb.from('comidas').select('fecha, porciones(*)').eq('hogar_id', estado.yo.hogar_id).gte('fecha', dias[0]).lte('fecha', hoy).then(datos),
   ]);
   const rutinaIds = [...new Set(eventos.map((e) => e.rutina_id).filter(Boolean))];
@@ -527,7 +527,7 @@ async function cargarDia(fecha) {
     sb.from('mediciones_corporales').select('persona_id, medido_en, peso_kg, grasa_pct, masa_magra_kg')
       .in('persona_id', ids).order('medido_en', { ascending: false }).limit(120).then(datos),
     sb.from('objetivos').select('*').in('persona_id', ids).order('desde', { ascending: false }).then(datos),
-    sb.from('sesiones_banda').select('persona_id, calorias, calorias_estimadas, inicio, fin, tipo, fc_promedio').in('persona_id', ids)
+    sb.from('sesiones_banda').select('persona_id, calorias, calorias_estimadas, inicio, fin, tipo, fc_promedio, confirmado').or('confirmado.is.null,confirmado.neq.nada').in('persona_id', ids)
       .gte('inicio', desde.toISOString()).lte('inicio', hasta.toISOString()).then(datos),
     sb.from('comidas').select('*, comida_items(id, gramos, despensa_id, persona_id, alimento:alimentos(*)), porciones(*)')
       .eq('hogar_id', hogar).eq('fecha', fecha).order('hora', { nullsFirst: true }).then(datos),
@@ -550,7 +550,7 @@ function datosPersona(p, d) {
   // Derby y otros: si su reloj muestra que no fue, ese gasto no se cuenta.
   const relojP = d.reloj.filter((s) => s.persona_id === p.id);
   const { pares } = emparejar(suyos.filter((e) => e.tipo !== 'descanso'), relojP);
-  const eventos = suyos.filter((e) => !esIndividual(e) || asistenciaIndividual(e, pares.get(e) ?? null, d.syncs?.[p.id]) !== 'no_fue');
+  const eventos = suyos.filter((e) => !esIndividual(e) || asistenciaIndividual(e, pares.get(e) ?? null, d.syncs?.[p.id], new Date(), relojP.some(porConfirmar)) !== 'no_fue');
   const metas = calcularMetas({
     persona: p, medicion: med, foco, eventos,
     entrenosReloj: d.reloj.filter((s) => s.persona_id === p.id),

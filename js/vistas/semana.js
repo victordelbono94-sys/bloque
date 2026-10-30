@@ -6,7 +6,7 @@ import { sb, estado, datos, otraPersona } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from '../ui.js';
 import { hoyISO, sumarDias, inicioSemana, rangoSemana, numeroDia, diaLargo, hora } from '../fechas.js';
 import { TIPOS, textoJuntos, horaEfectiva, nombreEvento, iconoEvento, textoAsistencia } from '../eventos.js';
-import { OTROS, emparejar, actividad, minutos } from '../actividades.js';
+import { OTROS, emparejar, actividad, actividadDe, minutos } from '../actividades.js';
 import { FOCOS, resumenRutinas } from '../rutinas.js';
 import { mapaCuerpo, chipsZonas } from '../iconos.js';
 import { ICONO_RELOJ, horaLocal, datosSesion } from './hoy.js';
@@ -141,7 +141,7 @@ async function cargarSemana(lunes, rutinas, eventosPorId) {
   const [eventos, bandaTodos, syncs] = await Promise.all([
     sb.from('calendario').select('*').eq('hogar_id', hogar).gte('fecha', lunes).lte('fecha', domingo)
       .order('fecha').order('hora_inicio', { nullsFirst: true }).then(datos),
-    sb.from('sesiones_banda').select('persona_id, inicio, fin, tipo, calorias, calorias_estimadas, fc_promedio').in('persona_id', estado.personas.map((p) => p.id))
+    sb.from('sesiones_banda').select('persona_id, inicio, fin, tipo, calorias, calorias_estimadas, fc_promedio, confirmado').or('confirmado.is.null,confirmado.neq.nada').in('persona_id', estado.personas.map((p) => p.id))
       .gte('inicio', new Date(`${lunes}T00:00:00`).toISOString())
       .lt('inicio', new Date(`${sumarDias(domingo, 1)}T00:00:00`).toISOString()).order('inicio').then(datos),
     cargarSyncs(),
@@ -235,7 +235,7 @@ function htmlDia(d, delDia, bandaDia, ctx) {
   const pasos = delDia.map((e) => ({ orden: horaEfectiva(e), html: htmlEntreno(e, ctx, pares.get(e), { pasado, esHoy, delDia }) }));
   const caminatas = sueltas.filter((s) => s.tipo === 'caminar');
   for (const s of sueltas.filter((x) => x.tipo !== 'caminar')) {
-    pasos.push({ orden: horaLocal(s.inicio), html: htmlReloj(actividad(s.tipo).nombre, actividad(s.tipo).icono, horaLocal(s.inicio), datosSesion(s)) });
+    pasos.push({ orden: horaLocal(s.inicio), html: htmlReloj(actividadDe(s).nombre, actividadDe(s).icono, horaLocal(s.inicio), datosSesion(s)) });
   }
   if (caminatas.length) {
     const a = actividad('caminar');

@@ -84,6 +84,7 @@
 
         <!-- Avisos: llegada al gimnasio y reinicio del teléfono -->
         <receiver android:name=".CheckinReceiver" android:exported="false" />
+        <receiver android:name=".ConfirmarReceiver" android:exported="false" />
         <receiver android:name=".GeocercaReceiver" android:exported="false" />
         <receiver android:name=".ArranqueReceiver" android:exported="false">
             <intent-filter>

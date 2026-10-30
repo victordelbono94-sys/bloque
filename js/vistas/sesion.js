@@ -99,7 +99,7 @@ export async function vistaSesion(app) {
   let delReloj = null;
   if (evento) {
     const desde = new Date(`${evento.fecha}T00:00:00`), hasta = new Date(`${evento.fecha}T23:59:59`);
-    const delDia = datos(await sb.from('sesiones_banda').select('tipo, inicio, fin, calorias, calorias_estimadas, fc_promedio')
+    const delDia = datos(await sb.from('sesiones_banda').select('tipo, inicio, fin, calorias, calorias_estimadas, fc_promedio, confirmado').or('confirmado.is.null,confirmado.neq.nada')
       .eq('persona_id', estado.yo.id).gte('inicio', desde.toISOString()).lte('inicio', hasta.toISOString()));
     delReloj = emparejar([evento], delDia).pares.get(evento) ?? null;
   }

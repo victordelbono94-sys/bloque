@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
         private const val REGRESO_LOGIN = "ec.bloque.puente"
         private const val SYNC_AL_ABRIR_MS = 15 * 60 * 1000L
         const val EXTRA_RUTA = "ruta"
-        private val RUTA_VALIDA = Regex("^comenzar/[0-9a-f-]{36}$")
+        private val RUTA_VALIDA = Regex("^((comenzar|confirmar)/[0-9a-f-]{36}|hoy|comida)$")
     }
 
     private val asfalto = Color.parseColor("#15171C")

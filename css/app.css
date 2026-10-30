@@ -1447,3 +1447,17 @@ dialog.pantalla > .dialogo > h2:first-of-type { padding-right: 52px; }
 .resumen-persona.fundido { animation: fundidoEntra .25s ease; }
 @keyframes fundidoEntra { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .ideas__titulo { margin-top: 8px; }
+
+/* Entrenos del reloj por confirmar */
+.confirmar { border: 1px solid rgba(198,244,50,.35); transition: opacity .28s var(--suave), transform .28s var(--suave); }
+.confirmar--sale { opacity: 0; transform: translateY(-6px) scale(.98); }
+.confirmar__cabeza { display: flex; gap: 12px; align-items: center; }
+.confirmar__cabeza > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.confirmar__cabeza .quieto { font-size: 13px; }
+.confirmar__icono { width: 38px; height: 38px; flex: 0 0 38px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: rgba(198,244,50,.12); color: var(--volt); }
+.confirmar__ayuda { margin: 10px 0 10px; }
+.confirmar .chips { flex-wrap: wrap; }
+.elegir-deporte { display: flex; flex-direction: column; gap: 14px; }
+.elegir-deporte__buscar { position: sticky; top: 0; z-index: 1; }
+.elegir-deporte__lista { display: flex; flex-direction: column; gap: 16px; }
+.elegir-deporte__grupo .chips { flex-wrap: wrap; }

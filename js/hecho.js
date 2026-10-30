@@ -2,7 +2,7 @@
 // Hecho: se tocó «Terminar mi entreno», se completó la mayoría de las series, o el reloj lo registró.
 // No hecho: el día ya pasó y no hay nada de eso. Hoy y lo que viene quedan «pendiente».
 import { sb, datos } from './db.js';
-import { emparejar, esIndividual, asistenciaIndividual } from './actividades.js';
+import { porConfirmar, emparejar, esIndividual, asistenciaIndividual } from './actividades.js';
 import { hoyISO } from './fechas.js';
 
 /** Última sincronización del reloj de cada persona del equipo: { personaId: fecha }. */
@@ -30,7 +30,7 @@ export async function cargarCumplimiento(eventos, personaId) {
         .eq('persona_id', personaId).in('item.rutina_id', [...new Set(conRutina.map((e) => e.rutina_id))]).then(datos)
       : [],
     fechas.length
-      ? sb.from('sesiones_banda').select('tipo, inicio, fin, calorias, calorias_estimadas, fc_promedio').eq('persona_id', personaId)
+      ? sb.from('sesiones_banda').select('tipo, inicio, fin, calorias, calorias_estimadas, fc_promedio, confirmado').or('confirmado.is.null,confirmado.neq.nada').eq('persona_id', personaId)
         .gte('inicio', new Date(`${fechas[0]}T00:00:00`).toISOString())
         .lt('inicio', new Date(`${fechas.at(-1)}T23:59:59`).toISOString()).then(datos)
       : [],
@@ -43,6 +43,7 @@ export async function cargarCumplimiento(eventos, personaId) {
 
   // Qué evento coincide con qué entreno del reloj, día por día.
   const delReloj = new Set();
+  const esperando = new Set(banda.filter(porConfirmar).map((s) => fechaLocal(s.inicio)));
   for (const f of new Set(fechas)) {
     const delDia = eventos.filter((e) => e.fecha === f && e.tipo !== 'descanso' && (e.asistencia === 'juntos' || e.persona_id === personaId));
     const bandaDia = banda.filter((s) => fechaLocal(s.inicio) === f);
@@ -60,7 +61,7 @@ export async function cargarCumplimiento(eventos, personaId) {
     const completo = hechas > 0 && hechas >= Math.max(1, Math.ceil(total * 0.6));
     if (terminado || completo || delReloj.has(ev.id)) return 'hecho';
     // Derby y otros: cada uno por su reloj; se sabe que no fue cuando su reloj ya sincronizó después.
-    if (esIndividual(ev)) return asistenciaIndividual(ev, null, syncs[personaId]) === 'no_fue' ? 'no_hecho' : 'pendiente';
+    if (esIndividual(ev)) return asistenciaIndividual(ev, null, syncs[personaId], new Date(), esperando.has(ev.fecha)) === 'no_fue' ? 'no_hecho' : 'pendiente';
     return ev.fecha < hoy ? 'no_hecho' : 'pendiente';
   };
 }

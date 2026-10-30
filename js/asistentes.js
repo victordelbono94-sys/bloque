@@ -1,7 +1,7 @@
 // Quién fue a un entreno individual (derby, otros): una fila por persona con lo que midió su reloj.
 import { estado } from './db.js';
 import { esc, cara } from './ui.js';
-import { emparejar, asistenciaIndividual, esIndividual } from './actividades.js';
+import { emparejar, asistenciaIndividual, esIndividual, porConfirmar } from './actividades.js';
 import { incluyeA } from './eventos.js';
 
 const fechaLocal = (iso) => {
@@ -21,7 +21,7 @@ export function asistentes(ev, delDia, banda, syncs) {
     const suyos = delDia.filter((e) => e.tipo !== 'descanso' && incluyeA(e, p.id));
     const bandaDia = banda.filter((s) => s.persona_id === p.id && fechaLocal(s.inicio) === ev.fecha);
     const sesion = emparejar(suyos, bandaDia).pares.get(ev) ?? null;
-    return { p, sesion, estado: asistenciaIndividual(ev, sesion, syncs[p.id]) };
+    return { p, sesion, estado: asistenciaIndividual(ev, sesion, syncs[p.id], new Date(), bandaDia.some(porConfirmar)) };
   });
 }
 

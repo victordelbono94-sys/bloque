@@ -477,6 +477,7 @@ function htmlAvisos(e, gimnasio) {
         ${[0, 10, 30].map((m) => `<button type="button" class="chip" data-valor="${m}" aria-pressed="${(a.minutosAntes ?? 10) === m}">${m ? `${m} min antes` : 'A la hora'}</button>`).join('')}
       </div>` : '')}
     ${fila('aviso-reloj', 'Cuando el reloj registre un entreno', 'Si grabaste fuerza en la banda y no abriste el entreno en Bloque, te ofrece anotar las series.', a.reloj)}
+    ${a.confirmable ? fila('aviso-confirmar', '¿Qué fue este entreno?', 'Si el reloj guarda un «otro entreno» (patinaje, eSports…), te pregunta qué fue en vez de adivinar. Respondes desde la notificación.', a.confirmar !== false) : ''}
     <p class="seccion__titulo" style="margin:10px 0 0">Bienestar</p>
     ${a.bienestar ? `
       ${fila('aviso-despertar', 'Al despertar: ¿cómo amaneciste?', 'Una hora después de que la pulsera registra que te despertaste: cuánto dormiste y marcas tu cansancio desde la notificación.', a.despertar !== false)}
@@ -496,6 +497,7 @@ function conectarAvisos(app) {
       hora: tarjeta.querySelector('#aviso-hora').checked,
       reloj: tarjeta.querySelector('#aviso-reloj').checked,
       despertar: tarjeta.querySelector('#aviso-despertar')?.checked ?? true,
+      confirmar: tarjeta.querySelector('#aviso-confirmar')?.checked ?? true,
       agua: tarjeta.querySelector('#aviso-agua')?.checked ?? false,
       comidas: tarjeta.querySelector('#aviso-comidas')?.checked ?? false,
       minutosAntes: Number(tarjeta.querySelector('#aviso-minutos [aria-pressed="true"]')?.dataset.valor ?? estadoNativo()?.avisos?.minutosAntes ?? 10),
@@ -511,7 +513,7 @@ function conectarAvisos(app) {
     tarjeta.querySelector('#aviso-llegada').addEventListener('change', () => guardar('llegada'));
     tarjeta.querySelector('#aviso-hora').addEventListener('change', () => guardar());
     tarjeta.querySelector('#aviso-reloj').addEventListener('change', () => guardar());
-    ['#aviso-despertar', '#aviso-agua', '#aviso-comidas'].forEach((id) => tarjeta.querySelector(id)?.addEventListener('change', () => guardar()));
+    ['#aviso-despertar', '#aviso-confirmar', '#aviso-agua', '#aviso-comidas'].forEach((id) => tarjeta.querySelector(id)?.addEventListener('change', () => guardar()));
     tarjeta.querySelectorAll('#aviso-minutos .chip').forEach((c) => c.addEventListener('click', () => {
       tarjeta.querySelectorAll('#aviso-minutos .chip').forEach((x) => x.setAttribute('aria-pressed', String(x === c)));
       guardar();

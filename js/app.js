@@ -97,7 +97,13 @@ async function mostrarRuta() {
   if (!estado.yo) return;
   // Al cambiar de pantalla, las hojas abiertas se cierran (no quedan flotando sobre otra sección).
   document.querySelectorAll('dialog[open]').forEach((d) => d.close());
-  const [nombreRuta, param] = location.hash.replace(/^#\/?/, '').split('/');
+  let [nombreRuta, param] = location.hash.replace(/^#\/?/, '').split('/');
+  // Desde la notificación «¿Qué fue este entreno?» → Otro…: Hoy abre la lista de deportes.
+  if (nombreRuta === 'confirmar' && param) {
+    try { sessionStorage.setItem('bloque-confirmar', param); } catch { /* nada */ }
+    history.replaceState(null, '', `${location.pathname}#/hoy`);
+    nombreRuta = 'hoy'; param = undefined;
+  }
   const nombre = RUTAS[nombreRuta] ? nombreRuta : 'hoy';
   const vista = RUTAS[nombre];
   if (nav.hidden) {

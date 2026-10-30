@@ -38,6 +38,7 @@ import java.util.concurrent.TimeUnit
 object Bienestar {
     private const val CANAL = "bienestar"
     private const val ID_CANSANCIO = 7001
+    private const val ID_ENTRENO = 7400
     private val HORAS_AGUA = listOf(LocalTime.of(10, 30), LocalTime.of(13, 30), LocalTime.of(16, 30), LocalTime.of(19, 30))
     private val HORAS_COMIDA = mapOf("almuerzo" to LocalTime.of(14, 30), "cena" to LocalTime.of(21, 0))
 
@@ -116,6 +117,69 @@ object Bienestar {
             .setTimeoutAfter(if (ok) 15_000 else 0)
             .build()
         try { NotificationManagerCompat.from(c).notify(ID_CANSANCIO, n) } catch (e: SecurityException) { }
+    }
+
+    // ---------- ¿Qué fue este entreno? ----------
+
+    /** Entrenos genéricos del reloj que Bloque no sabe qué fueron: se pregunta una vez por cada uno. */
+    @SuppressLint("MissingPermission")
+    fun preguntarEntrenos(c: Context, lista: JSONArray?) {
+        if (lista == null || lista.length() == 0) return
+        if (!Avisos.config(c).optBoolean("confirmar", true) || !notificacionesPermitidas(c)) return
+        val p = prefs(c)
+        val avisados = (p.getStringSet("entrenos_preguntados", emptySet()) ?: emptySet()).toMutableSet()
+        crearCanal(c)
+        for (i in 0 until minOf(lista.length(), 3)) {
+            val e = lista.optJSONObject(i) ?: continue
+            val id = e.optString("id").takeIf { Regex("^[0-9a-f-]{36}$").matches(it) } ?: continue
+            if (id in avisados) continue
+            avisados += id
+            val notifId = ID_ENTRENO + (id.hashCode() and 0x3ff)
+            val partes = buildList {
+                add(e.optString("hora"))
+                add("${e.optInt("minutos")} min")
+                if (!e.isNull("calorias") && e.optInt("calorias") > 0) add("${e.optInt("calorias")} kcal")
+                if (!e.isNull("fc_promedio")) add("${e.optInt("fc_promedio")} ppm")
+            }.filter { it.isNotBlank() }.joinToString(" · ")
+            val b = NotificationCompat.Builder(c, CANAL)
+                .setSmallIcon(R.drawable.ic_aviso)
+                .setColor(Color.parseColor("#C6F432"))
+                .setContentTitle("Parece que hiciste ejercicio. ¿Qué fue?")
+                .setContentText("$partes. Elige y lo registro donde corresponde.")
+                .setStyle(NotificationCompat.BigTextStyle().bigText("Tu reloj guardó un entreno ($partes). ¿Lo registro como…?"))
+                .setContentIntent(abrirApp(c, "confirmar/$id", 300 + (notifId % 100)))
+                .setAutoCancel(true)
+            val ops = e.optJSONArray("opciones") ?: JSONArray()
+            for (k in 0 until minOf(ops.length(), 2)) {
+                val o = ops.optJSONObject(k) ?: continue
+                val como = o.optString("como").takeIf { Regex("^[a-z0-9_]{2,40}$").matches(it) } ?: continue
+                val pi = PendingIntent.getBroadcast(
+                    c, notifId * 4 + k,
+                    Intent(c, ConfirmarReceiver::class.java).putExtra("id", id).putExtra("como", como)
+                        .putExtra("nombre", o.optString("nombre")).putExtra("notif", notifId),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+                b.addAction(0, o.optString("nombre"), pi)
+            }
+            b.addAction(0, "Otro…", abrirApp(c, "confirmar/$id", 400 + (notifId % 100)))
+            try { NotificationManagerCompat.from(c).notify(notifId, b.build()) } catch (ex: SecurityException) { }
+        }
+        // Solo se recuerdan los últimos para que la lista no crezca sin fin.
+        p.edit().putStringSet("entrenos_preguntados", avisados.toList().takeLast(40).toSet()).apply()
+    }
+
+    @SuppressLint("MissingPermission")
+    fun confirmarEntreno(c: Context, notifId: Int, ok: Boolean, nombre: String) {
+        val n = NotificationCompat.Builder(c, CANAL)
+            .setSmallIcon(R.drawable.ic_aviso)
+            .setColor(Color.parseColor("#C6F432"))
+            .setContentTitle(if (ok) "Anotado: $nombre ✓" else "Ups")
+            .setContentText(if (ok) "Se cuenta en tu día al abrir Bloque." else "No se pudo anotar (sin conexión). Ábrela y elígelo en Hoy.")
+            .setContentIntent(abrirApp(c, "hoy", 2))
+            .setAutoCancel(true)
+            .setTimeoutAfter(if (ok) 10_000 else 0)
+            .build()
+        try { NotificationManagerCompat.from(c).notify(notifId, n) } catch (e: SecurityException) { }
     }
 
     // ---------- Recordatorios de agua y comidas ----------
@@ -225,6 +289,26 @@ class CheckinReceiver : BroadcastReceiver() {
                 true
             } catch (e: Exception) { false }
             Bienestar.confirmarCansancio(context, ok, valor)
+            pendiente.finish()
+        }
+    }
+}
+
+/** Respuesta desde «¿Qué fue este entreno?» (Derby / Gym…): se manda a Bloque sin abrir la app. */
+class ConfirmarReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val id = intent.getStringExtra("id") ?: return
+        val como = intent.getStringExtra("como") ?: return
+        val nombre = intent.getStringExtra("nombre") ?: como
+        val notif = intent.getIntExtra("notif", 7400)
+        val codigo = Ajustes(context).codigo ?: return
+        val pendiente = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            val ok = try {
+                Api.sincronizar(codigo, JSONObject().put("confirmar", JSONObject().put("id", id).put("como", como)))
+                true
+            } catch (e: Exception) { false }
+            Bienestar.confirmarEntreno(context, notif, ok, nombre)
             pendiente.finish()
         }
     }
