@@ -3,6 +3,7 @@
 import { sb, estado, datos } from './db.js';
 import { hoyISO, sumarDias } from './fechas.js';
 import { deporte as datosDeporte } from './deportes.js';
+import { CARGA_CUADRICEPS } from './entrenador.js';
 
 // Ejercicios por bloque, del más básico al más específico (nombres del catálogo).
 const B = {
@@ -93,7 +94,8 @@ export async function armarPlan({ objetivo, experiencia, diasGym, horaGym, diasD
   const reps = objetivo === 'perder_grasa' || objetivo === 'cardio' ? 12 : 10;
   const descanso = objetivo === 'perder_grasa' || objetivo === 'cardio' ? 60 : experiencia === 'avanzado' ? 120 : 90;
   const segundos = experiencia === 'principiante' ? 20 : 30;
-  const extras = [...new Set(dep.zonas.map((z) => ZONA_BLOQUE[z]).filter(Boolean))];
+  const extras = [...new Set(dep.zonas.map((z) => ZONA_BLOQUE[z]).filter(Boolean)
+    .map((b) => (b === 'cuadriceps' && CARGA_CUADRICEPS.has(dep.clave) ? 'gluteos' : b)))];
 
   // Días de gym que coinciden con el deporte: rutina liviana (si es un deporte exigente y quedan otros días para lo pesado).
   const gym = [...diasGym].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)); // lunes primero
@@ -101,9 +103,24 @@ export async function armarPlan({ objetivo, experiencia, diasGym, horaGym, diasD
   const pesados = gym.length - livianos.length >= 1 ? gym.filter((d) => !livianos.includes(d)) : gym;
   const conLiviano = pesados.length < gym.length;
 
+  // Deportes que ya cargan mucho los cuádriceps (derby, patinaje, ciclismo…): las piernas del gym van a glúteos y
+  // femorales, con un solo ejercicio de cuádriceps compuesto y sin aislamiento, para no sumar fatiga.
+  const cuadCargado = CARGA_CUADRICEPS.has(dep.clave);
+  const bloques = (t) => {
+    if (!cuadCargado) return t.b;
+    let cuad = 0;
+    return t.b.flatMap(([bloque, n, desde = 0]) => {
+      if (bloque !== 'cuadriceps') return [[bloque, n, desde]];
+      const queda = Math.max(0, Math.min(n, 1 - cuad));
+      cuad += queda;
+      const resto = n - queda;
+      return [...(queda ? [[bloque, queda, desde]] : []), ...(resto ? [['gluteos', Math.ceil(resto / 2), 1], ['femoral', Math.floor(resto / 2), 1]] : [])]
+        .filter(([, k]) => k > 0);
+    });
+  };
   const usados = new Set();
   const elegir = (bloque, cuantos, desde = 0) => {
-    const lista = B[bloque] ?? [];
+    const lista = (B[bloque] ?? []).filter((n) => !(cuadCargado && n === 'Extensión de cuádriceps'));
     const out = [];
     for (let k = 0; out.length < cuantos && k < lista.length * 2; k++) {
       const nombre = lista[(desde + k) % lista.length];
@@ -135,7 +152,7 @@ export async function armarPlan({ objetivo, experiencia, diasGym, horaGym, diasD
   for (const [i, clave] of plantilla.entries()) {
     if (idPorClave[clave]) continue;
     const t = R[clave];
-    let nombres = t.b.flatMap(([bloque, n, desde = 0]) => elegir(bloque, n, desde));
+    let nombres = bloques(t).flatMap(([bloque, n, desde = 0]) => elegir(bloque, n, desde));
     const extra = extras[i % Math.max(1, extras.length)];
     if (extra && !t.b.some(([b]) => b === extra)) nombres = [...nombres.slice(0, 6), ...elegir(extra, 1, i)].filter((v, k, a) => a.indexOf(v) === k);
     idPorClave[clave] = await crearRutina(t.nombre, nombres, FOCO_RUTINA[objetivo] ?? 'mixto');
