@@ -11,6 +11,8 @@ import { panelBuscar } from './buscar.js';
 import { esLiquido } from '../hidratacion.js';
 import { ICONOS, htmlCompositor, conectarCompositor, burbujaPensando, htmlBienvenida, bajar } from '../chatia.js';
 import { deporte } from '../deportes.js';
+import { IC } from '../iconos.js';
+import { tieneDieta, dietaParaIA, guardarDieta, dialogoDieta, TIPOS } from '../dieta.js';
 import {
   MOMENTOS, PARTE_COMIDA, momentoPorHora, momentoSugerido, kc, g, cantidadTexto, gemini, fotoBase64, aAlimento,
   guardarComida, borrarComida,
@@ -119,9 +121,9 @@ export function abrirRegistro(ctx, op = {}) {
         titulo: '¿Qué comiste?',
         texto: 'Mándale una foto del plato o escríbelo como se lo contarías a alguien. La IA arma el plato y te dice cómo vas.',
         sugerencias: [
-          { icono: '📷', texto: 'Sacar una foto del plato' },
-          { icono: '✍️', texto: '2 huevos revueltos, pan y café con leche' },
-          { icono: '🤔', texto: '¿Qué me conviene comer ahora?' },
+          { icono: IC.camara, texto: 'Sacar una foto del plato' },
+          { icono: IC.nota, texto: '2 huevos revueltos, pan y café con leche' },
+          { icono: IC.pregunta, texto: '¿Qué me conviene comer ahora?' },
         ],
       })}</div>
       <div id="r-items" class="pila" style="gap:8px"></div>
@@ -318,6 +320,7 @@ export function abrirRegistro(ctx, op = {}) {
         entrenos_hoy: (b.info.eventos ?? []).filter((e) => e.tipo !== 'descanso').map((e) => e.tipo),
       } : {}),
       deporte: deporte(estado.equipo?.deporte)?.nombre ?? null,
+      dieta: dietaParaIA(),
       ...(microsBajos ? { vitaminas_minerales_bajos_esta_semana: microsBajos } : {}),
       hogar: hogarContexto() ?? [],
       personas_del_hogar: estado.personas.map((p) => p.nombre),
@@ -523,7 +526,7 @@ export function abrirRegistro(ctx, op = {}) {
         if (!r.alimentos?.length) { viendo.terminar('<span>No reconocí comida en la foto. Prueba más cerca o escríbelo.</span>'); return; }
         for (const x of r.alimentos) agregar(await aAlimento(x), x.gramos);
         // Lo que vio en la foto queda en la conversación: así después puedes decir «la foto era para los dos».
-        const visto = `📷 En la foto veo: ${r.alimentos.map((x) => `${x.nombre.toLowerCase()} (${Math.round(x.gramos)} g)`).join(', ')}.`;
+        const visto = `En la foto veo: ${r.alimentos.map((x) => `${x.nombre.toLowerCase()} (${Math.round(x.gramos)} g)`).join(', ')}.`;
         viendo.terminar(`<span>${esc(visto)}</span>`);
         chatLog.push(`<div class="chatia__msg chatia__msg--ia">${esc(visto)}</div>`);
         historial.push({ rol: 'yo', texto: texto && !pregunta ? `Te mando una foto del plato. ${texto}` : 'Te mando una foto del plato.' }, { rol: 'ia', texto: visto });
@@ -677,6 +680,18 @@ export function abrirRegistro(ctx, op = {}) {
   };
 
   pintarPaso1();
+  // La primera vez: Bloq pregunta cómo comes (no asume que comes carne) y lo guarda.
+  if (!tieneDieta() && !editar) {
+    const b = burbuja('ia', `<span>Antes de empezar: ¿sigues alguna dieta o tienes restricciones? Así te sugiero solo lo que comes.</span>
+      <div class="chips ia-msg__opciones">${['omnivora', 'vegetariana', 'vegana', 'pescetariana', 'keto'].map((k) => `<button type="button" class="chip chip--mini" data-dieta="${k}">${TIPOS[k]}</button>`).join('')}<button type="button" class="chip chip--mini" data-dieta="otra">Otra / restricciones…</button></div>`);
+    b?.querySelectorAll('[data-dieta]').forEach((x) => x.addEventListener('click', async () => {
+      if (x.dataset.dieta === 'otra') return dialogoDieta(() => { b.querySelector('.ia-msg__opciones')?.remove(); burbuja('ia', '<span>¡Listo, anotado! Ahora sí: ¿qué comiste?</span>'); });
+      try { await guardarDieta({ tipo: x.dataset.dieta, restricciones: [] }); } catch { return; }
+      b.querySelector('.ia-msg__opciones')?.remove();
+      burbuja('yo', esc(TIPOS[x.dataset.dieta]));
+      burbuja('ia', '<span>¡Anotado! Lo tengo en cuenta en todo. Ahora sí: ¿qué comiste?</span>');
+    }));
+  }
   if (op.foto) { fotoPendiente = op.foto; mostrarFoto(op.foto); mensaje('Si le pusiste algo que no se ve, escríbelo. Después toca enviar.'); }
   else if (op.texto) leer();
   return d;

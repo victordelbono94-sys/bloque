@@ -9,6 +9,7 @@ import { esIndividual } from './actividades.js';
 import { cargarCumplimiento } from './hecho.js';
 import { rachaSemanas } from './logros.js';
 import { IC } from './iconos.js';
+import { fuentesProteina } from './dieta.js';
 
 const fechaLocal = (iso) => {
   const f = new Date(iso);
@@ -115,7 +116,7 @@ export async function calcularSemana(persona) {
     if (!ganar && !bajar && Math.abs(dif) > 300) sugerencias.push({ p: 6, i: IC.comida, ti: dif > 0 ? 'Achica una porción' : 'Suma un snack', t: `Estuviste ~${r(Math.abs(dif))} kcal por día ${dif > 0 ? 'arriba' : 'debajo'} de tu meta.` });
   }
   if (registrados.length >= 3 && protOk < Math.ceil(registrados.length * 0.6)) {
-    sugerencias.push({ p: 8, i: IC.proteina, ti: 'Sube la proteína', t: `Promediaste ${r(protComida)} de ${r(protMeta)} g. Pon ~${ppc} g en cada comida principal: huevos, pollo, atún, yogur griego o un batido.` });
+    sugerencias.push({ p: 8, i: IC.proteina, ti: 'Sube la proteína', t: `Promediaste ${r(protComida)} de ${r(protMeta)} g. Pon ~${ppc} g en cada comida principal: ${fuentesProteina(persona).slice(0, 4).join(', ')}.` });
   }
   if (agendados >= 2 && hechos / agendados < 0.7) sugerencias.push({ p: 7, i: IC.pesa, ti: 'No te saltes entrenos', t: `Hiciste ${hechos} de ${agendados}. Si un día no puedes, muévelo con «Recuperar» en vez de saltarlo.` });
   if (suenoProm != null && suenoProm < 420) sugerencias.push({ p: 7, i: IC.sueno, ti: 'Duerme un poco más', t: `Promediaste ${(suenoProm / 60).toFixed(1).replace('.', ',')} h. El músculo se recupera durmiendo: apunta a 7–8 h.` });
@@ -362,14 +363,14 @@ export function htmlSemana(s, { compacto = false } = {}) {
 
       ${htmlRachas(s.rachas)}
 
-      <details class="sem2-detalle" ${compacto ? '' : 'open'}>
-        <summary>Calorías día por día</summary>
+      <section class="sem2-detalle">
+        <p class="sem2-titulo">Calorías día por día</p>
         <div class="sem2-detalle__cont">
           ${consejoCalorias(s)}
           <div class="semana-dias">${barras}</div>
           <p class="sem2-leyenda"><span><i class="sem2-leyenda__meta"></i> meta del día</span><span><b>●</b> entreno hecho</span><span><i class="sem2-leyenda__ok"></i> en tu meta</span></p>
         </div>
-      </details>
+      </section>
 
       <section class="sem2-plan">
         <p class="sem2-titulo">Qué hacer esta semana</p>

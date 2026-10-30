@@ -2167,3 +2167,33 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .chatia__sugerencia > span .icono-ui { width: 20px; height: 20px; color: var(--volt); }
 .chatia__msg--nota .icono-ui { width: 16px; height: 16px; vertical-align: -3px; }
 .hist-tabs { flex-wrap: wrap; overflow: visible; } .hist-tabs .cuerpo-tab { flex: 0 0 auto; }
+.pedir-dieta { margin-bottom: 14px; transition: opacity .3s, transform .3s; }
+.cuidados-dieta { margin-top: 12px; }
+.cuidados-dieta summary { list-style: none; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+.cuidados-dieta summary::-webkit-details-marker { display: none; }
+.cuidados-dieta summary .quieto { font-size: 13px; }
+.cuidados-dieta ul { margin: 10px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.45; color: var(--tiza-2); }
+.micro-sim { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 5px; border-radius: 7px; background: rgba(255, 255, 255, .07); font-size: 11px; font-weight: 800; letter-spacing: -.02em; color: var(--tiza-2); vertical-align: 1px; margin-right: 4px; }
+.comida-momento__icono .icono-ui, .obj-item__icono .icono-ui, .tu-objetivo__cab .icono-ui { width: 22px; height: 22px; }
+.obj-item__icono, .tu-objetivo__cab > span { color: var(--volt); display: inline-flex; }
+.numero-hoy__fuego .icono-ui { width: 22px; height: 22px; color: #FF8B6B; }
+.semana-aviso__icono .icono-ui, .molestia__icono .icono-ui { width: 22px; height: 22px; }
+.mejor-marca .icono-ui, .records-hoy .icono-ui, .ejercicio__molestia .icono-ui, .agua-rapido .icono-ui, .chip .icono-ui { width: 15px; height: 15px; vertical-align: -3px; }
+.sem2-detalle > .sem2-titulo { margin-bottom: 10px; }
+.que-es { margin-left: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px 3px 6px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, .07); color: var(--tiza-2); font: inherit; font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none; cursor: pointer; vertical-align: 1px; }
+.que-es .icono-ui { width: 14px; height: 14px; }
+.cuerpo-hero__nombre { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.que-es-hoja { display: flex; flex-direction: column; gap: 14px; }
+.que-es-hoja section p:not(.sem2-titulo) { margin: 0; font-size: 15px; line-height: 1.5; color: var(--tiza-2); }
+.que-es-hoja .sem2-titulo { margin-bottom: 4px; }
+.que-es-hoja__cab { display: flex; align-items: center; gap: 10px; }
+.que-es-hoja__cab strong { margin-left: auto; font-family: var(--titulo); font-size: 22px; color: var(--c); }
+.que-es-hoja__punto { width: 12px; height: 12px; border-radius: 4px; background: var(--c); }
+.que-es-hoja__tu { padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, .04); }
+.que-es-hoja__tu--bien { background: rgba(198, 244, 50, .1); }
+.que-es-hoja__tu--ojo { background: rgba(232, 163, 23, .12); }
+.que-es-hoja__tu p + p { margin-top: 6px !important; }
+.rachas { justify-content: flex-start; }
+.racha-pill { flex: 0 0 auto; }
+.nav__item svg.nav__figura { fill: currentColor; stroke: none; }
+.nav__item svg.nav__figura .trazo { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }

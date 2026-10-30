@@ -12,6 +12,8 @@ import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
 import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia } from '../fechas.js';
 import { calcularMetas, consejosDelDia, diagnosticoDia, snacksDelDia, tendenciaPeso, OBJETIVOS } from '../nutricion.js';
 import { ritmoEsperado } from '../semanal.js';
+import { IC } from '../iconos.js';
+import { encaja, dietaParaIA, htmlPedirDieta, conectarPedirDieta, htmlCuidados } from '../dieta.js';
 import { macros, sumar, cargarCatalogo } from '../alimentos.js';
 import { panelBuscar } from '../comida/buscar.js';
 import { abrirRegistro } from '../comida/registro.js';
@@ -89,7 +91,7 @@ async function vistaDia(app, fecha) {
   let verId = null;
   try { verId = sessionStorage.getItem('bloque-comida-ver'); } catch { /* nada */ }
   const visto = info.find((x) => x.p.id === verId) ?? yo;
-  const snacks = esHoy ? snacksDelDia(yo.eventos, yo.metas.ok ? yo.metas.peso : null) : [];
+  const snacks = esHoy ? snacksDelDia(yo.eventos, yo.metas.ok ? yo.metas.peso : null, new Date(), (t) => encaja(t)) : [];
   const ctx = {
     fecha, esHoy, info, despensa: d.despensa, frecuentes: frec, habituales,
     recargar: (f) => { if (f && f !== fecha) location.hash = f === hoyISO() ? '#/comida' : `#/comida/${f}`; else vistaDia(app, fecha); },
@@ -121,6 +123,7 @@ async function vistaDia(app, fecha) {
     </button>
 
     ${htmlTuObjetivo(yo)}
+    ${htmlCuidados()}
 
     <section class="seccion" aria-labelledby="t-comidas">
       <h2 class="seccion__titulo" id="t-comidas">${esHoy ? 'Lo que comieron hoy' : 'Lo que comieron'}</h2>
@@ -142,13 +145,14 @@ async function vistaDia(app, fecha) {
         </div></div>
       </details>` : ''}`;
   // Arriba de todo: pedir lo que hay en casa (despensa), si no se pospuso.
-  if (esHoy) app.querySelector('.encabezado').insertAdjacentHTML('afterend', htmlPedirDespensa(d.despensa));
+  if (esHoy) app.querySelector('.encabezado').insertAdjacentHTML('afterend', htmlPedirDieta() + htmlPedirDespensa(d.despensa));
 
   // Agregar comida: botón flotante (abre el chat con la IA).
   fabIA('Agregar comida', () => abrirRegistro(ctx, {}), /^#\/comida/);
   const despensaYRecargar = () => abrirDespensa(() => vistaDia(app, fecha));
   app.querySelector('#ver-despensa')?.addEventListener('click', despensaYRecargar);
   conectarPedirDespensa(app, despensaYRecargar);
+  conectarPedirDieta(app, () => vistaDia(app, fecha));
   conectarAcordeon(app.querySelector('#acordeon-ahora'));
   app.querySelector('#ver-semana-comida').addEventListener('click', abrirSemana);
   tarjetaSemana(app.querySelector('#semana-comida-datos'), yo);
@@ -181,7 +185,7 @@ async function vistaDia(app, fecha) {
   }));
 }
 
-const ICONO_MOMENTO = { desayuno: '☕', almuerzo: '🍽️', merienda: '🥪', cena: '🌙', snack: '🍎', pre_entreno: '⚡', post_entreno: '💪' };
+const ICONO_MOMENTO = { desayuno: IC.taza, almuerzo: IC.comida, merienda: IC.taza, cena: IC.luna, snack: IC.manzana, pre_entreno: IC.rayo, post_entreno: IC.pesa };
 const persona = (id) => estado.personas.find((p) => p.id === id);
 const caras = (ids) => `<span class="caras">${ids.map((id) => `<span class="caras__una">${cara(persona(id))}</span>`).join('')}</span>`;
 
@@ -240,7 +244,7 @@ function htmlComidasDia(comidas) {
     }
     return `
       <li class="plan__item comida-momento">
-        <span class="plan__icono comida-momento__icono" aria-hidden="true">${ICONO_MOMENTO[g.momento] ?? '🍴'}</span>
+        <span class="plan__icono comida-momento__icono" aria-hidden="true">${ICONO_MOMENTO[g.momento] ?? IC.comida}</span>
         <div class="plan__cuerpo">
           <div class="plan__titulo">
             <strong>${esc(MOMENTOS[g.momento] ?? g.momento)}</strong>
@@ -285,6 +289,7 @@ async function mostrarIdeas(ctx, cont, boton) {
       entrenos_hoy: yo.eventos.filter((e) => e.tipo !== 'descanso').map((e) => ({ tipo: e.tipo === 'otro' ? e.actividad : e.tipo, hora: e.hora_inicio?.slice(0, 5) ?? null })),
       despensa: ctx.despensa.map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(p.gramos_restantes) })),
       deporte: deporte(estado.equipo?.deporte)?.nombre ?? null,
+      dieta: dietaParaIA(),
     };
     const bajos = await import('../micros.js').then((M) => M.bajosParaIA()).catch(() => null);
     if (bajos) contexto.vitaminas_minerales_bajos_esta_semana = bajos;
@@ -431,7 +436,7 @@ async function vistaDespensa(app, { enHoja = false } = {}) {
         ids: { texto: 'dp-texto', enviar: 'dp-leer', camara: 'dp-camara', galeria: 'dp-archivo', foto: 'dp-foto-prev', quitar: 'dp-foto-quitar', estado: 'dp-estado' },
       })}</div>
       <div class="fila" style="gap:8px;flex-wrap:wrap;align-items:center">
-        <button type="button" class="chip chip--mini" id="dp-manual">🔍 Buscar o escanear</button>
+        <button type="button" class="chip chip--mini" id="dp-manual">${IC.buscar} Buscar o escanear</button>
         <span class="ayuda" style="margin:0">o una foto de las fundas, la alacena, la refri o el ticket.</span>
       </div>
       <div id="dp-revision"></div>
@@ -1018,7 +1023,7 @@ function htmlTuObjetivo(x) {
   const porque = { recomposicion: 'para bajar grasa sin perder músculo, con proteína alta.', masa_muscular: 'para subir de peso ganando músculo.', perder_grasa: 'para bajar de peso cuidando el músculo con proteína alta.', mantenimiento: 'para mantener tu peso.', cardio: 'con energía para tus entrenos de cardio.' }[x.foco] ?? '';
   return `
     <section class="tarjeta tu-objetivo tu-objetivo--${estado}">
-      <div class="tu-objetivo__cab"><span aria-hidden="true">🎯</span><div><small>Tu objetivo</small><strong>${esc(obj.nombre)}</strong></div></div>
+      <div class="tu-objetivo__cab"><span aria-hidden="true">${IC.objetivo}</span><div><small>Tu objetivo</small><strong>${esc(obj.nombre)}</strong></div></div>
       <p class="tu-objetivo__como">${esc(como)}</p>
       ${plan ? `<p class="tu-objetivo__plan">${esc(plan)}${m.ajustePeso > 0 ? ': subí tu meta porque tu peso va más rápido de lo ideal, así no pierdes músculo.' : m.ajustePeso < 0 ? ': bajé tu meta porque tu peso no está respondiendo.' : ` ${porque}`}${m.vidaDiaria ? ' Tu gasto sale de tu reloj.' : ''}</p>` : ''}
       <div class="tu-objetivo__botones">

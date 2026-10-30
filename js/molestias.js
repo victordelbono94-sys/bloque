@@ -1,5 +1,6 @@
 // Molestias o lesiones: marcas una zona que duele y la app cuida esa zona en los entrenos
 // (avisa en los ejercicios que la cargan, la IA adapta la rutina) y propone ejercicios suaves de recuperación.
+import { IC } from './iconos.js';
 import { sb, estado, datos } from './db.js';
 import { esc, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from './ui.js';
 import { hoyISO } from './fechas.js';
@@ -152,7 +153,7 @@ export function htmlMolestias(lista, { propio = true } = {}) {
     const z = ZONAS[m.zona];
     const dias = Math.max(0, Math.round((new Date(`${hoyISO()}T12:00`) - new Date(`${m.desde}T12:00`)) / 864e5));
     return `<article class="molestia molestia--${m.intensidad}">
-      <div class="molestia__cabeza"><span class="molestia__icono" aria-hidden="true">🩹</span>
+      <div class="molestia__cabeza"><span class="molestia__icono" aria-hidden="true">${IC.curita}</span>
         <span><strong>${esc(z?.nombre ?? m.zona)} · ${esc(INTENSIDAD[m.intensidad] ?? '')}</strong><span class="quieto">${dias ? `hace ${dias} día${dias === 1 ? '' : 's'}` : 'desde hoy'}${m.nota ? ` · ${esc(m.nota)}` : ''}</span></span></div>
       ${dias >= 14 ? '<p class="ayuda molestia__fisio">Lleva más de 2 semanas: conviene que la vea un fisioterapeuta.</p>' : ''}
       ${z?.suaves?.length ? `<details class="molestia__suaves"><summary>Ejercicios suaves para recuperar</summary><ul>${z.suaves.map(([n, t]) => `<li><strong>${esc(n)}</strong> ${esc(t)}</li>`).join('')}</ul><p class="ayuda" style="margin:6px 0 0">Siempre sin dolor. Si alguno duele, déjalo.</p></details>` : ''}

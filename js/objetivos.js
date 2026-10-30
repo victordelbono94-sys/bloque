@@ -7,6 +7,7 @@ import { esc, aviso, avisoError, abrirDialogo } from './ui.js';
 import { hoyISO, sumarDias, diaCorto } from './fechas.js';
 import { deporte, LISTA, nombreDeporte } from './deportes.js';
 import { OBJETIVOS } from './nutricion.js';
+import { IC } from './iconos.js';
 import { htmlCabecera, htmlCompositor, conectarCompositor, burbujaPensando, bajar, htmlBienvenida } from './chatia.js';
 
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -45,10 +46,10 @@ export async function htmlMisObjetivos() {
     <section class="tarjeta mis-objetivos" id="mis-objetivos">
       <div class="fila fila--entre"><h2 class="seccion__titulo" style="margin:0">Mis objetivos</h2></div>
       <div class="obj-lista">
-        <div class="obj-item"><span class="obj-item__icono" aria-hidden="true">🏅</span><span><small>Deporte</small><strong>${esc(dep.nombre)}</strong><em>${esc(veces(d.deporte))}</em></span></div>
-        <div class="obj-item"><span class="obj-item__icono" aria-hidden="true">🏋️</span><span><small>Gym</small><strong>${esc(veces(d.gym))}</strong></span></div>
-        <div class="obj-item"><span class="obj-item__icono" aria-hidden="true">🎯</span><span><small>Objetivo corporal</small><strong>${esc(OBJETIVOS[d.foco]?.nombre ?? '')}</strong></span></div>
-        <div class="obj-item"><span class="obj-item__icono" aria-hidden="true">📈</span><span><small>Experiencia en el gym</small><strong>${esc(EXPERIENCIA[estado.yo.experiencia] ?? 'Sin definir')}</strong></span></div>
+        <div class="obj-item"><span class="obj-item__icono" aria-hidden="true">${IC.medalla}</span><span><small>Deporte</small><strong>${esc(dep.nombre)}</strong><em>${esc(veces(d.deporte))}</em></span></div>
+        <div class="obj-item"><span class="obj-item__icono" aria-hidden="true">${IC.pesa}</span><span><small>Gym</small><strong>${esc(veces(d.gym))}</strong></span></div>
+        <div class="obj-item"><span class="obj-item__icono" aria-hidden="true">${IC.objetivo}</span><span><small>Objetivo corporal</small><strong>${esc(OBJETIVOS[d.foco]?.nombre ?? '')}</strong></span></div>
+        <div class="obj-item"><span class="obj-item__icono" aria-hidden="true">${IC.grafico}</span><span><small>Experiencia en el gym</small><strong>${esc(EXPERIENCIA[estado.yo.experiencia] ?? 'Sin definir')}</strong></span></div>
       </div>
       ${d.cambios.length ? `<div class="obj-cambios"><small>Cambios activos</small>${d.cambios.slice(0, 4).map((c) => `<span class="obj-cambio">${esc(c.descripcion ?? '')}</span>`).join('')}</div>` : ''}
       <button type="button" class="boton boton--ia boton--bloque" id="obj-ia">${'<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>'} Cambiar mis objetivos con IA</button>
@@ -147,10 +148,10 @@ export function abrirObjetivosIA({ alCambiar = () => {} } = {}) {
           titulo: '¿Qué cambió?',
           texto: 'Cuéntame si vas a dejar el deporte unos días, si cambias de deporte, si vas a ir más o menos al gym o si cambia tu objetivo. Yo readapto tu plan, tu dieta y tus entrenos.',
           sugerencias: [
-            { icono: '⏸️', texto: 'Esta semana no voy a hacer mi deporte' },
-            { icono: '🏋️', texto: 'Voy a ir solo 2 veces al gym' },
-            { icono: '🎯', texto: 'Ahora quiero ganar músculo' },
-            { icono: '🔄', texto: 'Cambié de deporte' },
+            { icono: IC.pausa, texto: 'Esta semana no voy a hacer mi deporte' },
+            { icono: IC.pesa, texto: 'Voy a ir solo 2 veces al gym' },
+            { icono: IC.objetivo, texto: 'Ahora quiero ganar músculo' },
+            { icono: IC.cambio, texto: 'Cambié de deporte' },
           ],
         })}</div>
       </div>

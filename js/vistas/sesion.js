@@ -1,6 +1,7 @@
 // Sesión en vivo: los dos entrenan la misma rutina, cada uno registra sus series.
 // Entre series hay temporizador de descanso y sugerencias según cómo se sintió.
 // Al terminar, las metas se ajustan con lo que hizo cada uno.
+import { IC } from '../iconos.js';
 import { sb, estado, datos } from '../db.js';
 import { esc, num, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from '../ui.js';
 import { hoyISO } from '../fechas.js';
@@ -151,7 +152,7 @@ export async function vistaSesion(app) {
     </header>
 
     <div class="sesion-barra">
-    ${yoParticipo && !terminé ? '<button type="button" class="agua-rapido" id="agua-entreno" aria-label="Sumar 250 ml de agua">💧 +250 ml</button>' : ''}
+    ${yoParticipo && !terminé ? '<button type="button" class="agua-rapido" id="agua-entreno" aria-label="Sumar 250 ml de agua">${IC.agua} +250 ml</button>' : ''}
     <div class="crono-sesion ${terminé ? 'crono-sesion--fin' : ''}" role="timer" aria-label="Tiempo de entreno">
       <svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5M12 2.5V5"/></svg>
       <span id="transcurrido">0:00</span>
@@ -181,7 +182,7 @@ export async function vistaSesion(app) {
       if (!afectados.length || terminé) return '';
       const zonas = [...new Set(misMolestias.map((m) => nombreZona(m.zona).toLowerCase()))].join(' y ');
       return `<div class="aviso-fijo aviso-molestia">
-        <span aria-hidden="true">🩹</span>
+        <span aria-hidden="true">${IC.curita}</span>
         <div><strong>Cuida tu ${esc(zonas)}</strong>
           <p style="margin:2px 0 8px">${afectados.length} ejercicio${afectados.length === 1 ? '' : 's'} de hoy la carga${afectados.length === 1 ? '' : 'n'}. Cámbialos o deja que la IA adapte el entreno y sume ejercicios suaves.</p>
           <button type="button" class="boton boton--ia boton--chico" id="adaptar-molestia">✦ Adaptar el entreno</button>
@@ -216,8 +217,8 @@ export async function vistaSesion(app) {
     try {
       await sumarAgua(250, 'entreno');
       aguaSesion += 250;
-      b.textContent = `💧 ${aguaSesion} ml`;
-      aviso('+250 ml de agua 💧');
+      b.innerHTML = `${IC.agua} ${aguaSesion} ml`;
+      aviso('+250 ml de agua');
     } catch (err) { avisoError(err); } finally { b.disabled = false; }
   });
 
@@ -291,7 +292,7 @@ function tarjetaEjercicio(it, i) {
           <span class="ejercicio__como">Cómo se hace ›</span>
         </span>
       </button>
-      ${(() => { const m = molestiaDe(mio, actual.molestias); return m ? `<p class="ejercicio__molestia">🩹 Carga tu ${esc(nombreZona(m.zona).toLowerCase())}: hazlo liviano y sin dolor, o cámbialo.</p>` : ''; })()}
+      ${(() => { const m = molestiaDe(mio, actual.molestias); return m ? `<p class="ejercicio__molestia">${IC.curita} Carga tu ${esc(nombreZona(m.zona).toLowerCase())}: hazlo liviano y sin dolor, o cámbialo.</p>` : ''; })()}
       ${it.alternativas.length && actual.participantes.some((p) => p.id === estado.yo.id) ? `
         <button type="button" class="boton boton--sec boton--chico boton--ocupada" style="margin-top:10px" data-cambiar="${esc(it.id)}">
           ¿Máquina ocupada? Cambiar ejercicio
@@ -876,7 +877,7 @@ function terminar(app) {
         const recs = mias.filter((x) => actual.records.has(x.id));
         if (!recs.length) return '';
         const nombre = (x) => actual.items.find((it) => it.ejercicio.id === x.ejercicio_id || it.alternativas.some((a) => a.id === x.ejercicio_id))?.ejercicio.nombre ?? '';
-        return `<div class="records-hoy"><p class="seccion__titulo" style="margin:0 0 6px">🏆 Récords de hoy</p>${recs.map((x) => `<p style="margin:2px 0"><strong>${esc(nombre(x))}</strong> · ${kg(Number(x.peso_kg))} kg × ${x.reps}</p>`).join('')}</div>`;
+        return `<div class="records-hoy"><p class="seccion__titulo" style="margin:0 0 6px">${IC.trofeo} Récords de hoy</p>${recs.map((x) => `<p style="margin:2px 0"><strong>${esc(nombre(x))}</strong> · ${kg(Number(x.peso_kg))} kg × ${x.reps}</p>`).join('')}</div>`;
       })()}
       <p class="racha" id="racha" hidden></p>
       ${ajustes.length ? `

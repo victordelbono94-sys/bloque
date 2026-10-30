@@ -1,5 +1,6 @@
 // Detalle de una rutina: ejercicios, mapa del cuerpo y metas de cada uno.
 // La lista (semana + rutinas) vive en Entrenos (semana.js).
+import { IC } from '../iconos.js';
 import { sb, estado, datos } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo } from '../ui.js';
 import { FOCOS, cargarRutina, textoMeta, textoDescanso } from '../rutinas.js';
@@ -60,7 +61,7 @@ async function detalle(app, rutinaId) {
                 <span class="ejercicio__nombre">${esc(it.ejercicio.nombre)}</span>
               </span>
               <span class="quieto" style="display:block;margin:4px 0 0">${esc(it.ejercicio.grupo_muscular)}${it.ejercicio.maquina ? ` · ${esc(it.ejercicio.maquina.nombre)}` : ''}</span>
-              ${mejor[it.ejercicio.id] ? `<span class="mejor-marca">🏆 Tu mejor: ${Number(mejor[it.ejercicio.id].peso_kg).toLocaleString('es-EC')} kg × ${mejor[it.ejercicio.id].reps}</span>` : ''}
+              ${mejor[it.ejercicio.id] ? `<span class="mejor-marca">${IC.trofeo} Tu mejor: ${Number(mejor[it.ejercicio.id].peso_kg).toLocaleString('es-EC')} kg × ${mejor[it.ejercicio.id].reps}</span>` : ''}
               <span class="ejercicio__como">Cómo se hace ›</span>
             </span>
           </button>

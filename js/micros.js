@@ -8,72 +8,73 @@ import { hoyISO, sumarDias } from './fechas.js';
 import { edad, gastoEvento } from './nutricion.js';
 import { deporte } from './deportes.js';
 import { esc } from './ui.js';
+import { encaja } from './dieta.js';
 
 export const DIAS_MINIMOS = 5;
 
 export const NUTRIENTES = [
   {
-    clave: 'potasio_mg', nombre: 'Potasio', unidad: 'mg', icono: '🍌',
+    clave: 'potasio_mg', nombre: 'Potasio', unidad: 'mg', icono: 'K',
     para: 'Contracción muscular y equilibrio de líquidos; ayuda a evitar calambres junto con el sodio y el magnesio.',
     fuentes: ['guineo o plátano', 'papa con cáscara', 'aguacate', 'fréjol o lenteja', 'chochos', 'tomate de árbol', 'naranjilla', 'yogur'],
     extra: 'Con comida se cubre fácil. No tomes pastillas de potasio sin indicación médica.',
   },
   {
-    clave: 'magnesio_mg', nombre: 'Magnesio', unidad: 'mg', icono: '🌰',
+    clave: 'magnesio_mg', nombre: 'Magnesio', unidad: 'mg', icono: 'Mg',
     para: 'Energía, recuperación muscular, sueño y calambres. Se pierde algo con el sudor.',
     fuentes: ['chochos', 'fréjol negro', 'avena', 'maní o almendras', 'pepas de zambo', 'quinua', 'chocolate negro', 'espinaca'],
     extra: 'Si sale bajo varias semanas seguidas, el magnesio (citrato o glicinato) es un suplemento común y seguro para deportistas: pregunta en la farmacia.',
   },
   {
-    clave: 'sodio_mg', nombre: 'Sodio', unidad: 'mg', icono: '🧂', rango: true,
+    clave: 'sodio_mg', nombre: 'Sodio', unidad: 'mg', icono: 'Na', rango: true,
     para: 'Es lo que más se pierde en el sudor. Sin él, cuesta hidratarse y aparecen calambres en entrenos largos.',
     fuentes: ['agua con electrolitos en el entreno', 'una pizca de sal en el agua', 'caldo', 'galletas saladas después de entrenar'],
     extra: 'No cuenta la sal que le agregas en la mesa. En entrenos largos o de mucho sudor, agua con electrolitos (sodio + potasio).',
   },
   {
-    clave: 'calcio_mg', nombre: 'Calcio', unidad: 'mg', icono: '🥛',
+    clave: 'calcio_mg', nombre: 'Calcio', unidad: 'mg', icono: 'Ca',
     para: 'Huesos fuertes, sobre todo con golpes, caídas y saltos.',
     fuentes: ['leche', 'yogur', 'queso fresco', 'sardinas en lata (con espinas)', 'chochos', 'brócoli'],
     extra: 'Primero con lácteos o chochos; el suplemento solo si tu médico lo indica.',
   },
   {
-    clave: 'hierro_mg', nombre: 'Hierro', unidad: 'mg', icono: '🥩',
+    clave: 'hierro_mg', nombre: 'Hierro', unidad: 'mg', icono: 'Fe',
     para: 'Lleva el oxígeno a los músculos: sin hierro suficiente, el cardio y la energía caen.',
     fuentes: ['carne roja', 'hígado o menudencia', 'lenteja o fréjol con limón', 'quinua', 'espinaca', 'huevo'],
     extra: 'Comer las legumbres con algo de vitamina C (limón, naranja) ayuda a absorberlo. No tomes hierro sin un examen de sangre (ferritina): el exceso hace daño.',
   },
   {
-    clave: 'zinc_mg', nombre: 'Zinc', unidad: 'mg', icono: '🦐',
+    clave: 'zinc_mg', nombre: 'Zinc', unidad: 'mg', icono: 'Zn',
     para: 'Recuperación, defensas y hormonas; se pierde algo con el sudor.',
     fuentes: ['carne', 'camarón o mariscos', 'huevo', 'pepas de zambo', 'maní', 'lenteja'],
     extra: 'Con comida variada se cubre.',
   },
   {
-    clave: 'vitamina_c_mg', nombre: 'Vitamina C', unidad: 'mg', icono: '🍊',
+    clave: 'vitamina_c_mg', nombre: 'Vitamina C', unidad: 'mg', icono: 'C',
     para: 'Defensas, tendones y ligamentos (colágeno) y absorción del hierro.',
     fuentes: ['guayaba', 'naranja o mandarina', 'tomate de árbol', 'naranjilla', 'maracuyá', 'pimiento', 'brócoli'],
     extra: 'Con una fruta al día suele alcanzar.',
   },
   {
-    clave: 'vitamina_d_ug', nombre: 'Vitamina D', unidad: 'µg', icono: '☀️', sol: true,
+    clave: 'vitamina_d_ug', nombre: 'Vitamina D', unidad: 'µg', icono: 'D', sol: true,
     para: 'Huesos, músculo y defensas. Casi toda viene del sol, poca de la comida.',
     fuentes: ['15–20 min de sol en brazos y cara', 'huevo (la yema)', 'sardina', 'atún', 'salmón o trucha'],
     extra: 'La comida casi nunca alcanza y es normal que salga bajo. Si casi no te da el sol, pide un examen de vitamina D antes de suplementar.',
   },
   {
-    clave: 'b12_ug', nombre: 'Vitamina B12', unidad: 'µg', icono: '🥚',
+    clave: 'b12_ug', nombre: 'Vitamina B12', unidad: 'µg', icono: 'B12',
     para: 'Energía y glóbulos rojos.',
     fuentes: ['huevo', 'leche y yogur', 'carne o pollo', 'atún o sardina', 'hígado'],
     extra: 'Si comes poca carne, huevo o lácteos, se suplementa fácil; mejor confirmarlo con un examen.',
   },
   {
-    clave: 'omega3_mg', nombre: 'Omega-3', unidad: 'mg', icono: '🐟',
+    clave: 'omega3_mg', nombre: 'Omega-3', unidad: 'mg', icono: 'Ω3',
     para: 'Antiinflamatorio: ayuda a la recuperación y las articulaciones.',
     fuentes: ['sardina', 'atún', 'trucha', 'salmón', 'caballa'],
     extra: 'Si casi no comes pescado, el omega-3 en cápsulas es una opción común. La chía y la linaza ayudan, pero menos.',
   },
   {
-    clave: 'fibra_g', nombre: 'Fibra', unidad: 'g', icono: '🌾',
+    clave: 'fibra_g', nombre: 'Fibra', unidad: 'g', icono: 'Fi',
     para: 'Digestión, saciedad y energía estable.',
     fuentes: ['avena', 'fréjol o lenteja', 'chochos', 'fruta con cáscara', 'verduras', 'pan integral', 'quinua'],
     extra: 'Súmala de a poco y con agua.',
@@ -232,7 +233,7 @@ const formato = (v, unidad) => (unidad === 'µg' || (unidad === 'mg' && v < 20) 
 export function paraIA(a) {
   if (!a?.listo || !a.bajos.length) return null;
   return a.bajos.slice(0, 4).map((x) => ({
-    nutriente: x.n.nombre, cubre_pct: Math.round(x.pct * 100), alimentos_que_lo_aportan: x.n.fuentes.slice(0, 6),
+    nutriente: x.n.nombre, cubre_pct: Math.round(x.pct * 100), alimentos_que_lo_aportan: x.n.fuentes.filter((f) => encaja(f)).slice(0, 6),
   }));
 }
 
@@ -251,8 +252,8 @@ export function htmlMicros(a, persona = estado.yo) {
   }
   const resumen = a.bajos.length
     ? `<p class="micros__resumen">${propio ? 'Esta semana vas bajo' : `${esc(persona.nombre)} va bajo`} en <strong>${a.bajos.map((x) => x.n.nombre.toLowerCase()).join(', ').replace(/, ([^,]*)$/, ' y $1')}</strong>.</p>
-       <div class="micros__sugerencias">${a.bajos.slice(0, 3).map((x) => `<p><span aria-hidden="true">${x.n.icono}</span> <strong>${esc(x.n.nombre)}:</strong> ${esc(x.n.fuentes.slice(0, 4).join(', '))}.</p>`).join('')}</div>`
-    : `<p class="micros__resumen">${propio ? 'Vas bien' : `${esc(persona.nombre)} va bien`} en vitaminas y minerales esta semana. 👌</p>`;
+       <div class="micros__sugerencias">${a.bajos.slice(0, 3).map((x) => `<p><span class="micro-sim" aria-hidden="true">${x.n.icono}</span> <strong>${esc(x.n.nombre)}:</strong> ${esc(x.n.fuentes.filter((f) => encaja(f, persona)).slice(0, 4).join(', '))}.</p>`).join('')}</div>`
+    : `<p class="micros__resumen">${propio ? 'Vas bien' : `${esc(persona.nombre)} va bien`} en vitaminas y minerales esta semana.</p>`;
   return `
     <section class="tarjeta micros">
       <div class="fila fila--entre"><h2 class="seccion__titulo" style="margin:0">Vitaminas y minerales</h2><span class="quieto" style="font-size:12px">promedio · ${a.diasMedidos} días</span></div>
@@ -261,13 +262,13 @@ export function htmlMicros(a, persona = estado.yo) {
         ${a.filas.map((x) => `
           <details class="micro micro--${x.estado}">
             <summary>
-              <span class="micro__nombre"><span aria-hidden="true">${x.n.icono}</span> ${esc(x.n.nombre)}</span>
+              <span class="micro__nombre"><span class="micro-sim" aria-hidden="true">${x.n.icono}</span> ${esc(x.n.nombre)}</span>
               <span class="micro__valor">${formato(x.valor, x.n.unidad)}<span class="quieto"> / ${formato(x.meta, x.n.unidad)}${x.max ? `–${formato(x.max, x.n.unidad)}` : ''} ${x.n.unidad}</span></span>
               <span class="micro__barra"><span style="width:${Math.min(100, x.pct * 100)}%"></span>${x.max ? `<i style="left:${Math.min(100, (x.max / Math.max(x.max, x.valor)) * 100)}%"></i>` : ''}</span>
             </summary>
             <div class="micro__detalle">
               <p>${esc(x.n.para)}</p>
-              <p><strong>Lo encuentras en:</strong> ${esc(x.n.fuentes.join(', '))}.</p>
+              <p><strong>Lo encuentras en:</strong> ${esc(x.n.fuentes.filter((f) => encaja(f, persona)).join(', '))}.</p>
               <p class="quieto">${esc(x.n.extra)}</p>
             </div>
           </details>`).join('')}

@@ -1,4 +1,5 @@
 // Pantalla Hoy: qué toca, cómo está cada uno y su última medición.
+import { IC } from '../iconos.js';
 import { sb, estado, datos } from '../db.js';
 import { esc, num, aviso, avisoError, grupoChips, valorChips, cara } from '../ui.js';
 import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia, fechaCorta, hora } from '../fechas.js';
@@ -132,7 +133,7 @@ export async function vistaHoy(app) {
     <div id="por-confirmar" class="pila" style="gap:12px">${htmlPorConfirmar(porConfirmarLista)}</div>
     ${[1, 2].includes(new Date().getDay()) ? `
       <button type="button" class="tarjeta semana-aviso" id="ver-semana">
-        <span class="semana-aviso__icono" aria-hidden="true">📊</span>
+        <span class="semana-aviso__icono" aria-hidden="true">${IC.grafico}</span>
         <span><strong>Tu resumen de la semana</strong><span class="quieto">Peso, calorías, proteína, entrenos y sueño, con 3 cambios para esta semana.</span></span>
         <span class="plan__flecha" aria-hidden="true">›</span>
       </button>` : ''}
@@ -512,7 +513,7 @@ function htmlNumerosHoy(x, banda) {
         <span><strong>${aguaFalta > 0 ? litros(aguaFalta) : '✓'}</strong><span>${aguaFalta > 0 ? 'de agua' : 'agua al día'}</span></span>
       </div>
       <div class="numero-hoy">
-        <span class="numero-hoy__fuego" aria-hidden="true">🔥</span>
+        <span class="numero-hoy__fuego" aria-hidden="true">${IC.fuego}</span>
         <span><strong>${kc(quemado)}</strong><span>kcal quemadas</span></span>
       </div>
     </a>`;
@@ -535,7 +536,7 @@ function htmlCuerpoPendiente(mias) {
   // Cada sugerencia se responde acá mismo, sin ir a otra pantalla.
   if (tocaHoy || dias == null || dias >= 4) {
     items.push(`<form class="pendiente pendiente--resp" data-resp="peso" novalidate>
-      <span class="pendiente__texto"><strong>⚖️ ${tocaHoy ? 'Hoy toca pesarte' : dias == null ? 'Registra tu peso' : `Hace ${dias} días que no te pesas`}</strong>
+      <span class="pendiente__texto"><strong>${tocaHoy ? 'Hoy toca pesarte' : dias == null ? 'Registra tu peso' : `Hace ${dias} días que no te pesas`}</strong>
       <span class="quieto">Al levantarte, en ayunas y después del baño: así tu meta de calorías se ajusta con datos confiables.</span></span>
       <div class="resp-fila">
         <label class="resp-campo"><input type="text" inputmode="decimal" autocomplete="off" name="peso" placeholder="${ultimoPeso ? esc(String(Number(ultimoPeso))) : '70'}" aria-label="Peso en kg"><span>kg</span></label>

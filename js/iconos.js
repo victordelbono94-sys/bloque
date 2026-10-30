@@ -89,9 +89,9 @@ export function zonasDe(grupos) {
 // separados del tronco), con la cabeza cuadrada como el cubo del logo.
 // Es la misma en Cuerpo y en el mapa de los ejercicios. viewBox 0 0 50 94.
 export const FIGURA = '<rect x="19.5" y="0.5" width="11" height="11" rx="2.5"/>'
-  + '<path d="M18.5 15.5h13a1.5 1.5 0 0 1 1.5 1.6l-2.2 30.4a1.5 1.5 0 0 1-1.5 1.4h-8.6a1.5 1.5 0 0 1-1.5-1.4L17 17.1a1.5 1.5 0 0 1 1.5-1.6z" stroke-width="2.4" stroke-linejoin="round"/>'
-  + '<g stroke-linecap="round" fill="none"><path d="M13.6 18.5L10.6 43" stroke-width="5.2"/><path d="M36.4 18.5L39.4 43" stroke-width="5.2"/>'
-  + '<path d="M22.3 55L21.3 89.5" stroke-width="6.2"/><path d="M27.7 55L28.7 89.5" stroke-width="6.2"/></g>';
+  + '<path d="M19.5 15.5h11c2.6 0 4.4 1.6 4.2 4.1L32.4 47.2a2.5 2.5 0 0 1-2.5 2.3h-9.8a2.5 2.5 0 0 1-2.5-2.3L15.3 19.6c-.2-2.5 1.6-4.1 4.2-4.1z"/>'
+  + '<g stroke-linecap="round" fill="none"><path d="M12.4 19.5L10.8 44" stroke-width="5"/><path d="M37.6 19.5L39.2 44" stroke-width="5"/>'
+  + '<path d="M21 55.5V89.5" stroke-width="6"/><path d="M29 55.5V89.5" stroke-width="6"/></g>';
 /** Máscara con la forma de la figura (para llenarla con un dato o encender zonas). */
 export const mascaraFigura = (id) => `<mask id="${id}" maskUnits="userSpaceOnUse" x="-5" y="-5" width="60" height="104"><g fill="#fff" stroke="#fff">${FIGURA}</g></mask>`;
 let idMascara = 0;
@@ -127,7 +127,18 @@ export const IC = {
   ritmo: ic('<path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/>'),
   fuego: ic('<path d="M12 21c-4 0-6.5-2.6-6.5-6 0-3.5 2.5-5.5 3.5-8 1.5 1.5 2 3 2 4.5 1-1 1.8-2.6 1.8-4.5 3 2 5.7 5 5.7 8.3 0 3.3-2.5 5.7-6.5 5.7z"/>'),
   comida: ic('<path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5M17 3c-2 1.5-3 4-3 7h3v11"/>'),
-  proteina: ic('<path d="M15.5 4.5a5 5 0 0 1 0 7l-4 4a3 3 0 1 1-4-4l4-4a5 5 0 0 1 4-3z"/><path d="M7.5 15.5l-3 3M6 21l-1.5-1.5"/>'),
+  proteina: ic('<path d="M8 8h8l-1 12a1.6 1.6 0 0 1-1.6 1.5h-2.8A1.6 1.6 0 0 1 9 20z"/><path d="M8.6 8V5.2c0-.7.5-1.2 1.2-1.2h4.4c.7 0 1.2.5 1.2 1.2V8M9.5 13h5"/>'),
+  taza: ic('<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M16 10.5h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5c0 1 1 1.5 1 2.5M12 3.5c0 1 1 1.5 1 2.5"/>'),
+  luna: ic('<path d="M19 14.5A7.5 7.5 0 1 1 9.5 5a6 6 0 0 0 9.5 9.5z"/>'),
+  rayo: ic('<path d="M13 3L5 14h6l-1 7 8-11h-6z"/>'),
+  manzana: ic('<path d="M12 7.5c-2-1.5-6-1-6 4 0 4 2.5 8.5 4.5 8.5 1 0 1-.5 1.5-.5s.5.5 1.5.5c2 0 4.5-4.5 4.5-8.5 0-5-4-5.5-6-4z"/><path d="M12 7.5c0-2 1-3.5 2.5-4"/>'),
+  medalla: ic('<circle cx="12" cy="15" r="5"/><path d="M9 10.5L6.5 3.5h4L12 7l1.5-3.5h4L15 10.5"/>'),
+  trofeo: ic('<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20.5h7M9.5 17h5v3.5h-5z"/>'),
+  buscar: ic('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>'),
+  pausa: ic('<rect x="6.5" y="5" width="3.5" height="14" rx="1"/><rect x="14" y="5" width="3.5" height="14" rx="1"/>'),
+  cambio: ic('<path d="M4 9h13l-3.5-3.5M20 15H7l3.5 3.5"/>'),
+  curita: ic('<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M10.5 10.5h.01M13.5 13.5h.01M13.5 10.5h.01M10.5 13.5h.01"/>'),
+  pregunta: ic('<circle cx="12" cy="12" r="9"/><path d="M9.6 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.7M12 17h.01"/>'),
   pesa: ic('<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>'),
   sueno: ic('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),
   agua: ic('<path d="M12 3.5c3 4 6 7.2 6 10.5a6 6 0 0 1-12 0c0-3.3 3-6.5 6-10.5z"/>'),

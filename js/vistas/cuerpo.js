@@ -221,7 +221,7 @@ export async function vistaCuerpo(app) {
     return `
       <div class="cuerpo-hero__visual">${htmlCuerpoVisual(m, u.valor, pesoActual)}</div>
       <div class="cuerpo-hero__datos">
-        <span class="cuerpo-hero__nombre">${m.nombre}</span>
+        <span class="cuerpo-hero__nombre">${m.nombre}<button type="button" class="que-es" data-que-es="${m.id}">${IC.pregunta}<span>¿Qué significa?</span></button></span>
         <span class="cuerpo-hero__valor"><strong>${num(u.valor, dec)}</strong>${m.unidad ? `<small>${m.unidad}</small>` : ''}</span>
         ${hace !== u ? `<span class="cuerpo-hero__cambio cuerpo-hero__cambio--${tono}">${cambio > 0 ? '▲' : cambio < 0 ? '▼' : '='} ${num(Math.abs(cambio), dec)} ${m.unidad} <span>desde ${esc(fechaCorta(hace.fecha))}</span></span>` : ''}
         ${sparkline(puntos.slice(-14), m.color)}
@@ -282,6 +282,10 @@ export async function vistaCuerpo(app) {
     </section>`;
 
   const recargar = () => vistaCuerpo(app);
+  app.querySelector('.cuerpo-hero')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-que-es]');
+    if (b) abrirQueEs(b.dataset.queEs, mediciones, persona, foco);
+  });
   const abrirIA = async () => (await import('../cuerpoia.js')).abrirCuerpoIA({ alGuardar: recargar, manual: (v) => dialogoMedicion(recargar, v ?? {}) });
   app.querySelector('#cargar-bio')?.addEventListener('click', abrirIA);
   app.querySelectorAll('[data-metrica]').forEach((b) => b.addEventListener('click', () => {
@@ -443,4 +447,78 @@ function borrarMedicion(id, alTerminar) {
       avisoError(err);
     }
   });
+}
+
+// ---------- «¿Qué significa?»: qué es cada dato, cómo se mide, qué efecto tiene y cómo estás según tu objetivo ----------
+const MEDIR = 'Con una balanza de bioimpedancia o un equipo de centro deportivo: pasa una corriente muy suave que viaja distinto por la grasa, el músculo y el agua. Para comparar bien: mídete en ayunas, a la misma hora, sin haber entrenado y después de ir al baño.';
+const INFO = {
+  peso_kg: { que: 'Todo lo que pesas: músculo, grasa, huesos, órganos y agua.', como: 'En cualquier balanza. Mejor al levantarte, en ayunas y después del baño, 2 o 3 veces por semana.', efecto: 'Sube y baja hasta 1–2 kg en un día por el agua, la sal y los carbohidratos. Lo que importa es la tendencia de semanas.', mejorar: { bajar: 'Un déficit moderado y constante, con proteína alta y fuerza para no perder músculo.', subir: 'Come un poco por encima de lo que gastas y entrena fuerza para que lo que sube sea músculo.', mantener: 'Come lo que gastas: Bloq ajusta tu meta según cómo responde tu peso.' } },
+  grasa_pct: { que: 'Qué parte de tu peso es grasa.', como: MEDIR, efecto: 'Un poco de grasa es necesaria (hormonas, energía, órganos). Mucha, sobre todo en el abdomen, aumenta el riesgo cardiovascular y metabólico; muy poca también afecta las hormonas y el rendimiento.', mejorar: { bajar: 'Déficit moderado, proteína alta, fuerza 3 veces por semana, dormir bien. Bajar 0,5–1 % al mes es un gran ritmo.', subir: 'Si ganas peso, que sea lento para que la grasa suba poco.', mantener: 'Mantén la fuerza y la proteína: la grasa se queda estable.' } },
+  masa_grasa_kg: { que: 'Los kilos de grasa que tienes en total.', como: `${MEDIR} Bloq la calcula con tu peso y tu % de grasa si la balanza no la da.`, efecto: 'Es la forma más clara de ver si bajas grasa y no músculo: si el peso baja y la masa grasa baja lo mismo, vas perfecto.', mejorar: { bajar: 'Déficit moderado con proteína alta y entrenos de fuerza.', subir: 'Superávit chico para que suba poco.', mantener: 'Come lo que gastas y entrena fuerza.' } },
+  grasa_visceral: { que: 'La grasa que rodea los órganos del abdomen (no la que se pellizca).', como: `${MEDIR} Se da como un nivel (1, 2, 3…), no en kilos.`, efecto: 'Es la grasa más relacionada con riesgos metabólicos y cardiovasculares. Baja bastante rápido con ejercicio y un poco de déficit.', mejorar: { bajar: 'Cardio y fuerza, déficit moderado, menos azúcar y alcohol, dormir 7–8 h.', subir: 'Aunque busques subir de peso, cuida que la visceral no suba: menos ultraprocesados.', mantener: 'Sigue entrenando: la actividad la mantiene baja.' } },
+  masa_muscular_kg: { que: 'Los kilos de músculo, incluida el agua que guarda el músculo.', como: MEDIR, efecto: 'Más músculo = más fuerza, más metabolismo, mejores articulaciones y mejor rendimiento en tu deporte.', mejorar: { bajar: 'Aunque bajes de peso, el músculo se cuida con fuerza y proteína alta.', subir: 'Fuerza progresiva (sube peso o reps cada semana), proteína alta y comer suficiente.', mantener: 'Fuerza 2–3 veces por semana y proteína en cada comida.' } },
+  musculo_esqueletico_kg: { que: 'El músculo que mueves al entrenar (brazos, piernas, espalda): el que más importa para la fuerza.', como: `${MEDIR} En las hojas aparece como SMM.`, efecto: 'Es el mejor indicador de que tu entrenamiento de fuerza está funcionando.', mejorar: { bajar: 'Fuerza y proteína alta mientras bajas.', subir: 'Fuerza progresiva y comer un poco por encima de lo que gastas.', mantener: 'Fuerza constante y proteína suficiente.' } },
+  masa_magra_kg: { que: 'Todo lo que no es grasa: músculo, huesos, órganos y agua.', como: `${MEDIR} Bloq la calcula si la balanza no la da.`, efecto: 'Bloq calcula tus calorías y proteína sobre tu masa magra: es más preciso que usar el peso.', mejorar: { bajar: 'Que se mantenga mientras bajas: fuerza y proteína.', subir: 'Que suba: fuerza progresiva y comer suficiente.', mantener: 'Fuerza y proteína constantes.' } },
+  agua_pct: { que: 'Cuánta agua hay en tu cuerpo (dentro de las células y fuera de ellas).', como: `${MEDIR} Cambia mucho según lo que tomaste, la sal y si entrenaste antes.`, efecto: 'El agua dentro de las células acompaña al músculo y al rendimiento. Si sube mucho la de fuera, puede ser retención (sal, poco descanso, ciclo).', mejorar: { bajar: 'Toma tu meta de agua del día y no exageres la sal.', subir: 'Toma tu meta de agua del día; al ganar músculo también sube.', mantener: 'Toma tu meta de agua del día y mídete siempre en las mismas condiciones.' } },
+  masa_osea_kg: { que: 'Una estimación de los minerales de tus huesos.', como: `${MEDIR} Es una estimación: para medir la densidad ósea de verdad hace falta una densitometría.`, efecto: 'Cambia muy poco. Huesos fuertes protegen de fracturas, algo clave con golpes y caídas.', mejorar: { bajar: 'Calcio, vitamina D (sol), proteína y ejercicios con impacto o peso.', subir: 'Calcio, vitamina D (sol), proteína y ejercicios con impacto o peso.', mantener: 'Calcio, vitamina D (sol), proteína y ejercicios con impacto o peso.' } },
+  metabolismo_basal_kcal: { que: 'Las calorías que tu cuerpo gasta en reposo total, solo por estar vivo.', como: `${MEDIR} La balanza la estima con tu masa magra.`, efecto: 'Es la base de tu gasto del día. Sube cuando ganas músculo y baja un poco si pierdes músculo.', mejorar: { bajar: 'Cuida el músculo (fuerza + proteína) para que no baje mientras bajas de peso.', subir: 'Ganar músculo la sube.', mantener: 'Mantener el músculo la mantiene.' } },
+  angulo_fase: { que: 'Un parámetro eléctrico que refleja la salud y la hidratación de las membranas de tus células.', como: `${MEDIR} Solo lo dan los equipos más completos (de centro deportivo).`, efecto: 'Valores más altos suelen indicar células más sanas y mejor estado físico; bajos pueden reflejar cansancio, poca masa muscular o deshidratación.', mejorar: { bajar: 'Fuerza, buena hidratación, dormir bien y proteína suficiente.', subir: 'Fuerza, buena hidratación, dormir bien y proteína suficiente.', mantener: 'Fuerza, buena hidratación, dormir bien y proteína suficiente.' } },
+};
+
+/** Cómo estás frente a una referencia general (no es un diagnóstico). */
+function referencia(id, v, persona, peso) {
+  const sexo = persona?.sexo;
+  const altura = persona?.altura_cm ? Number(persona.altura_cm) / 100 : null;
+  const r = (bien, txt) => ({ estado: bien, txt });
+  if (id === 'grasa_pct' || id === 'masa_grasa_kg') {
+    const pct = id === 'grasa_pct' ? v : (peso ? (v / peso) * 100 : null);
+    if (pct == null) return null;
+    const t = sexo === 'f' ? [14, 21, 25, 32] : sexo === 'm' ? [6, 14, 18, 25] : null;
+    if (!t) return r('', `Como referencia general: en hombres 14–24 % es lo habitual y en mujeres 21–31 %. Tú: ${num(pct)} %.`);
+    const nivel = pct < t[0] ? 'muy bajo' : pct < t[1] ? 'de atleta' : pct < t[2] ? 'en forma' : pct < t[3] ? 'promedio' : 'alto';
+    return r(nivel === 'alto' || nivel === 'muy bajo' ? 'ojo' : 'bien', `Con ${num(pct)} % estás en un rango ${nivel} (referencia general ${sexo === 'f' ? 'para mujeres: atleta 14–20, en forma 21–24, promedio 25–31' : 'para hombres: atleta 6–13, en forma 14–17, promedio 18–24'}).`);
+  }
+  if (id === 'grasa_visceral') return r(v <= 12 ? 'bien' : 'ojo', v <= 12 ? `Nivel ${num(v)}: dentro del rango habitual (1–12).` : `Nivel ${num(v)}: por encima del rango habitual (1–12). Conviene bajarla y comentarlo en tu próximo control médico.`);
+  if (id === 'agua_pct') {
+    const [a, b] = sexo === 'f' ? [45, 60] : sexo === 'm' ? [50, 65] : [45, 65];
+    return r(v >= a && v <= b ? 'bien' : 'ojo', `${num(v)} %: ${v >= a && v <= b ? 'dentro de' : v < a ? 'por debajo de' : 'por encima de'} lo habitual (${a}–${b} %).`);
+  }
+  if (id === 'angulo_fase') return r(v >= 5 ? 'bien' : 'ojo', `${num(v)}°: ${v >= 6 ? 'muy bueno' : v >= 5 ? 'bueno' : 'algo bajo'} (en adultos activos suele estar entre 5 y 7°).`);
+  if (id === 'peso_kg' && altura) {
+    const imc = v / altura ** 2;
+    return r('', `Tu IMC es ${num(imc)} (referencia general 18,5–24,9). En deportistas con mucho músculo el IMC sobreestima: mira tu % de grasa.`);
+  }
+  if (['masa_muscular_kg', 'musculo_esqueletico_kg', 'masa_magra_kg'].includes(id) && peso) return r('', `Es el ${Math.round((v / peso) * 100)} % de tu peso. Más que un número ideal, lo importante es que suba o se mantenga.`);
+  return null;
+}
+
+function abrirQueEs(id, mediciones, persona, foco) {
+  const m = METRICAS.find((x) => x.id === id), info = INFO[id];
+  if (!m || !info) return;
+  const u = mediciones.find((x) => x[id] != null);
+  const v = u ? Number(u[id]) : null;
+  const peso = Number(mediciones.find((x) => x.peso_kg != null)?.peso_kg) || null;
+  const puntos = [...mediciones].reverse().filter((x) => x[id] != null);
+  const antes = puntos.length > 1 ? Number(puntos.filter((x) => new Date(x.medido_en) <= new Date(Date.now() - 25 * 864e5)).at(-1)?.[id] ?? puntos[0][id]) : null;
+  const dir = { masa_muscular: 'subir', perder_grasa: 'bajar', recomposicion: 'bajar' }[foco] ?? 'mantener';
+  const ref = v != null ? referencia(id, v, persona, peso) : null;
+  const bueno = id === 'peso_kg' ? ({ subir: 1, bajar: -1 }[dir] ?? 0) : (m.bueno ?? 0);
+  const cambio = antes != null && v != null ? v - antes : null;
+  const tend = cambio == null || Math.abs(cambio) < 0.05 ? null : { bien: !bueno ? null : Math.sign(cambio) === bueno, txt: `${cambio > 0 ? 'Subió' : 'Bajó'} ${num(Math.abs(cambio))} ${m.unidad} en el último mes` };
+  const d = abrirDialogo(`
+    <div class="dialogo que-es-hoja">
+      <div class="que-es-hoja__cab" style="--c:${m.color}"><span class="que-es-hoja__punto"></span><h2 class="tarjeta__titulo" style="margin:0">${esc(m.nombre)}</h2>${v != null ? `<strong>${num(v, m.dec ?? 1)} ${m.unidad}</strong>` : ''}</div>
+      <section><p class="sem2-titulo">Qué es</p><p>${esc(info.que)}</p></section>
+      <section><p class="sem2-titulo">Cómo se mide</p><p>${esc(info.como)}</p></section>
+      <section><p class="sem2-titulo">Qué efecto tiene</p><p>${esc(info.efecto)}</p></section>
+      ${ref || tend ? `<section class="que-es-hoja__tu ${ref?.estado === 'ojo' || tend?.bien === false ? 'que-es-hoja__tu--ojo' : ref?.estado === 'bien' || tend?.bien ? 'que-es-hoja__tu--bien' : ''}">
+        <p class="sem2-titulo">Cómo estás</p>
+        ${ref ? `<p>${esc(ref.txt)}</p>` : ''}
+        ${tend ? `<p>${esc(tend.txt)}${tend.bien === true ? ': va hacia tu objetivo.' : tend.bien === false ? ': va al revés de tu objetivo.' : '.'}</p>` : ''}
+      </section>` : ''}
+      <section><p class="sem2-titulo">Qué hacer según tu objetivo</p><p>${esc(info.mejorar[dir])}</p></section>
+      <p class="ayuda" style="margin:0">Son referencias generales, no un diagnóstico. Ante cualquier duda de salud, consulta a un profesional.</p>
+      <div class="dialogo__pie"><button type="button" class="boton" data-cerrar>Entendido</button></div>
+    </div>`, `Qué es ${m.nombre}`);
+  return d;
 }

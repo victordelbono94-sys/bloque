@@ -271,9 +271,17 @@ const A = {
   atun: ['1 lata de atún', 120, 116, 25.5, 0, 0.8],
   papa: ['2 papas', 300, 87, 1.9, 20.1, 0.1],
   bebida: ['500 ml de bebida deportiva', 500, 26, 0, 6.4, 0],
+  tofu: ['150 g de tofu', 150, 144, 15.8, 2.8, 8.7],
+  lentejas: ['1 taza de lenteja cocida', 200, 116, 9, 20, 0.4],
+  chochos: ['1 taza de chochos', 160, 119, 15.6, 9.9, 2.9],
+  lecheSoya: ['1 vaso de bebida de soya', 250, 43, 3.3, 3.5, 1.8],
+  proteVeg: ['1 scoop de proteína vegetal', 30, 380, 75, 10, 6],
+  tostado: ['1 puñado de tostado', 30, 400, 8, 75, 6],
 };
 const ANTES = [['banana', 'yogurGriego'], ['pan', 'miel', 'quesoFresco'], ['avena', 'leche', 'banana'], ['galletasArroz', 'mani', 'banana']];
-const DESPUES = [['whey', 'banana', 'leche'], ['pollo', 'arroz'], ['huevos', 'claras', 'panIntegral', 'naranja'], ['atun', 'papa']];
+const DESPUES = [['whey', 'banana', 'leche'], ['pollo', 'arroz'], ['huevos', 'claras', 'panIntegral', 'naranja'], ['atun', 'papa'],
+  ['proteVeg', 'banana', 'lecheSoya'], ['lentejas', 'arroz'], ['tofu', 'papa'], ['chochos', 'tostado', 'naranja']];
+const ANTES_VEG = [['banana', 'lecheSoya'], ['galletasArroz', 'banana'], ['avena', 'lecheSoya', 'banana']];
 
 function combo(claves) {
   let p = 0, c = 0, k = 0;
@@ -293,8 +301,13 @@ const DURACION = { derby: 120, gym: 60, otro: 60, clase: 60 };
  * Snacks para los entrenos de hoy que todavía no pasaron (o terminaron hace poco).
  * @returns {Array<{ cuando, hora, titulo, detalle, opciones }>}
  */
-export function snacksDelDia(eventos, pesoKg, ahora = new Date()) {
+export function snacksDelDia(eventos, pesoKg, ahora = new Date(), encaja = () => true) {
   if (!pesoKg) return [];
+  // Solo combinaciones que encajan con su dieta (vegetariana, sin lácteos…); siempre quedan 2 a 4.
+  const elegir = (lista, extra = []) => {
+    const ok = [...lista, ...extra].filter((cl) => cl.every((x) => encaja(A[x][0]))).slice(0, 4);
+    return (ok.length ? ok : extra.length ? extra : lista).map(combo);
+  };
   const minAhora = ahora.getHours() * 60 + ahora.getMinutes();
   const lista = [];
   for (const ev of eventos) {
@@ -309,7 +322,7 @@ export function snacksDelDia(eventos, pesoKg, ahora = new Date()) {
       lista.push({
         cuando: 'antes', hora: aHora(inicio - 75), titulo: `Antes del ${nombre}`,
         detalle: `Entre 60 y 90 minutos antes: unos ${carbosAntes} g de carbohidratos fáciles, algo de proteína y poca grasa o fibra.`,
-        opciones: ANTES.map(combo),
+        opciones: elegir(ANTES, ANTES_VEG),
       });
     }
     if (ev.tipo === 'derby' && minAhora < fin) {
@@ -325,7 +338,7 @@ export function snacksDelDia(eventos, pesoKg, ahora = new Date()) {
       lista.push({
         cuando: 'despues', hora: aHora(fin + 30), titulo: `Después del ${nombre}`,
         detalle: `Dentro de las 2 horas: unos ${prot} g de proteína y ${carb} g de carbohidratos para recuperar el músculo y la energía.`,
-        opciones: DESPUES.map(combo),
+        opciones: elegir(DESPUES),
       });
     }
   }
