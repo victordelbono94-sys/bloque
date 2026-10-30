@@ -2,7 +2,7 @@
 // Cada medición es un registro nuevo; nunca se sobrescribe el historial.
 import { sb, estado, datos, nombrePersona } from '../db.js';
 import { esc, num, aviso, avisoError, abrirDialogo, grupoChips, valorChips, cara } from '../ui.js';
-import { fabIA } from '../chatia.js';
+import { fabIA, htmlCabecera } from '../chatia.js';
 import { fechaCorta, ahoraLocalInput } from '../fechas.js';
 
 const CAMPOS = [
@@ -27,27 +27,35 @@ const METRICAS = [
   { id: 'grasa_visceral', nombre: 'Visceral', unidad: '', color: '#FF8B6B', bueno: -1 },
 ];
 
-// Silueta sin género: cabeza, tronco recto, brazos y piernas redondeados.
-const SILUETA = 'M50 6a15 15 0 1 1 0 30a15 15 0 1 1 0-30z M37 40h26c9 0 15 6 16 14l5 44c1 5-6 7-8 2l-6-36v38l3 84c0 6-10 6-11 0l-6-70h-4l-6 70c-1 6-11 6-11 0l3-84V64l-6 36c-2 5-9 3-8-2l5-44c1-8 7-14 16-14z';
+// Silueta sin género, con los mismos bloques redondeados que el mapa de los ejercicios pero de una sola pieza.
+const BLOQUES = [
+  [20, 1, 10, 11, 4],        // cabeza
+  [22.5, 11, 5, 3, 1],       // cuello
+  [15, 13, 20, 38, 4],       // tronco
+  [7.5, 15, 9, 22, 4], [33.5, 15, 9, 22, 4],   // brazos
+  [6.5, 34, 7.5, 17, 3.5], [36, 34, 7.5, 17, 3.5], // antebrazos
+  [16, 47, 8.6, 46, 3.5], [25.4, 47, 8.6, 46, 3.5], // piernas
+];
+const rects = (cls = '') => BLOQUES.map(([x, y, w, h, r]) => `<rect ${cls} x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}"/>`).join('');
 
 function htmlCuerpoVisual(m, valor, peso) {
   let nivel = 1;
   if (m.id === 'masa_muscular_kg' && peso) nivel = Math.min(1, valor / peso / 0.6);
   else if (m.nivel) nivel = m.nivel(valor);
-  const alto = 200 * nivel;
+  const alto = 94 * nivel, y = 94 - alto;
+  const id = `c${Math.random().toString(36).slice(2, 7)}`;
   return `
-    <svg class="cuerpo-svg" viewBox="0 0 100 200" aria-hidden="true">
-      <defs><clipPath id="silueta"><path d="${SILUETA}"/></clipPath>
-        <linearGradient id="relleno" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="${m.color}" stop-opacity=".95"/><stop offset="1" stop-color="${m.color}" stop-opacity=".45"/></linearGradient></defs>
-      <path d="${SILUETA}" class="cuerpo-svg__base"/>
-      <g clip-path="url(#silueta)">
+    <svg class="cuerpo-svg" viewBox="0 0 50 94" aria-hidden="true">
+      <defs><clipPath id="${id}">${rects()}</clipPath>
+        <linearGradient id="${id}g" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="${m.color}"/><stop offset="1" stop-color="${m.color}" stop-opacity=".55"/></linearGradient></defs>
+      <g class="cuerpo-svg__base">${rects()}</g>
+      <g clip-path="url(#${id})">
         ${m.id === 'grasa_visceral'
-          ? `<ellipse cx="50" cy="88" rx="${10 + Math.min(14, valor)}" ry="${8 + Math.min(10, valor * 0.7)}" fill="${m.color}" opacity="${Math.min(0.95, 0.35 + valor / 20)}" class="cuerpo-svg__visceral"/>`
-          : `<rect class="cuerpo-svg__nivel" x="0" y="${200 - alto}" width="100" height="${alto}" fill="url(#relleno)"/>
-             ${m.id === 'agua_pct' ? `<path class="cuerpo-svg__ola" d="M0 ${200 - alto} q12 -5 25 0 t25 0 t25 0 t25 0 v8 h-100z" fill="${m.color}" opacity=".7"/>` : ''}`}
+          ? `<ellipse cx="25" cy="40" rx="${5 + Math.min(7, valor * 0.5)}" ry="${4 + Math.min(5, valor * 0.35)}" fill="${m.color}" opacity="${Math.min(0.95, 0.4 + valor / 20)}" class="cuerpo-svg__visceral"/>`
+          : `<rect class="cuerpo-svg__nivel" x="0" y="${y}" width="50" height="${alto}" fill="url(#${id}g)"/>
+             ${m.id === 'agua_pct' ? `<path class="cuerpo-svg__ola" d="M-6 ${y} q6 -2.5 12 0 t12 0 t12 0 t12 0 t12 0 v4 h-60z" fill="${m.color}" opacity=".7"/>` : ''}`}
       </g>
-      <path d="${SILUETA}" class="cuerpo-svg__borde"/>
-      ${m.nivel || m.id === 'masa_muscular_kg' ? `<line class="cuerpo-svg__linea" x1="-6" x2="106" y1="${200 - alto}" y2="${200 - alto}" stroke="${m.color}"/>` : ''}
+      ${m.nivel || m.id === 'masa_muscular_kg' ? `<line class="cuerpo-svg__linea" x1="2" x2="48" y1="${y}" y2="${y}" stroke="${m.color}"/>` : ''}
     </svg>`;
 }
 
@@ -61,6 +69,80 @@ function sparkline(puntos, color) {
   return `<svg class="sparkline" viewBox="0 0 200 44" preserveAspectRatio="none" aria-hidden="true">
     <path d="${d} L198 44 L2 44Z" fill="${color}" opacity=".12"/><path d="${d}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke" pathLength="1" class="sparkline__linea"/>
     <circle cx="${X(u.fecha.getTime())}" cy="${Y(u.valor)}" r="3" fill="${color}"/></svg>`;
+}
+
+const ICONO_HISTORIAL = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4h4"/><path d="M12 7.5V12l3 2"/></svg>';
+
+// ---------- Historial: cómo estabas antes y cómo estás hoy ----------
+const PERIODOS = [['30', '1 mes'], ['90', '3 meses'], ['todo', 'Todo']];
+function compararPeriodo(mediciones, dias, foco) {
+  const cron = [...mediciones].reverse();
+  const ultima = (id) => mediciones.find((m) => m[id] != null);
+  const limite = dias === 'todo' ? null : Date.now() - Number(dias) * 864e5;
+  const inicial = (id) => (limite == null ? cron.find((m) => m[id] != null)
+    : (cron.filter((m) => m[id] != null && new Date(m.medido_en).getTime() <= limite).at(-1) ?? cron.find((m) => m[id] != null && new Date(m.medido_en).getTime() >= limite)));
+  return METRICAS.map((m) => {
+    const a = inicial(m.id), b = ultima(m.id);
+    if (!a || !b || a === b) return null;
+    const cambio = Number(b[m.id]) - Number(a[m.id]);
+    const bueno = m.id === 'peso_kg' ? ({ masa_muscular: 1, perder_grasa: -1, recomposicion: -1 }[foco] ?? 0) : (m.bueno ?? 0);
+    const tono = Math.abs(cambio) < 0.1 || !bueno ? 'igual' : Math.sign(cambio) === bueno ? 'bien' : 'ojo';
+    return { m, antes: Number(a[m.id]), ahora: Number(b[m.id]), cambio, tono, desde: a.medido_en };
+  }).filter(Boolean);
+}
+function resumenProgreso(filas, foco) {
+  const de = (id) => filas.find((f) => f.m.id === id);
+  const g = de('grasa_pct'), mu = de('masa_muscular_kg'), p = de('peso_kg');
+  const logros = [], falta = [];
+  if (g && mu) {
+    if (g.cambio < -0.3 && mu.cambio >= -0.2) logros.push('Bajaste grasa sin perder músculo: es justo lo que se busca.');
+    else if (g.cambio < -0.3 && mu.cambio < -0.2) { logros.push(`Bajaste ${num(Math.abs(g.cambio))} % de grasa.`); falta.push(`También bajó ${num(Math.abs(mu.cambio))} kg de músculo: sube la proteína y no recortes tantas calorías.`); }
+    else if (mu.cambio > 0.3 && g.cambio <= 0.3) logros.push(`Ganaste ${num(mu.cambio)} kg de músculo sin sumar grasa.`);
+    else if (mu.cambio > 0.3 && g.cambio > 0.3) { logros.push(`Ganaste ${num(mu.cambio)} kg de músculo.`); falta.push(foco === 'masa_muscular' ? `La grasa subió ${num(g.cambio)} %: si quieres frenarla, come un poco menos de lo que comes ahora.` : `La grasa subió ${num(g.cambio)} %, y tu objetivo es bajarla: revisa porciones y snacks, y sigue tu meta de calorías.`); }
+    else if (g.cambio > 0.3) falta.push(`La grasa subió ${num(g.cambio)} %: revisa las porciones y los snacks.`);
+  } else if (g) {
+    if (g.cambio < -0.3) logros.push(`Bajaste ${num(Math.abs(g.cambio))} % de grasa.`); else if (g.cambio > 0.3) falta.push(`La grasa subió ${num(g.cambio)} %.`);
+  }
+  if (p) {
+    const quiere = { masa_muscular: 'subir', perder_grasa: 'bajar', recomposicion: 'bajar' }[foco];
+    if (quiere === 'subir' && p.cambio < -0.3) falta.push(`Tu peso bajó ${num(Math.abs(p.cambio))} kg y tu objetivo es subir: hace falta comer más.`);
+    else if (quiere === 'bajar' && p.cambio > 0.3) falta.push(`Tu peso subió ${num(p.cambio)} kg y tu objetivo es bajar.`);
+    else if (quiere && Math.abs(p.cambio) >= 0.3) logros.push(`Tu peso ${p.cambio < 0 ? 'bajó' : 'subió'} ${num(Math.abs(p.cambio))} kg, en línea con tu objetivo.`);
+  }
+  if (!g) falta.push('Carga tu % de grasa (bioimpedancia) para ver si cambia grasa o músculo, no solo el peso.');
+  return { logros, falta };
+}
+function abrirHistorial(persona, mediciones, foco, soyYo, recargar) {
+  const d = abrirDialogo(`<div class="reg chatia">${htmlCabecera({ titulo: 'Tu progreso', sub: `${mediciones.length} medicion${mediciones.length === 1 ? '' : 'es'}` })}<div class="chatia__cuerpo" id="hist"></div></div>`, 'Historial', { pantalla: true });
+  const cont = d.querySelector('#hist');
+  const pintar = (per) => {
+    const filas = compararPeriodo(mediciones, per, foco);
+    const { logros, falta } = resumenProgreso(filas, foco);
+    cont.innerHTML = `
+      <div class="cuerpo-hero__tabs" role="tablist">${PERIODOS.map(([k, t]) => `<button type="button" class="cuerpo-tab" data-per="${k}" aria-selected="${k === per}" style="--c:#C6F432">${t}</button>`).join('')}</div>
+      ${filas.length ? `
+        <section class="prog">
+          <p class="sem2-titulo">Antes y ahora <span>desde ${esc(fechaCorta(filas[0].desde))}</span></p>
+          ${filas.map((f) => `
+            <div class="prog__fila prog__fila--${f.tono}">
+              <span class="prog__nombre" style="--c:${f.m.color}">${f.m.nombre}</span>
+              <span class="prog__antes">${num(f.antes)}</span>
+              <span class="prog__flecha" aria-hidden="true">→</span>
+              <span class="prog__ahora">${num(f.ahora)} <small>${f.m.unidad}</small></span>
+              <span class="prog__cambio">${f.cambio > 0 ? '+' : ''}${num(f.cambio)}</span>
+            </div>`).join('')}
+        </section>
+        ${logros.length ? `<section class="prog-caja prog-caja--bien"><strong>✓ Lo que mejoraste</strong>${logros.map((t) => `<p>${esc(t)}</p>`).join('')}</section>` : ''}
+        ${falta.length ? `<section class="prog-caja prog-caja--ojo"><strong>Qué falta mejorar</strong>${falta.map((t) => `<p>${esc(t)}</p>`).join('')}</section>` : ''}`
+        : '<p class="vacio">Con dos mediciones o más en este período aparece la comparación.</p>'}
+      <section class="seccion" style="margin:0">
+        <p class="sem2-titulo">Todas las mediciones</p>
+        <div class="tarjeta">${mediciones.length ? mediciones.map((m) => itemMedicion(m, soyYo)).join('') : '<p class="vacio">Todavía no hay mediciones.</p>'}</div>
+      </section>`;
+    cont.querySelectorAll('[data-per]').forEach((b) => b.addEventListener('click', () => pintar(b.dataset.per)));
+    cont.querySelectorAll('[data-borrar]').forEach((b) => b.addEventListener('click', () => borrarMedicion(b.dataset.borrar, () => { d.close(); recargar(); })));
+  };
+  pintar(mediciones.length > 1 && (Date.now() - new Date(mediciones.at(-1).medido_en)) > 90 * 864e5 ? '90' : 'todo');
 }
 
 export async function vistaCuerpo(app) {
@@ -96,7 +178,7 @@ export async function vistaCuerpo(app) {
         <span class="cuerpo-hero__valor"><strong>${num(u.valor, dec)}</strong>${m.unidad ? `<small>${m.unidad}</small>` : ''}</span>
         ${hace !== u ? `<span class="cuerpo-hero__cambio cuerpo-hero__cambio--${tono}">${cambio > 0 ? '▲' : cambio < 0 ? '▼' : '='} ${num(Math.abs(cambio), dec)} ${m.unidad} <span>desde ${esc(fechaCorta(hace.fecha))}</span></span>` : ''}
         ${sparkline(puntos.slice(-14), m.color)}
-        <span class="cuerpo-hero__fecha">Última: ${esc(fechaCorta(u.fecha))}</span>
+        <span class="cuerpo-hero__fecha">Última medición: ${esc(fechaCorta(u.fecha))}</span>
       </div>`;
   };
 
@@ -106,6 +188,7 @@ export async function vistaCuerpo(app) {
         <h1 class="titulo">Cuerpo</h1>
         <p class="subtitulo">${soyYo ? 'Tu peso y composición' : `Peso y composición de ${esc(persona.nombre)}`}</p>
       </div>
+      <button type="button" class="boton boton--sec boton--chico nav-dia" id="ver-historial" aria-label="Historial y progreso">${ICONO_HISTORIAL}</button>
     </header>
 
     ${estado.personas.length > 1 ? `
@@ -128,17 +211,10 @@ export async function vistaCuerpo(app) {
 
     <section class="seccion" aria-labelledby="t-semana-cuerpo">
       <h2 class="seccion__titulo" id="t-semana-cuerpo">Esta semana</h2>
-      <div class="tarjeta" id="semana-cuerpo">
+      <div id="semana-cuerpo">
         <div class="chatia__msg chatia__msg--ia chatia__msg--solo chatia__msg--pensando" style="background:none;padding:0">${'<span class="cubo" aria-hidden="true"><i></i></span>'}<span class="chatia__frase">Armando tu semana…</span></div>
       </div>
-    </section>
-
-    <details class="seccion historial-cuerpo">
-      <summary class="seccion__titulo">Historial · ${mediciones.length} medicion${mediciones.length === 1 ? '' : 'es'}</summary>
-      <div class="tarjeta">
-        ${mediciones.length ? mediciones.map((m) => itemMedicion(m, soyYo)).join('') : `<p class="vacio">${soyYo ? 'Todavía no hay mediciones.' : `${esc(nombrePersona(persona.id))} todavía no tiene mediciones.`}</p>`}
-      </div>
-    </details>`;
+    </section>`;
 
   const recargar = () => vistaCuerpo(app);
   app.querySelectorAll('[data-metrica]').forEach((b) => b.addEventListener('click', () => {
@@ -149,8 +225,7 @@ export async function vistaCuerpo(app) {
     cont.innerHTML = htmlMetrica(b.dataset.metrica);
     cont.classList.add('fundido');
   }));
-  app.querySelectorAll('[data-borrar]').forEach((b) =>
-    b.addEventListener('click', () => borrarMedicion(b.dataset.borrar, recargar)));
+  app.querySelector('#ver-historial').addEventListener('click', () => abrirHistorial(persona, mediciones, foco, soyYo, recargar));
   if (soyYo) {
     fabIA('Nueva medición', async () => (await import('../cuerpoia.js')).abrirCuerpoIA({ alGuardar: recargar, manual: (v) => dialogoMedicion(recargar, v ?? {}) }), /^#\/cuerpo/);
   } else document.querySelector('.fab-ia')?.remove();

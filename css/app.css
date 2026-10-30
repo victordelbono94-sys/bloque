@@ -1918,9 +1918,8 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .cuerpo-hero { margin-top: 14px; padding: 16px 16px 12px; overflow: hidden; }
 .cuerpo-hero__fila { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 16px; align-items: center; min-height: 190px; }
 .cuerpo-hero__visual { display: flex; justify-content: center; }
-.cuerpo-svg { width: 92px; height: 184px; overflow: visible; }
-.cuerpo-svg__base { fill: rgba(255, 255, 255, 0.05); }
-.cuerpo-svg__borde { fill: none; stroke: rgba(255, 255, 255, 0.22); stroke-width: 1.2; }
+.cuerpo-svg { width: 96px; height: 180px; overflow: visible; }
+.cuerpo-svg__base { fill: #4A4F5C; }
 .cuerpo-svg__nivel { animation: cuerpo-sube .9s var(--suave) both; transform-origin: bottom; transform-box: fill-box; }
 .cuerpo-svg__ola { animation: cuerpo-ola 3s ease-in-out infinite alternate; }
 .cuerpo-svg__visceral { animation: cuerpo-late 2.4s ease-in-out infinite; transform-origin: center; transform-box: fill-box; filter: blur(2px); }
@@ -1994,7 +1993,7 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .sem2-plan__item { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 14px; background: var(--grafito-2); animation: chip-entra .4s var(--suave) both; animation-delay: calc(var(--k) * .06s); }
 .sem2-plan__item > span { flex: 0 0 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--volt); color: var(--asfalto); font-weight: 800; font-size: 13px; }
 .sem2-plan__item p { margin: 0; font-size: 14px; line-height: 1.45; }
-#semana-cuerpo { padding: 14px; }
+#semana-cuerpo { padding: 0; }
 
 /* IA del cuerpo */
 .medicion-ia { padding: 14px; border-radius: 18px; background: var(--grafito-2); box-shadow: inset 0 0 0 1.5px rgba(198, 244, 50, .35); }
@@ -2008,4 +2007,83 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .chatia__pdf { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; padding: 4px 0; }
 .chatia__adjunto--pdf img { display: none; }
 .chatia__adjunto--pdf::before { content: '📄'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 30px; background: var(--grafito-2); }
-.cuerpo-svg__linea { stroke-width: 1.2; stroke-dasharray: 3 3; opacity: .8; }
+.cuerpo-svg__linea { stroke-width: .6; stroke-dasharray: 1.5 1.5; opacity: .9; }
+
+/* Semana v3: más clara */
+.sem2-titulo { margin: 0 0 10px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--tiza-2); }
+.sem2-titulo span { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--gris); margin-left: 4px; }
+.sem2-ritmo__datos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sem2-ritmo__datos > div { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 12px; background: var(--grafito); }
+.sem2-ritmo__datos span { font-size: 12px; color: var(--gris); }
+.sem2-ritmo__datos strong { font-size: 16px; }
+.sem2-ritmo--ok .sem2-ritmo__real { color: var(--volt); }
+.sem2-ritmo--lento .sem2-ritmo__real, .sem2-ritmo--rapido .sem2-ritmo__real, .sem2-ritmo--fuera .sem2-ritmo__real { color: var(--ambar); }
+.sem2-ritmo--contra .sem2-ritmo__real { color: #FF8B78; }
+.sem2-escala { margin: 26px 4px 4px; }
+.sem2-escala__pista { position: relative; height: 8px; border-radius: 999px; background: rgba(255, 255, 255, .08); }
+.sem2-escala__pista::after { content: ''; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: rgba(255, 255, 255, .25); }
+.sem2-escala__zona { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: rgba(198, 244, 50, .55); animation: chip-entra .5s var(--suave) both; }
+.sem2-escala__zona em { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 11px; font-weight: 700; color: var(--volt); white-space: nowrap; }
+.sem2-escala__tu { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--tiza); box-shadow: 0 0 0 3px var(--grafito-2); animation: marca-entra .7s var(--resorte) .2s both; z-index: 1; }
+.sem2-escala__tu em { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 11px; font-weight: 800; color: var(--tiza); }
+.sem2-ritmo--ok .sem2-escala__tu { background: var(--volt); }
+.sem2-ritmo--lento .sem2-escala__tu, .sem2-ritmo--rapido .sem2-escala__tu, .sem2-ritmo--fuera .sem2-escala__tu { background: var(--ambar); }
+.sem2-ritmo--contra .sem2-escala__tu { background: #FF6B57; }
+.sem2-escala__marcas { display: flex; justify-content: space-between; margin-top: 22px; font-size: 11px; color: var(--gris); }
+.sem2-veredicto { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; font-size: 14px; line-height: 1.45; background: rgba(255, 255, 255, .04); color: var(--tiza-2); }
+.sem2-veredicto--ok { background: rgba(198, 244, 50, .1); color: var(--tiza); }
+.sem2-veredicto--ojo { background: rgba(232, 163, 23, .12); color: var(--tiza); }
+.sem2-veredicto--mal { background: rgba(255, 107, 87, .14); color: var(--tiza); }
+.sem2-proy { display: block; padding: 14px; border-radius: 16px; background: var(--grafito-2); }
+.proy-svg { width: 100%; height: auto; overflow: visible; }
+.proy-svg text { fill: var(--gris); font-size: 10px; font-family: var(--texto); }
+.proy-svg__guia { stroke: rgba(255, 255, 255, .06); }
+.proy-svg__zona { fill: rgba(198, 244, 50, .18); stroke: rgba(198, 244, 50, .45); stroke-width: 1; animation: chip-entra .6s var(--suave) both; }
+.proy-svg__zona-txt { fill: var(--volt) !important; font-weight: 700; }
+.proy-svg__real { stroke-width: 3; stroke-linecap: round; fill: none; stroke-dasharray: 1; stroke-dashoffset: 1; animation: dibujar 1s var(--suave) .2s forwards; }
+.proy-svg__fin { animation: marca-entra .5s var(--resorte) 1s both; }
+.proy-svg__hoy { fill: var(--tiza); }
+.proy-svg__valor { font-size: 12px !important; font-weight: 800; fill: var(--tiza); }
+.sem2-filas { display: flex; flex-direction: column; gap: 6px; }
+.sem2-fila { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--grafito-2); animation: chip-entra .4s var(--suave) both; }
+.sem2-fila__icono { font-size: 20px; flex: 0 0 24px; text-align: center; }
+.sem2-fila__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sem2-fila__txt strong { font-size: 14px; }
+.sem2-fila__txt span { font-size: 13px; color: var(--gris); line-height: 1.35; }
+.sem2-chip { flex: 0 0 auto; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.sem2-chip--ok { background: rgba(198, 244, 50, .15); color: var(--volt); }
+.sem2-chip--ojo { background: rgba(232, 163, 23, .15); color: var(--ambar); }
+.sem2-chip--sin { background: rgba(255, 255, 255, .06); color: var(--gris); }
+.sem2-detalle__cont { overflow: hidden; }
+.sem2-detalle[open] .sem2-detalle__cont { animation: desplegar .35s var(--suave); }
+@keyframes desplegar { from { opacity: 0; transform: translateY(-8px); max-height: 0; } to { opacity: 1; transform: none; max-height: 400px; } }
+.sem2-leyenda { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; font-size: 12px; color: var(--gris); }
+.sem2-leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.sem2-leyenda__meta { display: inline-block; width: 18px; border-top: 2px dashed rgba(255, 255, 255, .55); }
+.sem2-leyenda__ok { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--volt); }
+.sem2-leyenda b { color: var(--volt); }
+.sem2-plan__item { gap: 12px; }
+.sem2-plan__icono { font-size: 22px; flex: 0 0 28px; text-align: center; }
+.sem2-plan__item strong { display: block; font-size: 15px; margin-bottom: 2px; }
+.sem2-plan__item p { color: var(--tiza-2); }
+
+/* Historial: antes y ahora */
+.prog { display: flex; flex-direction: column; gap: 6px; }
+.prog__fila { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto auto; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 14px; background: var(--grafito-2); animation: chip-entra .4s var(--suave) both; }
+.prog__nombre { font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; }
+.prog__nombre::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.prog__antes { color: var(--gris); font-size: 14px; }
+.prog__flecha { color: var(--gris); }
+.prog__ahora { font-family: var(--titulo); font-weight: 800; font-size: 16px; }
+.prog__ahora small { font-family: var(--texto); font-weight: 500; font-size: 12px; color: var(--gris); }
+.prog__cambio { min-width: 52px; text-align: center; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; background: rgba(255, 255, 255, .06); color: var(--tiza-2); }
+.prog__fila--bien .prog__cambio { background: rgba(198, 244, 50, .15); color: var(--volt); }
+.prog__fila--ojo .prog__cambio { background: rgba(232, 163, 23, .15); color: var(--ambar); }
+.prog-caja { padding: 12px 14px; border-radius: 14px; font-size: 14px; line-height: 1.45; }
+.prog-caja strong { display: block; margin-bottom: 4px; }
+.prog-caja p { margin: 4px 0 0; color: var(--tiza-2); }
+.prog-caja--bien { background: rgba(198, 244, 50, .08); }
+.prog-caja--bien strong { color: var(--volt); }
+.prog-caja--ojo { background: rgba(232, 163, 23, .1); }
+.prog-caja--ojo strong { color: var(--ambar); }
+.sem2-plan__item > .sem2-plan__icono { background: none; flex: 0 0 28px; width: 28px; height: auto; font-size: 22px; border-radius: 0; color: inherit; }
