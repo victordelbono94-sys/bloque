@@ -2104,12 +2104,10 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .obj-acciones { margin: 0 0 12px; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 
 /* Comida: pedir la despensa, tu objetivo y el acordeón */
-.pedir-despensa { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; background: linear-gradient(135deg, rgba(198, 244, 50, .1), rgba(94, 230, 200, .06)), var(--grafito); box-shadow: inset 0 0 0 1px rgba(198, 244, 50, .25); animation: chip-entra .45s var(--suave) both; transition: opacity .3s, transform .3s; }
+.pedir-despensa { margin-bottom: 14px; transition: opacity .3s, transform .3s; }
 .pedir-despensa--sale { opacity: 0; transform: translateY(-8px) scale(.98); }
 .pedir-despensa__cab { display: flex; gap: 12px; align-items: flex-start; }
 .pedir-despensa__icono { font-size: 26px; }
-.pedir-despensa strong { display: block; font-size: 15px; margin-bottom: 4px; }
-.pedir-despensa p { margin: 0; font-size: 14px; color: var(--tiza-2); line-height: 1.45; }
 .pedir-despensa__botones { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .tu-objetivo { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
 .tu-objetivo__cab { display: flex; gap: 12px; align-items: center; font-size: 24px; }

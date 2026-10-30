@@ -950,14 +950,14 @@ function htmlPedirDespensa(despensa) {
   const reciente = despensa.some((p) => p.agregado_en && (Date.now() - new Date(p.agregado_en)) < 15 * 864e5);
   if (reciente) return '';
   return `
-    <section class="tarjeta pedir-despensa" id="pedir-despensa">
-      <div class="pedir-despensa__cab"><span class="pedir-despensa__icono" aria-hidden="true">🛒</span>
-        <div><strong>¿Qué tienes en casa para comer o cocinar?</strong>
-        <p>Pásame una foto de la refri, la alacena o el ticket del súper, o escríbelo. Así te armo recetas con lo que tienes, aprendo tus gustos y te sugiero qué comprar.</p></div></div>
-      <div class="pedir-despensa__botones">
-        <button type="button" class="boton boton--chico" id="pd-abrir">Contarle a la IA</button>
-        <button type="button" class="boton boton--texto boton--chico" id="pd-manana">Mañana</button>
-        <button type="button" class="boton boton--texto boton--chico" id="pd-ignorar">Ignorar</button>
+    <section class="tarjeta cuerpo-pendiente pedir-despensa" id="pedir-despensa">
+      <div class="pendiente pendiente--resp">
+        <span class="pendiente__texto"><strong>¿Qué tienes en casa para comer o cocinar?</strong>
+        <span class="quieto">Mándale a Bloq una foto de la refri, la alacena o el ticket, o escríbelo: te arma recetas con lo que hay, aprende tus gustos y te sugiere qué comprar.</span></span>
+        <div class="resp-fila">
+          <button type="button" class="boton boton--chico" id="pd-abrir">Dile a Bloq</button>
+          <button type="button" class="boton boton--texto boton--chico" id="pd-ignorar">Ignorar</button>
+        </div>
       </div>
     </section>`;
 }
@@ -971,7 +971,6 @@ function conectarPedirDespensa(app, abrir) {
     aviso(texto);
   };
   caja.querySelector('#pd-abrir').addEventListener('click', abrir);
-  caja.querySelector('#pd-manana').addEventListener('click', () => posponer(1, 'Te lo recuerdo mañana.'));
   caja.querySelector('#pd-ignorar').addEventListener('click', () => posponer(15, 'Listo, te lo vuelvo a preguntar en 15 días. La despensa está en «¿Qué como ahora?».'));
 }
 
