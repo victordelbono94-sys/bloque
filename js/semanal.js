@@ -244,25 +244,6 @@ function filasComoTeFue(s) {
   ];
 }
 
-/** Rachas que vas siguiendo, cada una en un pill. */
-function htmlRachas(r) {
-  if (!r) return '';
-  const pills = [
-    r.gym >= 1 && [IC.pesa, `${r.gym} ${r.gym === 1 ? 'semana' : 'semanas'} cumpliendo tus gyms`],
-    r.registro >= 2 && [IC.nota, `${r.registro} días registrando comidas`],
-    r.agua >= 2 && [IC.agua, `${r.agua} días tomando tu agua`],
-    r.proteina >= 2 && [IC.proteina, `${r.proteina} días con tu proteína`],
-    r.pasos >= 2 && [IC.pasos, `${r.pasos} días con +7.000 pasos`],
-  ].filter(Boolean);
-  return `
-    <section class="sem2-rachas">
-      <p class="sem2-titulo">Tus rachas</p>
-      ${pills.length ? `<div class="rachas">${pills.map(([i, t], k) => `<span class="racha-pill" style="--k:${k}">${i}<span>${t}</span></span>`).join('')}</div>`
-        : '<p class="quieto" style="margin:0;font-size:14px">Empieza una racha hoy: registra tus comidas o toma tu agua.</p>'}
-    </section>`;
-}
-
-/** Al abrir «Calorías día por día»: cómo vas y cómo seguir hoy y los próximos días. */
 function consejoCalorias(s) {
   const reg = s.porDia.filter((d) => d.registrado && d.metas.ok);
   if (!reg.length) return '<p class="sem2-veredicto">Registra tus comidas de hoy y acá ves cómo vas día a día.</p>';
@@ -360,8 +341,6 @@ export function htmlSemana(s, { compacto = false } = {}) {
         <p class="sem2-titulo">Cómo te fue <span>últimos 7 días</span></p>
         ${filasComoTeFue(s).join('')}
       </section>
-
-      ${htmlRachas(s.rachas)}
 
       <section class="sem2-detalle">
         <p class="sem2-titulo">Calorías día por día</p>

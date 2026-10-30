@@ -252,7 +252,7 @@ export async function vistaCuerpo(app) {
   app.innerHTML = `
     <header class="encabezado encabezado--fijo">
       <div>
-        <h1 class="titulo">Cuerpo</h1>
+        <h1 class="titulo">Yo</h1>
         <p class="subtitulo">${soyYo ? 'Tu peso y composición esta semana' : `Peso y composición de ${esc(persona.nombre)}`}</p>
       </div>
       <button type="button" class="boton boton--sec boton--chico nav-dia" id="ver-historial" aria-label="Historial y progreso">${ICONO_HISTORIAL}</button>
