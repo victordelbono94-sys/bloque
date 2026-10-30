@@ -419,6 +419,7 @@ function conectarCheckIn(app, { hoy, deAyer, deHoy, extrasAyer, suenoMin, bandaA
   editar?.addEventListener('click', () => {
     const abrir = cont.hidden;
     cont.hidden = !abrir;
+    if (abrir) setTimeout(() => cont.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
     editar.textContent = abrir ? 'Cerrar' : 'Editar';
     editar.setAttribute('aria-expanded', String(abrir));
   });

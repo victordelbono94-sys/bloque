@@ -2281,3 +2281,6 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .ver-semana-cab { flex: 0 0 auto; gap: 2px; padding: 0 10px 0 14px; white-space: nowrap; }
 .ver-semana-cab .icono { width: 16px; height: 16px; }
 .datos__molestia { margin-top: 12px; background: rgba(198, 244, 50, .12); color: var(--volt); box-shadow: inset 0 0 0 1px rgba(198, 244, 50, .35); }
+/* Al bajar para mostrar algo que se abrió: que no quede tapado por la cabecera ni por el menú de abajo. */
+details, .checkin { scroll-margin-top: 96px; scroll-margin-bottom: calc(var(--nav-alto) + env(safe-area-inset-bottom) + 24px); }
+dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }

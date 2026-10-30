@@ -228,6 +228,20 @@ function sincronizarAlAbrir() {
   try { sincronizarAhora(); } catch { /* sin puente */ }
 }
 
+// Al abrir algo desplegable (Tus datos de hoy, Qué como ahora, ejercicios suaves…), la pantalla baja sola
+// hasta que se vea lo que se abrió. Solo si lo abrió la persona (no al dibujar una pantalla que ya venía abierta).
+let ultimoToque = 0;
+document.addEventListener('pointerdown', () => { ultimoToque = Date.now(); }, true);
+document.addEventListener('keydown', () => { ultimoToque = Date.now(); }, true);
+document.addEventListener('toggle', (e) => {
+  const det = e.target;
+  if (det.tagName !== 'DETAILS' || !det.open || Date.now() - ultimoToque > 1500) return;
+  setTimeout(() => mostrarEntero(det), 340); // después de la animación de apertura
+}, true);
+function mostrarEntero(el) {
+  if (el?.isConnected) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
 // Tiempo real: si alguien del hogar registra algo (una comida, agua, un entreno, una medición), la pantalla se actualiza sola.
 let canal = null, refrescoPendiente = null;
 function escucharHogar() {
