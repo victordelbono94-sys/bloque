@@ -194,6 +194,7 @@ export async function vistaHoy(app) {
     app.querySelector('#como-titulo').textContent = p.id === estado.yo.id ? 'Cómo estoy' : `Cómo está ${p.nombre}`;
   }));
 
+  conectarPendientes(app, () => vistaHoy(app));
   conectarPorConfirmar(app.querySelector('#por-confirmar'), porConfirmarLista, () => vistaHoy(app));
   app.querySelector('#ver-semana')?.addEventListener('click', async () => (await import('../semanal.js')).abrirResumenSemanal());
   // Molestias o lesiones de cada uno (las tuyas se marcan y se cierran desde acá).
@@ -530,23 +531,97 @@ function htmlCuerpoPendiente(mias) {
   const tocaHoy = [1, 4].includes(ahora.getDay()) && ahora.getHours() < 12 && !pesadoHoy;
   const sinGrasa = !mias.some((m) => m.grasa_pct != null && (ahora - new Date(m.medido_en)) < 60 * 864e5);
   const items = [];
+  const ultimoPeso = conPeso[0]?.peso_kg;
+  // Cada sugerencia se responde acá mismo, sin ir a otra pantalla.
   if (tocaHoy || dias == null || dias >= 4) {
-    items.push(`<a class="pendiente pendiente--link" href="#/cuerpo">
+    items.push(`<form class="pendiente pendiente--resp" data-resp="peso" novalidate>
       <span class="pendiente__texto"><strong>⚖️ ${tocaHoy ? 'Hoy toca pesarte' : dias == null ? 'Registra tu peso' : `Hace ${dias} días que no te pesas`}</strong>
       <span class="quieto">Al levantarte, en ayunas y después del baño: así tu meta de calorías se ajusta con datos confiables.</span></span>
-      <span class="plan__flecha" aria-hidden="true">›</span></a>`);
+      <div class="resp-fila">
+        <label class="resp-campo"><input type="text" inputmode="decimal" autocomplete="off" name="peso" placeholder="${ultimoPeso ? esc(String(Number(ultimoPeso))) : '70'}" aria-label="Peso en kg"><span>kg</span></label>
+        <label class="resp-campo"><input type="text" inputmode="decimal" autocomplete="off" name="grasa" placeholder="—" aria-label="Grasa corporal (opcional)"><span>% grasa</span></label>
+        <button type="submit" class="boton boton--chico">Guardar</button>
+      </div>
+    </form>`);
   }
-  if (sinGrasa && conPeso.length) {
-    items.push(`<a class="pendiente pendiente--link" href="#/cuerpo">
+  if (sinGrasa && conPeso.length && !items.length) {
+    items.push(`<form class="pendiente pendiente--resp" data-resp="grasa" novalidate>
       <span class="pendiente__texto"><strong>Agrega tu % de grasa</strong>
       <span class="quieto">Con tu balanza de bioimpedancia: las calorías y la proteína se calculan sobre tu masa magra y quedan más precisas.</span></span>
-      <span class="plan__flecha" aria-hidden="true">›</span></a>`);
+      <div class="resp-fila">
+        <label class="resp-campo"><input type="text" inputmode="decimal" autocomplete="off" name="grasa" placeholder="25" aria-label="Grasa corporal en %"><span>%</span></label>
+        <button type="submit" class="boton boton--chico">Guardar</button>
+      </div>
+    </form>`);
   }
   if (!estado.yo.experiencia) {
-    items.push(`<a class="pendiente pendiente--link" href="#/perfil">
+    items.push(`<div class="pendiente pendiente--resp" data-resp="experiencia">
       <span class="pendiente__texto"><strong>¿Cuánta experiencia tienes en el gym?</strong>
-      <span class="quieto">Ajusta las series y la progresión de tus rutinas. Lo marcas en Perfil.</span></span>
-      <span class="plan__flecha" aria-hidden="true">›</span></a>`);
+      <span class="quieto">Así ajustamos las series y la progresión de tus rutinas.</span></span>
+      <div class="chips resp-chips">
+        <button type="button" class="chip" data-exp="principiante">Menos de 1 año</button>
+        <button type="button" class="chip" data-exp="intermedio">1 a 3 años</button>
+        <button type="button" class="chip" data-exp="avanzado">Más de 3 años</button>
+      </div>
+    </div>`);
   }
   return items.length ? `<section class="tarjeta cuerpo-pendiente">${items.join('')}</section>` : '';
+}
+
+// Respuestas en el lugar: peso, % de grasa y experiencia se guardan sin salir de Hoy.
+const borradorPendientes = {};
+function conectarPendientes(app, recargar) {
+  const caja = app.querySelector('.cuerpo-pendiente');
+  if (!caja) return;
+  // Si Hoy se vuelve a dibujar (al sincronizar), no se pierde lo que estabas escribiendo.
+  caja.querySelectorAll('form[data-resp] input').forEach((i) => {
+    const k = `${i.form.dataset.resp}-${i.name}`;
+    if (borradorPendientes[k]) i.value = borradorPendientes[k];
+    i.addEventListener('input', () => { borradorPendientes[k] = i.value; });
+  });
+  const quitar = (el, despues) => {
+    el.classList.add('pendiente--hecho');
+    setTimeout(() => {
+      el.remove();
+      if (!caja.querySelector('.pendiente')) caja.remove();
+      despues?.();
+    }, 380);
+  };
+  const leer = (input, min, max, nombre) => {
+    if (!input || input.value === '') return null;
+    const v = Number(String(input.value).replace(',', '.'));
+    if (!Number.isFinite(v) || v < min || v > max) { input.focus(); throw new Error(`${nombre}: revisa el valor (entre ${min} y ${max}).`); }
+    return v;
+  };
+  caja.querySelectorAll('form[data-resp]').forEach((f) => f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    let peso = null, grasa = null;
+    try {
+      peso = leer(f.elements.peso, 30, 250, 'Peso');
+      grasa = leer(f.elements.grasa, 3, 60, 'Grasa');
+    } catch (err) { return aviso(err.message, 'error'); }
+    if (f.dataset.resp === 'peso' && peso == null) { f.elements.peso.focus(); return aviso('Escribe tu peso.', 'error'); }
+    if (f.dataset.resp === 'grasa' && grasa == null) { f.elements.grasa.focus(); return aviso('Escribe tu % de grasa.', 'error'); }
+    const boton = f.querySelector('[type=submit]');
+    boton.disabled = true;
+    try {
+      datos(await sb.from('mediciones_corporales').insert({ persona_id: estado.yo.id, peso_kg: peso, grasa_pct: grasa, origen: 'manual' }));
+      f.querySelector('input')?.blur();
+      for (const k of Object.keys(borradorPendientes)) delete borradorPendientes[k];
+      aviso(peso != null ? `Listo: ${num(peso)} kg. Tu meta se recalcula.` : 'Listo: % de grasa guardado.');
+      quitar(f, recargar);
+    } catch (err) { avisoError(err); boton.disabled = false; }
+  }));
+  caja.querySelectorAll('[data-exp]').forEach((b) => b.addEventListener('click', async () => {
+    const cont = b.closest('[data-resp]');
+    cont.querySelectorAll('[data-exp]').forEach((x) => { x.disabled = true; x.setAttribute('aria-pressed', String(x === b)); });
+    try {
+      datos(await sb.from('personas').update({ experiencia: b.dataset.exp }).eq('id', estado.yo.id).select('id'));
+      estado.yo.experiencia = b.dataset.exp;
+      const p = estado.personas.find((x) => x.id === estado.yo.id);
+      if (p) p.experiencia = b.dataset.exp;
+      aviso('Anotado. Tus rutinas se ajustan a eso.');
+      quitar(cont);
+    } catch (err) { avisoError(err); cont.querySelectorAll('[data-exp]').forEach((x) => { x.disabled = false; }); }
+  }));
 }
