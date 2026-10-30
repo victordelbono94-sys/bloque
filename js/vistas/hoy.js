@@ -206,6 +206,7 @@ export async function vistaHoy(app) {
     }
   });
   conectarCheckIn(app, contexto, estados.find((e) => e.persona_id === estado.yo.id));
+  conectarDatos(app);
   conectarRapido(app, hoy);
   if (falta.length) avisarPerfil(falta);
   app.querySelectorAll('[data-recuperar]').forEach((b) => b.addEventListener('click', () =>
@@ -466,7 +467,13 @@ function htmlDatos(med, b) {
   ];
   if (celdas.every((c) => c[1] == null)) return '';
   const pie = [med ? `Medición del ${fechaCorta(med.medido_en)}` : null].filter(Boolean);
+  const resumen = [sueno && 'sueño', h.pasos != null && 'pasos', med && 'peso'].filter(Boolean);
+  let abierto = false;
+  try { abierto = sessionStorage.getItem('bloque-hoy-datos') === '1'; } catch { /* nada */ }
   return `
+    <details class="datos-plegable" ${abierto ? 'open' : ''}>
+      <summary><span>Tus datos de hoy${resumen.length ? ` <span class="quieto">· ${resumen.join(', ')}</span>` : ''}</span><span class="acordeon__flecha" aria-hidden="true"></span></summary>
+      <div class="datos-plegable__cuerpo">
     <div class="datos">
       ${celdas.map(([nombre, valor, unidad, alerta]) => `
         <div class="dato ${alerta ? 'dato--alerta' : ''}">
@@ -474,7 +481,28 @@ function htmlDatos(med, b) {
           <span class="dato__valor">${valor ?? '<span class="quieto">—</span>'}${valor != null && unidad ? `<span class="dato-unidad">${unidad}</span>` : ''}</span>
         </div>`).join('')}
     </div>
-    ${pie.length ? `<p class="datos__pie">${esc(pie.join(' · '))}</p>` : ''}`;
+    ${pie.length ? `<p class="datos__pie">${esc(pie.join(' · '))}</p>` : ''}
+      </div>
+    </details>`;
+}
+
+// Abrir y cerrar «Tus datos de hoy» con animación (se recuerda mientras dure la sesión).
+function conectarDatos(app) {
+  app.querySelectorAll('.datos-plegable').forEach((det) => {
+    const sum = det.querySelector('summary'), cuerpo = det.querySelector('.datos-plegable__cuerpo');
+    sum.addEventListener('click', (e) => {
+      e.preventDefault();
+      const abrir = !det.open;
+      try { sessionStorage.setItem('bloque-hoy-datos', abrir ? '1' : '0'); } catch { /* nada */ }
+      if (abrir) {
+        det.open = true;
+        cuerpo.animate([{ height: '0px', opacity: 0 }, { height: `${cuerpo.scrollHeight}px`, opacity: 1 }], { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      } else {
+        const an = cuerpo.animate([{ height: `${cuerpo.scrollHeight}px`, opacity: 1 }, { height: '0px', opacity: 0 }], { duration: 240, easing: 'cubic-bezier(.4,0,.2,1)' });
+        an.onfinish = () => { det.open = false; };
+      }
+    });
+  });
 }
 
 // Una vez por sesión: si falta el perfil, se ofrece ir al asistente.

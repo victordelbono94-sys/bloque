@@ -2253,3 +2253,11 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .yo-sug__ic { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: rgba(232, 163, 23, .16); color: var(--ambar); }
 .yo-sug__ic .icono-ui { width: 18px; height: 18px; }
 .yo-sug__botones { margin-top: 10px; }
+/* Hoy: los datos del día (peso, sueño, pasos…) plegados dentro de la tarjeta del semáforo */
+.datos-plegable { margin-top: 12px; border-top: 1px solid var(--grafito-2); }
+.datos-plegable > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 44px; padding-top: 8px; font-size: 14px; font-weight: 600; }
+.datos-plegable > summary::-webkit-details-marker { display: none; }
+.datos-plegable > summary .quieto { font-weight: 400; }
+.datos-plegable[open] .acordeon__flecha { transform: rotate(180deg); }
+.datos-plegable__cuerpo { overflow: hidden; }
+.datos-plegable__cuerpo > .datos { margin-top: 6px; }

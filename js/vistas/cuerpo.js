@@ -302,7 +302,7 @@ export async function vistaCuerpo(app) {
   app.innerHTML = `
     <header class="encabezado encabezado--fijo">
       <div>
-        <h1 class="titulo">Yo</h1>
+        <h1 class="titulo">Perfil</h1>
         <p class="subtitulo">${soyYo ? 'Tu peso y composición esta semana' : `Peso y composición de ${esc(persona.nombre)}`}</p>
       </div>
       <div class="yo-acciones">
