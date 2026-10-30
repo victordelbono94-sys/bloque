@@ -70,20 +70,50 @@ class Lector(private val context: Context, private val hc: HealthConnectClient, 
         if (puede(SleepSessionRecord::class)) {
             val inicio = desde.minusDays(1).atStartOfDay(zona).toInstant()
             val fin = hasta.plusDays(1).atStartOfDay(zona).toInstant()
-            val minutos = mutableMapOf<LocalDate, Long>()
+            // Varias apps (o la misma) pueden guardar la misma noche dos veces o en tramos que se pisan:
+            // se juntan los tramos (sin contar dos veces el mismo rato) y se descuenta lo que estuviste despierto.
+            val tramos = mutableMapOf<LocalDate, MutableList<Pair<java.time.Instant, java.time.Instant>>>()
+            val despierto = mutableMapOf<LocalDate, MutableList<Pair<java.time.Instant, java.time.Instant>>>()
             val despertar = mutableMapOf<LocalDate, java.time.Instant>()
             for (s in leerTodo(SleepSessionRecord::class, inicio, fin)) {
                 val f = s.endTime.atZone(zona).toLocalDate()
                 if (f < desde || f > hasta) continue
-                minutos[f] = (minutos[f] ?: 0L) + Duration.between(s.startTime, s.endTime).toMinutes()
+                tramos.getOrPut(f) { mutableListOf() } += s.startTime to s.endTime
+                for (e in s.stages) {
+                    if (e.stage == SleepSessionRecord.STAGE_TYPE_AWAKE || e.stage == SleepSessionRecord.STAGE_TYPE_AWAKE_IN_BED || e.stage == SleepSessionRecord.STAGE_TYPE_OUT_OF_BED) {
+                        despierto.getOrPut(f) { mutableListOf() } += e.startTime to e.endTime
+                    }
+                }
                 // A qué hora te despertaste (el final del último sueño del día): para el aviso de «cómo amaneciste».
                 if (despertar[f]?.isBefore(s.endTime) != false) despertar[f] = s.endTime
             }
-            for ((f, m) in minutos) dia(f).put("sueno_min", m.coerceAtMost(1440))
+            for ((f, lista) in tramos) {
+                val dormido = unir(lista)
+                val restar = unir(despierto[f] ?: emptyList())
+                var min = dormido.sumOf { Duration.between(it.first, it.second).toMinutes() }
+                // Lo despierto solo resta dentro de los tramos de sueño.
+                for (a in dormido) for (b in restar) {
+                    val ini = maxOf(a.first, b.first); val fi = minOf(a.second, b.second)
+                    if (fi.isAfter(ini)) min -= Duration.between(ini, fi).toMinutes()
+                }
+                dia(f).put("sueno_min", min.coerceIn(0, 1440))
+            }
             for ((f, t) in despertar) dia(f).put("despertar", t.toString())
         }
 
         return JSONArray(porDia.values.filter { it.length() > 1 })
+    }
+
+    /** Une tramos de tiempo que se pisan (para no contar dos veces el mismo rato). */
+    private fun unir(lista: List<Pair<java.time.Instant, java.time.Instant>>): List<Pair<java.time.Instant, java.time.Instant>> {
+        val orden = lista.filter { it.second.isAfter(it.first) }.sortedBy { it.first }
+        val out = mutableListOf<Pair<java.time.Instant, java.time.Instant>>()
+        for (t in orden) {
+            val ultimo = out.lastOrNull()
+            if (ultimo != null && !t.first.isAfter(ultimo.second)) out[out.size - 1] = ultimo.first to maxOf(ultimo.second, t.second)
+            else out += t
+        }
+        return out
     }
 
     // ---------- Sesiones de ejercicio ----------
