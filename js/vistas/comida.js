@@ -11,6 +11,7 @@ import { sb, estado, datos } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
 import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia } from '../fechas.js';
 import { calcularMetas, consejosDelDia, diagnosticoDia, snacksDelDia, tendenciaPeso, OBJETIVOS } from '../nutricion.js';
+import { ritmoEsperado } from '../semanal.js';
 import { macros, sumar, cargarCatalogo } from '../alimentos.js';
 import { panelBuscar } from '../comida/buscar.js';
 import { abrirRegistro } from '../comida/registro.js';
@@ -62,7 +63,6 @@ function abrirHoja(titulo, sub, render, alCerrar) {
 }
 const abrirSemana = () => abrirHoja('Tu semana', 'Últimos 7 días', (c) => vistaSemana(c, { enHoja: true }).catch(avisoError));
 const abrirDespensa = (alCerrar) => abrirHoja('Despensa', 'Lo que hay en casa', (c) => vistaDespensa(c, { enHoja: true }).catch(avisoError), alCerrar);
-const ICONO_CASA = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-5h-6v5H5a1 1 0 0 1-1-1z"/></svg>';
 const rutaDia = (f) => (f === hoyISO() ? '#/comida' : `#/comida/${f}`);
 
 /** ‹ Ayer (hoy) · ‹ Hoy (ayer) · ‹ › Hoy (antes). */
@@ -103,7 +103,6 @@ async function vistaDia(app, fecha) {
       </div>
       <div class="fila nav-dias">
         ${navDias(fecha)}
-        <button type="button" class="boton boton--sec boton--chico nav-dia" id="abrir-despensa" aria-label="Despensa: lo que hay en casa">${ICONO_CASA}</button>
       </div>
     </header>
 
@@ -116,18 +115,12 @@ async function vistaDia(app, fecha) {
       </div>` : ''}
     <div id="resumen-persona" class="resumen-persona">${htmlResumen(visto, true, esHoy && visto === yo, visto === yo)}</div>
 
+    <button type="button" class="tarjeta semana-comida" id="ver-semana-comida" aria-label="Ver tu semana">
+      <span class="semana-comida__cab"><strong>Tu semana</strong><span class="plan__flecha" aria-hidden="true">›</span></span>
+      <span class="semana-comida__datos" id="semana-comida-datos"><span class="quieto">Cargando…</span></span>
+    </button>
 
-
-    ${esHoy ? `
-      <section class="seccion" aria-labelledby="t-ahora">
-        <h2 class="seccion__titulo" id="t-ahora">¿Qué como ahora?</h2>
-        <div class="tarjeta pila" style="gap:12px">
-          ${snacks.map(htmlSnack).join('')}
-          <p class="seccion__titulo ideas__titulo">${ICONO_CHISPA} Ideas con lo que hay en casa</p>
-          <div id="ideas" class="pila" style="gap:12px"></div>
-          <button type="button" class="boton boton--sec" id="ideas-btn" hidden>${ICONO_CHISPA} Otras ideas</button>
-        </div>
-      </section>` : ''}
+    ${htmlTuObjetivo(yo)}
 
     <section class="seccion" aria-labelledby="t-comidas">
       <h2 class="seccion__titulo" id="t-comidas">${esHoy ? 'Lo que comieron hoy' : 'Lo que comieron'}</h2>
@@ -136,14 +129,27 @@ async function vistaDia(app, fecha) {
         : `<p class="vacio">Todavía nada${esHoy ? ' hoy' : ''}. Toca «Agregar comida» para anotarla.</p>`}
     </section>
 
-    <button type="button" class="tarjeta semana-comida" id="ver-semana-comida" aria-label="Ver tu semana">
-      <span class="semana-comida__cab"><strong>Tu semana</strong><span class="plan__flecha" aria-hidden="true">›</span></span>
-      <span class="semana-comida__datos" id="semana-comida-datos"><span class="quieto">Cargando…</span></span>
-    </button>`;
+    ${esHoy ? `
+      <details class="seccion acordeon" id="acordeon-ahora" ${(() => { try { return localStorage.getItem('bloque-ahora-cerrado') === '1' ? '' : 'open'; } catch { return 'open'; } })()}>
+        <summary class="acordeon__cab"><h2 class="seccion__titulo" id="t-ahora" style="margin:0">¿Qué como ahora?</h2><span class="acordeon__flecha" aria-hidden="true"></span></summary>
+        <div class="acordeon__cuerpo"><div class="acordeon__interior">
+          <div class="tarjeta pila" style="gap:12px">
+            ${snacks.map(htmlSnack).join('')}
+            <div class="fila fila--entre ideas__cab"><p class="seccion__titulo ideas__titulo" style="margin:0">${ICONO_CHISPA} Ideas con lo que hay en casa</p><button type="button" class="enlace-chico enlace-boton" id="ver-despensa">Ver despensa ›</button></div>
+            <div id="ideas" class="pila" style="gap:12px"></div>
+            <button type="button" class="boton boton--sec" id="ideas-btn" hidden>${ICONO_CHISPA} Otras ideas</button>
+          </div>
+        </div></div>
+      </details>` : ''}`;
+  // Arriba de todo: pedir lo que hay en casa (despensa), si no se pospuso.
+  if (esHoy) app.querySelector('.encabezado').insertAdjacentHTML('afterend', htmlPedirDespensa(d.despensa));
 
   // Agregar comida: botón flotante (abre el chat con la IA).
   fabIA('Agregar comida', () => abrirRegistro(ctx, {}), /^#\/comida/);
-  app.querySelector('#abrir-despensa').addEventListener('click', () => abrirDespensa(() => vistaDia(app, fecha)));
+  const despensaYRecargar = () => abrirDespensa(() => vistaDia(app, fecha));
+  app.querySelector('#ver-despensa')?.addEventListener('click', despensaYRecargar);
+  conectarPedirDespensa(app, despensaYRecargar);
+  conectarAcordeon(app.querySelector('#acordeon-ahora'));
   app.querySelector('#ver-semana-comida').addEventListener('click', abrirSemana);
   tarjetaSemana(app.querySelector('#semana-comida-datos'), yo);
   conectarAgua(app);
@@ -172,7 +178,6 @@ async function vistaDia(app, fecha) {
     cont.innerHTML = htmlResumen(x, true, esHoy && x === yo, x === yo);
     cont.classList.add('fundido');
     if (x === yo) conectarAgua(app);
-    app.querySelector('#cambiar-objetivo')?.addEventListener('click', () => dialogoObjetivo(yo.foco, () => vistaDia(app, fecha)));
   }));
 }
 
@@ -707,10 +712,6 @@ function htmlResumen(x, esYo, esHoy = true, mio = esYo) {
       </div>
       ${htmlAgua(x, esHoy, mio)}
       ${notas.length ? `<ul class="notas-comida">${notas.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
-      <p class="ayuda dia-comida__pie">
-        Gasto ~${kc(metas.gasto)} kcal: cuerpo y día ${kc(metas.base)}${metas.vidaDiaria ? ' (según tu reloj)' : ''} + entrenos ${kc(metas.ejercicio)}${metas.medido ? ' (medidos)' : ''}${metas.ajustePeso ? ` · ajuste por tu peso ${metas.ajustePeso > 0 ? '+' : ''}${kc(metas.ajustePeso)}` : ''}
-        · ${mio ? `<button type="button" class="enlace-boton" id="cambiar-objetivo">${esc(OBJETIVOS[x.foco]?.nombre ?? 'Objetivo')}</button>` : esc(OBJETIVOS[x.foco]?.nombre ?? '')}
-      </p>
     </section>`;
 }
 
@@ -813,6 +814,7 @@ function dialogoObjetivo(actual, alGuardar) {
   const d = abrirDialogo(`
     <form class="dialogo" novalidate>
       <h2 class="tarjeta__titulo">Mi objetivo</h2>
+      <p class="ayuda" style="margin:0">Desde hoy tus metas de calorías, proteína y entrenos se reajustan. Lo que ya pasó queda como está.</p>
       <div class="pila" style="gap:8px" id="focos">
         ${['recomposicion', 'masa_muscular', 'perder_grasa', 'mantenimiento'].map((f) => `
           <button type="button" class="opcion" data-valor="${f}" aria-pressed="${f === actual}">
@@ -936,4 +938,93 @@ async function tarjetaSemana(cont, yo) {
     const m = cont.querySelector('#semana-comida-micros');
     if (m && bajos?.length) m.innerHTML = `<br><span class="semana-comida__aviso">Vas bajo en ${esc(bajos.map((b) => b.nutriente.toLowerCase()).join(', ').replace(/, ([^,]*)$/, ' y $1'))}</span>`;
   } catch { cont.innerHTML = '<span class="quieto">Toca para ver tu semana.</span>'; }
+}
+
+// ---------- Despensa: tarjeta arriba para contar qué hay en casa ----------
+const CLAVE_DESPENSA = () => `bloque-despensa-pospuesta-${estado.yo.id}`;
+function htmlPedirDespensa(despensa) {
+  let hasta = null;
+  try { hasta = localStorage.getItem(CLAVE_DESPENSA()); } catch { /* nada */ }
+  if (hasta && hasta > hoyISO()) return '';
+  // Si la despensa se actualizó hace poco (menos de 15 días), no hace falta pedirla.
+  const reciente = despensa.some((p) => p.agregado_en && (Date.now() - new Date(p.agregado_en)) < 15 * 864e5);
+  if (reciente) return '';
+  return `
+    <section class="tarjeta pedir-despensa" id="pedir-despensa">
+      <div class="pedir-despensa__cab"><span class="pedir-despensa__icono" aria-hidden="true">🛒</span>
+        <div><strong>¿Qué tienes en casa para comer o cocinar?</strong>
+        <p>Pásame una foto de la refri, la alacena o el ticket del súper, o escríbelo. Así te armo recetas con lo que tienes, aprendo tus gustos y te sugiero qué comprar.</p></div></div>
+      <div class="pedir-despensa__botones">
+        <button type="button" class="boton boton--chico" id="pd-abrir">Contarle a la IA</button>
+        <button type="button" class="boton boton--texto boton--chico" id="pd-manana">Mañana</button>
+        <button type="button" class="boton boton--texto boton--chico" id="pd-ignorar">Ignorar</button>
+      </div>
+    </section>`;
+}
+function conectarPedirDespensa(app, abrir) {
+  const caja = app.querySelector('#pedir-despensa');
+  if (!caja) return;
+  const posponer = (dias, texto) => {
+    try { localStorage.setItem(CLAVE_DESPENSA(), sumarDias(hoyISO(), dias)); } catch { /* nada */ }
+    caja.classList.add('pedir-despensa--sale');
+    setTimeout(() => caja.remove(), 320);
+    aviso(texto);
+  };
+  caja.querySelector('#pd-abrir').addEventListener('click', abrir);
+  caja.querySelector('#pd-manana').addEventListener('click', () => posponer(1, 'Te lo recuerdo mañana.'));
+  caja.querySelector('#pd-ignorar').addEventListener('click', () => posponer(15, 'Listo, te lo vuelvo a preguntar en 15 días. La despensa está en «¿Qué como ahora?».'));
+}
+
+// ---------- Acordeón con animación ----------
+function conectarAcordeon(det) {
+  if (!det) return;
+  const sum = det.querySelector('summary'), cuerpo = det.querySelector('.acordeon__cuerpo');
+  sum.addEventListener('click', (e) => {
+    e.preventDefault();
+    const abrir = !det.open;
+    try { localStorage.setItem('bloque-ahora-cerrado', abrir ? '0' : '1'); } catch { /* nada */ }
+    if (abrir) {
+      det.open = true;
+      const alto = cuerpo.scrollHeight;
+      cuerpo.animate([{ height: '0px', opacity: 0 }, { height: `${alto}px`, opacity: 1 }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    } else {
+      const alto = cuerpo.scrollHeight;
+      const an = cuerpo.animate([{ height: `${alto}px`, opacity: 1 }, { height: '0px', opacity: 0 }], { duration: 260, easing: 'cubic-bezier(.4,0,.2,1)' });
+      an.onfinish = () => { det.open = false; };
+    }
+  });
+}
+
+// ---------- Tu objetivo: cómo vas, en palabras ----------
+function htmlTuObjetivo(x) {
+  const m = x.metas;
+  const obj = OBJETIVOS[x.foco];
+  if (!obj) return '';
+  const peso = m.ok ? m.peso : null;
+  const real = x.tendencia?.kgSemana ?? null;
+  const r = ritmoEsperado(x.foco, peso);
+  const bajar = (r.min + r.max) / 2 < -0.05, subir = (r.min + r.max) / 2 > 0.05;
+  const kg = (v) => Math.abs(v).toLocaleString('es-EC', { maximumFractionDigits: 2 });
+  let estado = 'sin', como = 'Pésate 2 o 3 veces por semana para ver si vas bien.';
+  if (real != null) {
+    const ok = real >= r.min - 0.05 && real <= r.max + 0.05;
+    const contra = (subir && real < -0.05) || (bajar && real > 0.05);
+    estado = ok ? 'ok' : contra ? 'mal' : 'ojo';
+    const va = Math.abs(real) < 0.05 ? 'Tu peso está estable' : `Estás ${real < 0 ? 'bajando' : 'subiendo'} ${kg(real)} kg por semana`;
+    const ideal = bajar ? `lo ideal es bajar ${kg(r.max)}–${kg(r.min)} kg` : subir ? `lo ideal es subir ${kg(r.min)}–${kg(r.max)} kg` : 'lo ideal es mantenerte';
+    como = `${va}; ${ideal}. ${ok ? '¡Vas bien!' : contra ? 'Vas en contra de tu objetivo: tu meta ya se ajustó.' : 'Tu meta de calorías ya se ajustó para corregirlo.'}`;
+  }
+  const dif = m.ok ? Math.round((1 - m.kcal / m.gasto) * 100) : null;
+  const plan = m.ok ? (dif > 3 ? `Comes ~${dif} % menos de lo que gastas (~${kc(m.gasto)} kcal hoy)` : dif < -3 ? `Comes ~${-dif} % más de lo que gastas (~${kc(m.gasto)} kcal hoy)` : `Comes lo mismo que gastas (~${kc(m.gasto)} kcal hoy)`) : null;
+  const porque = { recomposicion: 'para bajar grasa sin perder músculo, con proteína alta.', masa_muscular: 'para subir de peso ganando músculo.', perder_grasa: 'para bajar de peso cuidando el músculo con proteína alta.', mantenimiento: 'para mantener tu peso.', cardio: 'con energía para tus entrenos de cardio.' }[x.foco] ?? '';
+  return `
+    <section class="tarjeta tu-objetivo tu-objetivo--${estado}">
+      <div class="tu-objetivo__cab"><span aria-hidden="true">🎯</span><div><small>Tu objetivo</small><strong>${esc(obj.nombre)}</strong></div></div>
+      <p class="tu-objetivo__como">${esc(como)}</p>
+      ${plan ? `<p class="tu-objetivo__plan">${esc(plan)}${m.ajustePeso > 0 ? ': subí tu meta porque tu peso va más rápido de lo ideal, así no pierdes músculo.' : m.ajustePeso < 0 ? ': bajé tu meta porque tu peso no está respondiendo.' : ` ${porque}`}${m.vidaDiaria ? ' Tu gasto sale de tu reloj.' : ''}</p>` : ''}
+      <div class="tu-objetivo__botones">
+        <button type="button" class="boton boton--sec boton--chico" id="cambiar-objetivo">Cambiar mi objetivo</button>
+        <a class="enlace-chico" href="#/cuerpo">Ver mi progreso ›</a>
+      </div>
+    </section>`;
 }

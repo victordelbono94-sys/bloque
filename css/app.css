@@ -2101,3 +2101,31 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .obj-cambios small { font-size: 12px; color: var(--gris); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
 .obj-cambio { padding: 8px 12px; border-radius: 12px; background: rgba(198, 244, 50, .08); font-size: 13px; }
 .obj-acciones { margin: 0 0 12px; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+
+/* Comida: pedir la despensa, tu objetivo y el acordeón */
+.pedir-despensa { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; background: linear-gradient(135deg, rgba(198, 244, 50, .1), rgba(94, 230, 200, .06)), var(--grafito); box-shadow: inset 0 0 0 1px rgba(198, 244, 50, .25); animation: chip-entra .45s var(--suave) both; transition: opacity .3s, transform .3s; }
+.pedir-despensa--sale { opacity: 0; transform: translateY(-8px) scale(.98); }
+.pedir-despensa__cab { display: flex; gap: 12px; align-items: flex-start; }
+.pedir-despensa__icono { font-size: 26px; }
+.pedir-despensa strong { display: block; font-size: 15px; margin-bottom: 4px; }
+.pedir-despensa p { margin: 0; font-size: 14px; color: var(--tiza-2); line-height: 1.45; }
+.pedir-despensa__botones { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.tu-objetivo { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.tu-objetivo__cab { display: flex; gap: 12px; align-items: center; font-size: 24px; }
+.tu-objetivo__cab small { display: block; font-size: 12px; color: var(--gris); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+.tu-objetivo__cab strong { font-family: var(--titulo); font-size: 18px; }
+.tu-objetivo__como { margin: 0; padding: 10px 12px; border-radius: 12px; font-size: 14px; line-height: 1.45; background: rgba(255, 255, 255, .04); }
+.tu-objetivo--ok .tu-objetivo__como { background: rgba(198, 244, 50, .1); }
+.tu-objetivo--ojo .tu-objetivo__como { background: rgba(232, 163, 23, .12); }
+.tu-objetivo--mal .tu-objetivo__como { background: rgba(255, 107, 87, .14); }
+.tu-objetivo__plan { margin: 0; font-size: 13px; color: var(--gris); line-height: 1.45; }
+.tu-objetivo__botones { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.acordeon { margin-top: 24px; }
+.acordeon > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.acordeon > summary::-webkit-details-marker { display: none; }
+.acordeon__flecha { width: 28px; height: 28px; border-radius: 50%; background: var(--grafito-2); position: relative; transition: transform .3s var(--suave); }
+.acordeon__flecha::before { content: ''; position: absolute; left: 10px; top: 8px; width: 7px; height: 7px; border-right: 2px solid var(--tiza-2); border-bottom: 2px solid var(--tiza-2); transform: rotate(45deg); }
+.acordeon[open] .acordeon__flecha { transform: rotate(180deg); }
+.acordeon__cuerpo { overflow: hidden; }
+.ideas__cab { gap: 8px; }
+.ideas__cab .enlace-chico { white-space: nowrap; flex: 0 0 auto; }
