@@ -1659,8 +1659,8 @@ dialog.pantalla > .estirar .dialogo__pie { position: sticky; bottom: calc(-1 * (
 .semana-kpi--ojo strong { color: var(--ambar); }
 .semana-grafico { padding: 14px; border-radius: var(--radio); background: var(--grafito-2); }
 .semana-dias { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; align-items: end; }
-.semana-dia { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.semana-dia__barra { position: relative; width: 100%; height: 110px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); display: flex; align-items: flex-end; overflow: hidden; }
+.semana-dias .semana-dia { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0; }
+.semana-dias .semana-dia__barra { position: relative; width: 100%; height: 110px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); display: flex; align-items: flex-end; overflow: hidden; }
 .semana-dia__fill { width: 100%; border-radius: 8px 8px 4px 4px; }
 .semana-dia__fill--ok { background: var(--volt); }
 .semana-dia__fill--falta { background: rgba(198, 244, 50, 0.35); }
@@ -1892,3 +1892,24 @@ dialog.pantalla > .estirar .dialogo__pie { position: sticky; bottom: calc(-1 * (
 .chatia__msg--yo:has(.chatia__foto) > span { display: block; padding: 0 6px; }
 .ia-chat { gap: 10px; }
 .reg .chatia__cuerpo .reg__momentos { margin: 0; }
+
+/* Comida: navegación de días y tarjeta de la semana */
+.nav-dias { gap: 6px; flex-wrap: nowrap; }
+.nav-dia { min-width: 40px; min-height: 40px; padding: 0 12px; gap: 4px; font-weight: 700; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; }
+.nav-dia span { font-size: 14px; }
+.nav-dia .icono { width: 20px; height: 20px; }
+.nav-dia--hoy { padding: 0 14px; }
+body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe-area-inset-bottom)); }
+.semana-comida { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 16px; text-align: left; border: 0; color: inherit; font: inherit; cursor: pointer; }
+.semana-comida__cab { display: flex; justify-content: space-between; align-items: center; font-family: var(--titulo); font-size: 17px; }
+.semana-comida__datos { display: flex; gap: 14px; align-items: center; }
+.semana-comida__barras { position: relative; display: flex; align-items: flex-end; gap: 4px; width: 92px; height: 44px; flex: 0 0 92px; }
+.semana-comida__barras i { flex: 1; height: var(--h); border-radius: 4px; background: rgba(198, 244, 50, 0.45); transform-origin: bottom; animation: barra-sube .6s var(--suave) both; }
+.semana-comida__barras i.hoy { background: var(--volt); }
+.semana-comida__barras i:nth-child(2) { animation-delay: .04s; } .semana-comida__barras i:nth-child(3) { animation-delay: .08s; } .semana-comida__barras i:nth-child(4) { animation-delay: .12s; }
+.semana-comida__barras i:nth-child(5) { animation-delay: .16s; } .semana-comida__barras i:nth-child(6) { animation-delay: .2s; } .semana-comida__barras i:nth-child(7) { animation-delay: .24s; }
+.semana-comida__barras b { position: absolute; left: -2px; right: -2px; bottom: var(--h); border-top: 1.5px dashed var(--tiza-2); opacity: .6; }
+@keyframes barra-sube { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.semana-comida__texto { font-size: 14px; line-height: 1.45; }
+.semana-comida__aviso { color: var(--ambar); font-weight: 600; font-size: 13px; }
+.hoja-cuerpo > .tarjeta, .hoja-cuerpo > .seccion { margin: 0; }

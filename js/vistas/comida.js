@@ -4,7 +4,7 @@
 //   Despensa → lo que hay en casa (cargado con Gemini) e ideas para cocinar con eso
 import { emparejar, esIndividual, asistenciaIndividual, porConfirmar } from '../actividades.js';
 import { cargarSyncs } from '../hecho.js';
-import { htmlCompositor, conectarCompositor, burbujaPensando, cubo } from '../chatia.js';
+import { htmlCompositor, conectarCompositor, burbujaPensando, cubo, htmlCabecera, fabIA } from '../chatia.js';
 import { deporte } from '../deportes.js';
 import { metaAgua, aguaDeComidas, cargarAgua, sumarAgua, borrarAgua, litros } from '../hidratacion.js';
 import { sb, estado, datos } from '../db.js';
@@ -32,9 +32,11 @@ export async function vistaComida(app) {
   const fecha = /^\d{4}-\d{2}-\d{2}$/.test(param) ? param : hoyISO();
   try {
     await cargarCatalogo();
-    if (pestana === 'semana') return await vistaSemana(app);
-    if (pestana === 'despensa') return await vistaDespensa(app);
-    return await vistaDia(app, fecha);
+    // Semana y Despensa ya no son pestañas: se abren como hojas sobre el día de hoy.
+    if (pestana !== 'dia') history.replaceState(null, '', `${location.pathname}#/comida`);
+    await vistaDia(app, fecha);
+    if (pestana === 'semana') abrirSemana();
+    if (pestana === 'despensa') abrirDespensa(() => vistaDia(app, fecha));
   } catch (err) {
     // La base todavía no tiene las tablas de la dieta (falta aplicar la migración).
     if (['PGRST205', '42P01', 'PGRST200'].includes(err?.code) || /alimentos|despensa|comida_items/.test(err?.message ?? '')) {
@@ -47,9 +49,29 @@ export async function vistaComida(app) {
   }
 }
 
-function pestanas(activa, fecha) {
-  const t = [['dia', 'Día', fecha && fecha !== hoyISO() ? `#/comida/${fecha}` : '#/comida'], ['semana', 'Semana', '#/comida/semana'], ['despensa', 'Despensa', '#/comida/despensa']];
-  return `<nav class="segmentos" aria-label="Secciones de comida">${t.map(([k, n, h]) => `<a href="${h}" class="segmentos__item" ${k === activa ? 'aria-current="page"' : ''}>${n}</a>`).join('')}</nav>`;
+// Hoja de pantalla completa con la misma cabecera de los chats (para Semana y Despensa).
+function abrirHoja(titulo, sub, render, alCerrar) {
+  const d = abrirDialogo(`<div class="reg chatia">${htmlCabecera({ titulo, sub })}<div class="chatia__cuerpo hoja-cuerpo"></div></div>`, titulo, { pantalla: true });
+  if (alCerrar) d.addEventListener('close', alCerrar);
+  // Si desde la hoja se va a otro día, la hoja se cierra.
+  const alNavegar = () => { window.removeEventListener('hashchange', alNavegar); d.close(); };
+  window.addEventListener('hashchange', alNavegar);
+  d.addEventListener('close', () => window.removeEventListener('hashchange', alNavegar));
+  render(d.querySelector('.hoja-cuerpo'));
+  return d;
+}
+const abrirSemana = () => abrirHoja('Tu semana', 'Últimos 7 días', (c) => vistaSemana(c, { enHoja: true }).catch(avisoError));
+const abrirDespensa = (alCerrar) => abrirHoja('Despensa', 'Lo que hay en casa', (c) => vistaDespensa(c, { enHoja: true }).catch(avisoError), alCerrar);
+const ICONO_CASA = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-5h-6v5H5a1 1 0 0 1-1-1z"/></svg>';
+const rutaDia = (f) => (f === hoyISO() ? '#/comida' : `#/comida/${f}`);
+
+/** ‹ Ayer (hoy) · ‹ Hoy (ayer) · ‹ › Hoy (antes). */
+function navDias(fecha) {
+  const hoy = hoyISO(), ayer = sumarDias(hoy, -1);
+  const atras = `<a class="boton boton--sec boton--chico nav-dia" href="${rutaDia(sumarDias(fecha, -1))}" aria-label="Día anterior">‹${fecha === hoy ? '<span>Ayer</span>' : ''}</a>`;
+  const adelante = fecha < ayer ? `<a class="boton boton--sec boton--chico nav-dia" href="${rutaDia(sumarDias(fecha, 1))}" aria-label="Día siguiente">›</a>` : '';
+  const aHoy = fecha !== hoy ? '<a class="boton boton--chico nav-dia nav-dia--hoy" href="#/comida">Hoy</a>' : '';
+  return `${atras}${adelante}${aHoy}`;
 }
 
 const ordenar = (comidas) => [...comidas].sort((a, b) =>
@@ -79,25 +101,12 @@ async function vistaDia(app, fecha) {
         <h1 class="titulo">Comida</h1>
         <p class="subtitulo">${esc(esHoy ? 'Hoy' : diaLargo(fecha))}</p>
       </div>
-      <div class="fila" style="gap:6px">
-        <a class="boton boton--sec boton--chico boton--icono" href="#/comida/${sumarDias(fecha, -1)}" aria-label="Día anterior">‹</a>
-        ${esHoy ? '' : `<a class="boton boton--sec boton--chico boton--icono" href="${sumarDias(fecha, 1) === hoyISO() ? '#/comida' : `#/comida/${sumarDias(fecha, 1)}`}" aria-label="Día siguiente">›</a>`}
+      <div class="fila nav-dias">
+        ${navDias(fecha)}
+        <button type="button" class="boton boton--sec boton--chico nav-dia" id="abrir-despensa" aria-label="Despensa: lo que hay en casa">${ICONO_CASA}</button>
       </div>
     </header>
-    ${pestanas('dia', fecha)}
 
-    <section class="ia-caja ia-inicio" aria-label="Agregar comida">
-      <span class="ia-inicio__marca">${ICONO_CHISPA} IA de Bloq</span>
-      <form class="ia-inicio__barra" id="rapido">
-        <input id="rapido-texto" autocomplete="off" maxlength="400" placeholder="¿Qué comiste${esHoy ? '' : ' ese día'}?" aria-label="Qué comiste">
-        <label class="ia-inicio__icono" aria-label="Sacar foto del plato">${ICONO_FOTO}<input type="file" id="rapido-camara" accept="image/*" capture="environment" hidden></label>
-        <button type="submit" class="ia-inicio__enviar" aria-label="Agregar con la IA">${ICONO_CHISPA}</button>
-      </form>
-      <div class="ia-inicio__rapidos" aria-label="Agregar rápido">
-        <button type="button" class="chip chip--mini chip--buscar" id="rapido-manual">🔍 A mano</button>
-        ${(habituales.length ? habituales : frec).map((f, i) => `<button type="button" class="chip chip--mini" data-${habituales.length ? 'habitual' : 'frec'}="${i}">+ ${esc(f.alimento.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, ''))}</button>`).join('')}
-      </div>
-    </section>
 
     ${info.length > 1 ? `
       <div class="ver-persona" role="tablist" aria-label="De quién ver el día">
@@ -124,31 +133,21 @@ async function vistaDia(app, fecha) {
       <h2 class="seccion__titulo" id="t-comidas">${esHoy ? 'Lo que comieron hoy' : 'Lo que comieron'}</h2>
       ${d.comidas.length
         ? htmlComidasDia(ordenar(d.comidas))
-        : `<p class="vacio">Todavía nada${esHoy ? ' hoy' : ''}. Escribe arriba lo que comiste.</p>`}
-    </section>`;
+        : `<p class="vacio">Todavía nada${esHoy ? ' hoy' : ''}. Toca «Agregar comida» para anotarla.</p>`}
+    </section>
 
-  const form = app.querySelector('#rapido');
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const texto = app.querySelector('#rapido-texto').value.trim();
-    abrirRegistro(ctx, texto ? { texto } : {});
-  });
-  app.querySelector('#rapido-manual').addEventListener('click', () => abrirRegistro(ctx, {}));
+    <button type="button" class="tarjeta semana-comida" id="ver-semana-comida" aria-label="Ver tu semana">
+      <span class="semana-comida__cab"><strong>Tu semana</strong><span class="plan__flecha" aria-hidden="true">›</span></span>
+      <span class="semana-comida__datos" id="semana-comida-datos"><span class="quieto">Cargando…</span></span>
+    </button>`;
+
+  // Agregar comida: botón flotante (abre el chat con la IA).
+  fabIA('Agregar comida', () => abrirRegistro(ctx, {}), /^#\/comida/);
+  app.querySelector('#abrir-despensa').addEventListener('click', () => abrirDespensa(() => vistaDia(app, fecha)));
+  app.querySelector('#ver-semana-comida').addEventListener('click', abrirSemana);
+  tarjetaSemana(app.querySelector('#semana-comida-datos'), yo);
   conectarAgua(app);
 
-  app.querySelectorAll('[data-habitual]').forEach((b) => b.addEventListener('click', () => {
-    const f = habituales[Number(b.dataset.habitual)];
-    abrirRegistro(ctx, { items: [{ alimento: f.alimento, gramos: f.gramos }] });
-  }));
-  app.querySelector('#rapido-camara').addEventListener('change', (e) => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (f) abrirRegistro(ctx, { foto: f });
-  });
-  app.querySelectorAll('[data-frec]').forEach((b) => b.addEventListener('click', () => {
-    const f = frec[Number(b.dataset.frec)];
-    abrirRegistro(ctx, { items: [{ alimento: f.alimento, gramos: f.gramos }] });
-  }));
   app.querySelectorAll('[data-comida]').forEach((b) => b.addEventListener('click', () =>
     abrirRegistro(ctx, { comida: d.comidas.find((c) => c.id === b.dataset.comida) })));
   app.querySelector('#cambiar-objetivo')?.addEventListener('click', () => dialogoObjetivo(yo.foco, () => vistaDia(app, fecha)));
@@ -327,7 +326,7 @@ async function mostrarIdeas(ctx, cont, boton) {
 
 // ---------- Semana ----------
 
-async function vistaSemana(app) {
+async function vistaSemana(app, { enHoja = false } = {}) {
   const hoy = hoyISO();
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(hoy, i - 6));
   const ids = estado.personas.map((p) => p.id);
@@ -354,8 +353,7 @@ async function vistaSemana(app) {
   const tendencia = filas.at(-1).tendencia;
 
   app.innerHTML = `
-    <header class="encabezado encabezado--fijo"><div><h1 class="titulo">Comida</h1><p class="subtitulo">Últimos 7 días</p></div></header>
-    ${pestanas('semana')}
+    ${enHoja ? '' : '<header class="encabezado encabezado--fijo"><div><h1 class="titulo">Comida</h1><p class="subtitulo">Últimos 7 días</p></div></header>'}
     <section class="tarjeta">
       ${conDatos.length ? `
         <div class="grilla-2">
@@ -413,15 +411,14 @@ async function conectarMicros(app) {
 
 // ---------- Despensa ----------
 
-async function vistaDespensa(app) {
+async function vistaDespensa(app, { enHoja = false } = {}) {
   const despensa = datos(await sb.from('despensa').select('*, alimento:alimentos(*)').eq('hogar_id', estado.yo.hogar_id)
     .is('terminado_en', null).order('agregado_en', { ascending: false }));
   const fecha = hoyISO();
-  const recargar = () => vistaDespensa(app);
+  const recargar = () => vistaDespensa(app, { enHoja });
 
   app.innerHTML = `
-    <header class="encabezado encabezado--fijo"><div><h1 class="titulo">Comida</h1><p class="subtitulo">Lo que hay en casa</p></div></header>
-    ${pestanas('despensa')}
+    ${enHoja ? '' : '<header class="encabezado encabezado--fijo"><div><h1 class="titulo">Comida</h1><p class="subtitulo">Lo que hay en casa</p></div></header>'}
     <section class="tarjeta pila" style="gap:10px">
       <h2 class="seccion__titulo" style="margin:0">Agregar lo que compraste</h2>
       <div class="chatia__compositor--suelto">${htmlCompositor({
@@ -915,4 +912,28 @@ function conectarAgua(app) {
 export async function resumenComidaHoy() {
   const d = await cargarDia(hoyISO());
   return datosPersona(estado.yo, d);
+}
+
+// Tarjeta «Tu semana» del día: promedio de calorías y proteína, barras de los 7 días y lo que viene bajo en vitaminas y minerales.
+async function tarjetaSemana(cont, yo) {
+  if (!cont) return;
+  try {
+    const hoy = hoyISO();
+    const dias = Array.from({ length: 7 }, (_, i) => sumarDias(hoy, i - 6));
+    const filas = datos(await sb.from('porciones').select('kcal, proteina_g, comida:comidas!inner(fecha, hogar_id)')
+      .eq('persona_id', yo.p.id).eq('comida.hogar_id', estado.yo.hogar_id).gte('comida.fecha', dias[0]).lte('comida.fecha', hoy));
+    const porDia = dias.map((f) => filas.filter((x) => x.comida.fecha === f).reduce((a, x) => ({ kcal: a.kcal + Number(x.kcal ?? 0), prot: a.prot + Number(x.proteina_g ?? 0) }), { kcal: 0, prot: 0 }));
+    const con = porDia.filter((x, i) => x.kcal > 300 && dias[i] !== hoy);
+    const meta = yo.metas.ok ? yo.metas.kcal : null;
+    const max = Math.max(meta ?? 0, ...porDia.map((x) => x.kcal), 1);
+    const prom = (k) => (con.length ? Math.round(con.reduce((a, x) => a + x[k], 0) / con.length) : 0);
+    cont.innerHTML = `
+      <span class="semana-comida__barras" aria-hidden="true">${porDia.map((x, i) => `<i style="--h:${Math.max(4, (x.kcal / max) * 100)}%" class="${dias[i] === hoy ? 'hoy' : ''}"></i>`).join('')}${meta ? `<b style="--h:${(meta / max) * 100}%"></b>` : ''}</span>
+      <span class="semana-comida__texto">${con.length
+        ? `<strong>${kc(prom('kcal'))}</strong> kcal/día · <strong>${prom('prot')}</strong> g de proteína<br><span class="quieto">Promedio de ${con.length} día${con.length === 1 ? '' : 's'} registrado${con.length === 1 ? '' : 's'}</span>`
+        : '<span class="quieto">Registra tus comidas y acá ves cómo va tu semana.</span>'}<span class="semana-comida__micros" id="semana-comida-micros"></span></span>`;
+    const bajos = await import('../micros.js').then((M) => M.bajosParaIA()).catch(() => null);
+    const m = cont.querySelector('#semana-comida-micros');
+    if (m && bajos?.length) m.innerHTML = `<br><span class="semana-comida__aviso">Vas bajo en ${esc(bajos.map((b) => b.nutriente.toLowerCase()).join(', ').replace(/, ([^,]*)$/, ' y $1'))}</span>`;
+  } catch { cont.innerHTML = '<span class="quieto">Toca para ver tu semana.</span>'; }
 }

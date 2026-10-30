@@ -1,6 +1,7 @@
 // Pantalla Entrenos: la semana en orden, día por día. Cada entreno muestra su rutina
 // (con el mapa del cuerpo), lo que registró el reloj y si ya se hizo; desde acá se agrega,
 // se edita y se empieza. Abajo, todas las rutinas.
+import { fabIA } from '../chatia.js';
 import { sincronizarAgenda } from '../nativo.js';
 import { sb, estado, datos, otraPersona } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from '../ui.js';
@@ -45,20 +46,11 @@ export async function vistaSemana(app) {
       <div class="centinela" id="cent-abajo" aria-hidden="true"></div>
     </div>`;
 
-  // Rutinas con IA: botón flotante (fuera de la vista animada para que quede fijo sobre la barra de abajo).
-  document.querySelector('.fab-ia')?.remove();
-  const fab = document.createElement('button');
-  fab.type = 'button';
-  fab.className = 'fab-ia';
-  fab.setAttribute('aria-label', 'Rutinas con IA');
-  fab.innerHTML = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg><span>Rutinas con IA</span>';
-  fab.addEventListener('click', async () => {
+  // Nueva rutina (con la IA): botón flotante sobre la barra de abajo.
+  fabIA('Nueva rutina', async () => {
     const { abrirEntrenador } = await import('../entrenador.js');
     abrirEntrenador({ alAplicar: () => {} });
-  });
-  document.body.appendChild(fab);
-  const quitarFab = () => { if (!/^#\/semana/.test(location.hash)) { fab.remove(); window.removeEventListener('hashchange', quitarFab); } };
-  window.addEventListener('hashchange', quitarFab);
+  }, /^#\/semana/);
   const cont = app.querySelector('#semanas');
   const scroller = document.getElementById('app');
   let primera = sumarDias(lunes0, -7), ultima = sumarDias(lunes0, 7), cargando = false;

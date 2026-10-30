@@ -96,3 +96,23 @@ export function htmlBienvenida({ titulo, texto, sugerencias = [] }) {
       ${sugerencias.length ? `<div class="chatia__sugerencias">${sugerencias.map((s, k) => `<button type="button" class="chatia__sugerencia" data-sugerencia="${k}" style="--k:${k}">${s.icono ? `<span aria-hidden="true">${s.icono}</span>` : ''}${esc(s.texto)}</button>`).join('')}</div>` : ''}
     </div>`;
 }
+
+/**
+ * Botón flotante de la sección (sobre la barra de abajo). Se va solo al salir de la ruta.
+ * @param {string} texto  lo que dice el botón
+ * @param {Function} alTocar
+ * @param {RegExp} ruta  mientras el hash coincida, el botón queda
+ */
+export function fabIA(texto, alTocar, ruta) {
+  document.querySelector('.fab-ia')?.remove();
+  const fab = document.createElement('button');
+  fab.type = 'button';
+  fab.className = 'fab-ia';
+  fab.setAttribute('aria-label', texto);
+  fab.innerHTML = `${ICONOS.chispa}<span>${esc(texto)}</span>`;
+  fab.addEventListener('click', alTocar);
+  document.body.appendChild(fab);
+  const quitar = () => { if (!ruta.test(location.hash)) { fab.remove(); window.removeEventListener('hashchange', quitar); } };
+  window.addEventListener('hashchange', quitar);
+  return fab;
+}
