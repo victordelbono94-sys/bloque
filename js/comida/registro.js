@@ -6,7 +6,7 @@ import { sb, estado } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
 import { hoyISO } from '../fechas.js';
 import { macros, sumar } from '../alimentos.js';
-import { OBJETIVOS } from '../nutricion.js';
+import { OBJETIVOS, diagnosticoDia } from '../nutricion.js';
 import { panelBuscar } from './buscar.js';
 import { esLiquido } from '../hidratacion.js';
 import {
@@ -210,7 +210,15 @@ export function abrirRegistro(ctx, op = {}) {
     const protMeta = Math.round(Math.min(k >= 0 ? protDisp * (parte / resto) : protDisp, info.metas.proteina * parte * 1.75));
     const restoDia = disponible - mio.kcal;
     const quemado = Math.round(info.metas.medido || info.metas.ejercicio || 0);
-    return { info, mio, meta, protMeta, falta: meta - mio.kcal, restoDia, disponible, quemado, medido: !!info.metas.medido };
+    // El día completo con este plato: lo mismo que verá el resumen al guardar (mismo diagnóstico que usa la IA).
+    const dia = {
+      kcal: info.comido.kcal - Number(antes?.kcal ?? 0) + mio.kcal,
+      proteina: info.comido.proteina - Number(antes?.proteina_g ?? antes?.proteina ?? 0) + mio.proteina,
+      carbos: (info.comido.carbos ?? 0) + (mio.carbos ?? 0),
+      grasas: (info.comido.grasas ?? 0) + (mio.grasas ?? 0),
+    };
+    const diag = diagnosticoDia({ metas: info.metas, comido: dia });
+    return { info, mio, meta, protMeta, falta: meta - mio.kcal, restoDia, disponible, quemado, medido: !!info.metas.medido, diag };
   };
   const pintarMeta = () => {
     const b = items.length && paso === 1 ? balance() : null;
@@ -222,31 +230,25 @@ export function abrirRegistro(ctx, op = {}) {
     const femenino = ['merienda', 'cena'].includes(momento);
     const unBuen = `${femenino ? 'una buena' : 'un buen'} ${nombre}`;
     const pct = Math.min(100, Math.round((b.mio.kcal / b.meta) * 100));
-    // El veredicto depende del objetivo y del DÍA, no solo de esta comida: pasarse un poco es bueno para ganar masa,
-    // neutro para mantener y algo a cuidar para bajar de peso. Solo «reta» cuando de verdad importa.
-    const ganar = b.info.foco === 'masa_muscular' || b.info.metas.magro;
+    // El veredicto sale del mismo diagnóstico del día que usan el resumen y la IA: pasarse un poco es bueno para
+    // ganar masa, neutro para mantener y algo a cuidar para bajar de peso. Solo «reta» cuando de verdad importa.
     const bajar = b.info.foco === 'perder_grasa';
-    const exceso = -b.restoDia;                      // > 0: con esta comida te pasas del día
-    const tope = b.info.metas.kcal;
     const bien = (t) => `<strong class="hecho">${t}</strong>`;
     const ojo = (t) => `<strong class="consejo__falta">${t}</strong>`;
+    const tono = (t) => (b.diag.tono === 'ojo' ? ojo(t) : bien(t));
     let estadoTxt;
-    if (b.falta > 120 && !bajar) estadoTxt = `${ojo(`Te faltan ~${kc(b.falta)} kcal`)} para ${esc(unBuen)}`;
+    if (b.diag.estado === 'pasado') estadoTxt = tono(b.diag.kcal);
+    else if (b.falta > 120 && !bajar) estadoTxt = `${ojo(`Te faltan ~${kc(b.falta)} kcal`)} para ${esc(unBuen)}`;
     else if (b.falta > 120) estadoTxt = `Te quedan ~${kc(b.falta)} kcal para ${femenino ? 'esta' : 'este'} ${esc(nombre)}, sin salirte del déficit`;
     else if (b.falta >= -b.meta * 0.35) estadoTxt = bien(`${femenino ? 'Buena' : 'Buen'} ${esc(nombre)} ✓`);
-    else if (exceso <= 0) estadoTxt = `${bien('Comida grande, pero vas bien en el día ✓')}`;
-    else if (ganar) estadoTxt = exceso <= tope * 0.15
-      ? bien(`Te pasas ~${kc(exceso)} kcal del día: para ganar masa está bien ✓`)
-      : `${ojo(`Te pasas ~${kc(exceso)} kcal del día`)}: es mucho incluso para ganar masa`;
-    else if (bajar) estadoTxt = `${ojo(`Te pasas ~${kc(exceso)} kcal del día`)}: para bajar de peso conviene achicar una porción`;
-    else estadoTxt = exceso <= tope * 0.05
-      ? bien('Casi justo en el día ✓')
-      : `${ojo(`Te pasas ~${kc(exceso)} kcal del día`)}: si puedes, achica una porción`;
+    else estadoTxt = b.diag.exceso > 0 ? tono(b.diag.kcal) : bien('Comida grande, pero vas bien en el día ✓');
+    const notaMacro = b.diag.notas.find((n) => /proteína|carbohidratos/.test(n));
     const despues = fecha !== hoyISO() ? '' : b.restoDia >= 0 ? ` · después te quedan ${kc(b.restoDia)} kcal en el día` : '';
     $('#r-meta').innerHTML = `
       <div class="meta-comida__fila"><span>${MOMENTOS[momento]}${varios ? ' · tu parte' : ''}</span><span><strong>${kc(b.mio.kcal)}</strong> / ~${kc(b.meta)} kcal · P ${Math.round(b.mio.proteina)}/${b.protMeta} g</span></div>
       <div class="meta-comida__barra"><span style="width:${pct}%"></span></div>
       <p class="meta-comida__txt">${estadoTxt}${despues}</p>
+      ${notaMacro ? `<p class="meta-comida__base">${esc(notaMacro)}</p>` : ''}
       <p class="meta-comida__base">Antes de esta comida te quedaban <strong>${kc(b.disponible)} kcal</strong>${b.quemado ? ` · ${b.medido ? 'quemaste' : 'entrenos de hoy:'} ~${kc(b.quemado)} kcal${b.medido ? ' según tu reloj' : ''} (ya sumadas)` : ''}</p>`;
   };
 
@@ -287,6 +289,8 @@ export function abrirRegistro(ctx, op = {}) {
         },
         metas_del_dia: { kcal: b.info.metas.kcal, proteina_g: b.info.metas.proteina, carbos_g: b.info.metas.carbos, grasas_g: b.info.metas.grasas },
         meta_de_esta_comida: { kcal: b.meta, proteina_g: b.protMeta, carbos_g: Math.round((b.info.metas.carbos ?? 0) * (PARTE_COMIDA[momento] ?? 0.25)) },
+        diagnostico_de_la_app: [b.diag.kcal, ...b.diag.notas.filter((n) => n !== b.diag.kcal)].filter(Boolean),
+        regla: 'Lo que respondas tiene que coincidir con diagnostico_de_la_app (es lo que la persona ve en pantalla): si dice que está bien por su objetivo, no lo retes; usa esos mismos números.',
         le_quedaban_kcal_antes_de_esta_comida: Math.round(b.disponible),
         le_quedan_kcal_en_el_dia_despues: Math.round(b.restoDia),
         quemo_entrenando_hoy_kcal: b.quemado,
@@ -548,7 +552,7 @@ export function abrirRegistro(ctx, op = {}) {
     const compartido = sumar(items.filter((it) => !it.persona).map((it) => macros(it.alimento, it.gramos)));
     return fracciones().map(([id, f]) => {
       const propio = sumar(items.filter((it) => it.persona === id).map((it) => macros(it.alimento, it.gramos)));
-      return [id, { kcal: propio.kcal + compartido.kcal * f, proteina: propio.proteina + compartido.proteina * f }];
+      return [id, { kcal: propio.kcal + compartido.kcal * f, proteina: propio.proteina + compartido.proteina * f, carbos: propio.carbos + compartido.carbos * f, grasas: propio.grasas + compartido.grasas * f }];
     });
   };
 

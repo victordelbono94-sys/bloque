@@ -184,7 +184,10 @@ const caras = (ids) => `<span class="caras">${ids.map((id) => `<span class="cara
 function linea(alimento, gramos) {
   const t = cantidadTexto(alimento, gramos);
   const nombre = alimento.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, '').toLowerCase();
-  return t.endsWith(' g') ? `${t} de ${nombre}` : t;
+  if (t.endsWith(' g')) return `${t} de ${nombre}`;
+  // «3 huevos» ya dice qué es; «1 vaso» o «2 cucharadas» no: se agrega de qué.
+  const clave = nombre.split(' ')[0].slice(0, 4);
+  return t.toLowerCase().includes(clave) ? t : `${t} de ${nombre}`;
 }
 
 /**
@@ -192,10 +195,14 @@ function linea(alimento, gramos) {
  * En cada momento: qué fue compartido, qué comió cada uno, y las calorías de cada persona.
  */
 function htmlComidasDia(comidas) {
+  // Se juntan las del mismo momento si están cerca en la hora (si los dos anotaron el almuerzo por separado);
+  // dos «snacks» a las 00:18 y a las 23:57 son comidas distintas y van aparte.
+  const minutos = (c) => (c.hora ? Number(c.hora.slice(0, 2)) * 60 + Number(c.hora.slice(3, 5)) : null);
   const grupos = [];
   for (const c of comidas) {
-    const g = grupos.find((x) => x.momento === c.momento) ?? (grupos.push({ momento: c.momento, comidas: [] }), grupos.at(-1));
-    g.comidas.push(c);
+    const m = minutos(c);
+    const g = grupos.find((x) => x.momento === c.momento && (m == null || x.min == null || Math.abs(m - x.min) <= 180));
+    if (g) { g.comidas.push(c); if (g.min == null) g.min = m; } else grupos.push({ momento: c.momento, comidas: [c], min: m });
   }
   return `<div class="tarjeta comidas-dia"><ol class="plan">${grupos.map((g) => {
     const horas = g.comidas.map((c) => c.hora?.slice(0, 5)).filter(Boolean).sort();

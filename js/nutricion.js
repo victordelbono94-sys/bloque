@@ -120,15 +120,53 @@ export function calcularMetas({ persona, medicion, foco = 'recomposicion', event
 }
 
 /** Consejos según lo que llevas comido y la hora. */
-export function consejosDelDia(metas, comido, hora = new Date().getHours()) {
-  if (!metas?.ok) return [];
-  const c = [];
+/**
+ * Diagnóstico del día: UNA sola fuente para lo que dice la app (el resumen, el registro de comidas y la IA).
+ * Las calorías se juzgan según el objetivo: pasarse un poco es bueno para ganar masa, poco para mantener
+ * y casi nada para bajar de peso. Los macros se explican en relación a eso (sin contradecir las calorías).
+ * @returns {{ estado: 'falta'|'justo'|'pasado', tono: 'ok'|'ojo'|'info', exceso: number, tolerancia: number, kcal: string, notas: string[] }}
+ */
+export function diagnosticoDia({ metas, comido, foco = metas?.foco, hora = new Date().getHours() }) {
+  if (!metas?.ok) return { estado: 'falta', tono: 'info', exceso: 0, tolerancia: 0, kcal: '', notas: [] };
+  const ganar = foco === 'masa_muscular' || metas.magro;
+  const bajar = foco === 'perder_grasa';
+  const tolerancia = Math.round(metas.kcal * (ganar ? 0.15 : bajar ? 0.03 : 0.06));
+  const exceso = Math.round(comido.kcal - metas.kcal);
+  const r = (n) => Math.round(n).toLocaleString('es-EC');
+  let estado, tono, kcal;
+  if (exceso > tolerancia) {
+    estado = 'pasado'; tono = 'ojo';
+    kcal = ganar ? `Te pasaste ~${r(exceso)} kcal: es mucho incluso para ganar masa. Mañana sigue normal.`
+      : bajar ? `Te pasaste ~${r(exceso)} kcal de tu déficit. No pasa nada por un día: mañana sigue normal.`
+      : `Te pasaste ~${r(exceso)} kcal. No pasa nada por un día: mañana sigue normal.`;
+  } else if (exceso > 0) {
+    estado = 'justo'; tono = 'ok';
+    kcal = ganar ? `Pasaste tu meta por ~${r(exceso)} kcal: para ganar masa está bien ✓` : 'Calorías del día cubiertas ✓';
+  } else if (exceso >= -metas.kcal * 0.08) {
+    estado = 'justo'; tono = 'ok'; kcal = 'Calorías del día cubiertas ✓';
+  } else {
+    estado = 'falta'; tono = hora >= 20 && -exceso > 500 ? 'ojo' : 'info';
+    kcal = `Te quedan ~${r(-exceso)} kcal${hora >= 20 && -exceso > 500 ? ': comer muy poco seguido frena la recuperación muscular' : ''}.`;
+  }
+  const notas = [];
+  // Solo se habla del día cuando ya hay algo comido o se pasó; el «te quedan» ya lo dice el número grande.
+  if (estado !== 'falta' || tono === 'ojo') notas.push(kcal);
   const faltaP = metas.proteina - comido.proteina;
-  const faltaK = metas.kcal - comido.kcal;
-  if (hora >= 17 && faltaP > 35) c.push(`Te faltan ${Math.round(faltaP)} g de proteína: una pechuga, un batido o un yogur griego con huevos ayudan a cerrar el día.`);
-  if (hora >= 20 && faltaK > 500) c.push(`Te quedan ${Math.round(faltaK)} kcal: comer muy poco seguido frena la recuperación muscular.`);
-  if (faltaK < -250) c.push(`Te pasaste ${Math.round(-faltaK)} kcal. No pasa nada por un día; mañana sigue normal.`);
-  return c;
+  const faltaC = metas.carbos - comido.carbos;
+  if (faltaP > Math.max(20, metas.proteina * 0.15) && (hora >= 17 || estado !== 'falta')) {
+    notas.push(`Te faltan ~${r(faltaP)} g de proteína${estado === 'falta' ? ': una pechuga, un batido o un yogur griego con huevos ayudan a cerrar el día' : ' aunque ya cubriste las calorías: la próxima vez cambia algo de grasa o carbohidrato por proteína'}.`);
+  }
+  if (faltaC > Math.max(30, metas.carbos * 0.2) && (hora >= 14 || estado !== 'falta')) {
+    notas.push(estado === 'falta'
+      ? `Para lo que queda, prioriza carbohidratos: te faltan ~${r(faltaC)} g (arroz, papa, fruta, pan).`
+      : `Los carbohidratos quedaron ~${r(faltaC)} g por debajo porque cubriste las calorías con proteína y grasa: no hace falta sumar más.`);
+  }
+  return { estado, tono, exceso, tolerancia, kcal, notas };
+}
+
+/** Consejos para el resumen del día (vienen del mismo diagnóstico que usa el registro y la IA). */
+export function consejosDelDia(metas, comido, hora = new Date().getHours()) {
+  return diagnosticoDia({ metas, comido, hora }).notas;
 }
 
 // ---------- Snacks alrededor de los entrenos ----------

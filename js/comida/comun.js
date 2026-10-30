@@ -19,7 +19,8 @@ export function momentoPorHora(d = new Date()) {
   if (m >= 630 && m < 720) return 'snack';
   if (m >= 720 && m < 930) return 'almuerzo';
   if (m >= 930 && m < 1110) return 'merienda';
-  if (m >= 1110 && m < 1380) return 'cena';
+  // La cena va de 18:30 hasta las 2:00 (si comes tarde, sigue siendo la cena); de madrugada, snack.
+  if (m >= 1110 || m < 120) return 'cena';
   return 'snack';
 }
 
