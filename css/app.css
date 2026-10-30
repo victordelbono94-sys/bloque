@@ -542,7 +542,7 @@ button.serie:active { transform: scale(0.92); }
   color: var(--asfalto);
   animation: pop 0.3s var(--resorte);
 }
-.serie--limite { border-color: var(--ambar); background: var(--ambar); }
+
 .serie--extra { border-style: solid; color: var(--tiza); }
 span.serie--hecha { opacity: 0.85; }
 
@@ -1523,6 +1523,21 @@ dialog.pantalla .entrenador { display: flex; flex-direction: column; height: 100
 /* Entreno: las series de la otra persona del hogar, solo con contorno (para no confundirlas con las mías) */
 .series--otro .serie { height: 40px; min-width: 42px; font-size: 13px; }
 .series--otro .serie--hecha { background: transparent; color: var(--volt); border: 1.5px solid rgba(198, 244, 50, 0.55); }
-.series--otro .serie--limite { background: transparent; color: var(--ambar); border-color: rgba(232, 163, 23, 0.65); }
+
 .series--otro .serie:not(.serie--hecha) { opacity: 0.6; }
 .meta-fila__nombre--otro { color: var(--gris); }
+
+/* Esfuerzo de cada serie: de verde claro (fácil) a verde oscuro (al límite), con su ícono */
+:root { --esf-facil: #DDE8C6; --esf-justo: #D6F27A; --esf-limite: #C6F432; --esf-limite-claro: #C6F432; }
+.serie .icono-esf { width: 14px; height: 14px; margin-right: 4px; flex: 0 0 auto; stroke: currentColor; fill: none; stroke-width: 2; }
+.serie--facil { border-color: var(--esf-facil); background: var(--esf-facil); color: var(--asfalto); }
+.serie--justo { border-color: var(--esf-justo); background: var(--esf-justo); color: var(--asfalto); }
+.serie--limite { border-color: var(--esf-limite); background: var(--esf-limite); color: var(--asfalto); box-shadow: 0 0 0 3px rgba(198, 244, 50, 0.22); }
+.series--otro .serie--facil { background: transparent; color: var(--esf-facil); border-color: rgba(221, 232, 198, 0.55); }
+.series--otro .serie--justo { background: transparent; color: var(--esf-justo); border-color: rgba(214, 242, 122, 0.6); }
+.series--otro .serie--limite { background: transparent; color: var(--esf-limite); border-color: var(--esf-limite); box-shadow: none; }
+.chip--esf { display: inline-flex; align-items: center; gap: 6px; }
+.chip--esf .icono-esf { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
+.chip--facil[aria-pressed="true"] { background: var(--esf-facil); border-color: var(--esf-facil); color: var(--asfalto); }
+.chip--justo[aria-pressed="true"] { background: var(--esf-justo); border-color: var(--esf-justo); color: var(--asfalto); }
+.chip--limite[aria-pressed="true"] { background: var(--esf-limite); border-color: var(--esf-limite); color: var(--asfalto); }

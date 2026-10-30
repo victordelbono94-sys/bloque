@@ -14,11 +14,18 @@ import { sumarAgua } from '../hidratacion.js';
 import { ofrecerEstiramientos } from '../estiramientos.js';
 import { zonasDe } from '../iconos.js';
 
+// Cómo se sintió cada serie: un color de la misma gama (menta → lima → ámbar) y un ícono que lo dice sin leer.
+const ICONO_ESFUERZO = {
+  facil: '<svg class="icono icono-esf" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14zM5 19l7-7"/></svg>', // hoja: liviano
+  justo: '<svg class="icono icono-esf" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><circle cx="12" cy="12" r="0.6"/></svg>', // diana: en el punto
+  limite: '<svg class="icono icono-esf" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2.2-4.8.3 1.6 1 2.6 2 3 0-3 .3-5.6.8-8.2z"/></svg>', // llama: al límite
+};
 const ESFUERZOS = [
-  { valor: 6, texto: 'Fácil' },
-  { valor: 8, texto: 'Justo' },
-  { valor: 10, texto: 'Al límite' },
+  { valor: 6, texto: 'Fácil', clave: 'facil' },
+  { valor: 8, texto: 'Justo', clave: 'justo' },
+  { valor: 10, texto: 'Al límite', clave: 'limite' },
 ];
+const claveEsfuerzo = (v) => (v == null ? null : v <= 6 ? 'facil' : v >= 10 ? 'limite' : 'justo');
 
 // ---------- Empezar o unirse ----------
 
@@ -278,9 +285,12 @@ function filaPersona(it, p) {
     const texto = s
       ? `${s.reps}${unidad}${s.peso_kg != null ? `×${num(s.peso_kg, s.peso_kg % 1 ? 1 : 0)}` : ''}`
       : String(k + 1);
-    const clase = `serie ${s ? 'serie--hecha' : ''} ${s?.esfuerzo === 10 ? 'serie--limite' : ''}`;
-    if (!soyYo) return `<span class="${clase}" aria-label="Serie ${k + 1}${s ? `: ${texto}` : ', pendiente'}">${esc(texto)}</span>`;
-    return `<button type="button" class="${clase}" data-serie="${k + 1}" data-re="${esc(it.id)}" aria-label="Serie ${k + 1}${s ? `: ${texto}, editar` : ', registrar'}">${esc(texto)}</button>`;
+    const esf = s ? claveEsfuerzo(s.esfuerzo ?? 8) : null;
+    const clase = `serie ${s ? `serie--hecha serie--${esf}` : ''}`;
+    const nombreEsf = esf ? ESFUERZOS.find((e) => e.clave === esf).texto.toLowerCase() : '';
+    const contenido = `${esf ? ICONO_ESFUERZO[esf] : ''}${esc(texto)}`;
+    if (!soyYo) return `<span class="${clase}" aria-label="Serie ${k + 1}${s ? `: ${texto}, ${nombreEsf}` : ', pendiente'}">${contenido}</span>`;
+    return `<button type="button" class="${clase}" data-serie="${k + 1}" data-re="${esc(it.id)}" aria-label="Serie ${k + 1}${s ? `: ${texto}, ${nombreEsf}, editar` : ', registrar'}">${contenido}</button>`;
   }).join('');
 
   const llenas = Array.from({ length: total }, (_, k) => hechas.some((x) => x.numero === k + 1)).every(Boolean);
@@ -451,7 +461,7 @@ function registrarSerie(app, it, numero) {
       <fieldset class="campo">
         <legend>¿Cómo se sintió?</legend>
         <div class="chips" id="esfuerzo">
-          ${ESFUERZOS.map((e) => `<button type="button" class="chip" data-valor="${e.valor}" aria-pressed="${e.valor === esfuerzo}">${e.texto}</button>`).join('')}
+          ${ESFUERZOS.map((e) => `<button type="button" class="chip chip--esf chip--${e.clave}" data-valor="${e.valor}" aria-pressed="${e.valor === esfuerzo}">${ICONO_ESFUERZO[e.clave]}${e.texto}</button>`).join('')}
         </div>
       </fieldset>
 
