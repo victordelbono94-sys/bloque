@@ -1,5 +1,5 @@
 // Arranque de Bloq: sesión, equipo y navegación entre pantallas.
-import { sb, estado, cargarPersonas, fotoInicialDeGoogle, revisarDespertar } from './db.js';
+import { sb, estado, escrituras, cargarPersonas, fotoInicialDeGoogle, revisarDespertar } from './db.js';
 import { hoyISO } from './fechas.js';
 import { aviso, avisoError } from './ui.js';
 import { vistaHoy } from './vistas/hoy.js';
@@ -234,7 +234,8 @@ function escucharHogar() {
   if (canal || !estado.yo) return;
   const tablas = ['comidas', 'porciones', 'calendario', 'sesiones', 'series', 'mediciones_corporales', 'estado_diario', 'hidratacion', 'molestias', 'despensa', 'objetivos', 'sesiones_banda'];
   canal = sb.channel(`hogar-${estado.yo.hogar_id}`);
-  for (const t of tablas) canal.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => refrescarPronto());
+  // Los cambios que hizo este mismo teléfono (hace menos de 8 s) no cuentan: esa pantalla ya se actualizó al guardar.
+  for (const t of tablas) canal.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => { if (Date.now() - escrituras.ultima > 8000) refrescarPronto(); });
   canal.subscribe();
 }
 function refrescarPronto() {

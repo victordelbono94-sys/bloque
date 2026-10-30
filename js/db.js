@@ -2,8 +2,18 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_URL, SUPABASE_CLAVE_PUBLICA } from './config.js';
 
+// Cuándo escribió algo este teléfono: los avisos de tiempo real de esos mismos cambios se ignoran
+// (la pantalla ya se recarga sola al guardar; si no, un refresco a mitad de un guardado podía mostrar la comida a medias).
+export const escrituras = { ultima: 0 };
+const fetchConMarca = (url, op = {}) => {
+  const metodo = (op.method ?? 'GET').toUpperCase();
+  if (metodo !== 'GET' && metodo !== 'HEAD' && String(url).includes('/rest/v1/')) escrituras.ultima = Date.now();
+  return fetch(url, op);
+};
+
 export const sb = createClient(SUPABASE_URL, SUPABASE_CLAVE_PUBLICA, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  global: { fetch: fetchConMarca },
 });
 
 // Estado de la sesión: quién soy, mi equipo y sus personas. (En la base, el equipo es la tabla «hogares».)

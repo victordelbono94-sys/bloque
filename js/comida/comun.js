@@ -192,18 +192,19 @@ export async function borrarComida(c) {
  * @param {{ anterior?, fecha, hora, momento, descripcion, items: Array<{alimento, gramos, paquete?}>, fracciones: Array<[personaId, fraccion]> }} c
  */
 export async function guardarComida(c) {
-  if (c.anterior) {
-    // La despensa se vuelve a leer después de devolver lo usado, para descontar bien.
-    await borrarComida(c.anterior);
-  }
+  // Al editar, primero se guarda la nueva y recién después se borra la anterior: si algo falla a mitad de
+  // camino, la comida no desaparece (como mucho queda la versión anterior).
   const comida = datos(await sb.from('comidas').insert({
     hogar_id: estado.yo.hogar_id, fecha: c.fecha, momento: c.momento, hora: c.hora,
     descripcion: c.descripcion || null, creada_por: estado.yo.id,
   }).select('id').single());
-  datos(await sb.from('comida_items').insert(c.items.map((it) => ({
-    comida_id: comida.id, alimento_id: it.alimento.id, gramos: Math.round(it.gramos * 10) / 10, despensa_id: it.paquete?.id ?? null,
-    persona_id: it.persona ?? null,
-  }))));
+  const deshacer = async (err) => { await sb.from('comidas').delete().eq('id', comida.id); throw err; }; // no dejar una comida a medias
+  try {
+    datos(await sb.from('comida_items').insert(c.items.map((it) => ({
+      comida_id: comida.id, alimento_id: it.alimento.id, gramos: Math.round(it.gramos * 10) / 10, despensa_id: it.paquete?.id ?? null,
+      persona_id: it.persona ?? null,
+    }))));
+  } catch (err) { await deshacer(err); }
   const total = sumar(c.items.map((it) => macros(it.alimento, it.gramos)));
   // Cada uno: lo suyo + su parte (fracción) de lo compartido.
   const compartido = sumar(c.items.filter((it) => !it.persona).map((it) => macros(it.alimento, it.gramos)));
@@ -216,7 +217,9 @@ export async function guardarComida(c) {
       kcal: r1(m.kcal), proteina_g: r1(m.proteina), carbohidratos_g: r1(m.carbos), grasas_g: r1(m.grasas),
     };
   }).filter((x) => x.kcal > 0 || x.fraccion > 0);
-  datos(await sb.from('porciones').insert(filas));
+  try { datos(await sb.from('porciones').insert(filas)); } catch (err) { await deshacer(err); }
+  // La despensa se descuenta después de devolver lo que había usado la versión anterior.
+  if (c.anterior) await borrarComida(c.anterior);
   for (const it of c.items.filter((x) => x.paquete)) {
     const p = datos(await sb.from('despensa').select('gramos_restantes').eq('id', it.paquete.id).maybeSingle());
     if (!p) continue;

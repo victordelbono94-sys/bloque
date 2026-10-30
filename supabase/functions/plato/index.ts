@@ -26,8 +26,11 @@ quién come, cómo se reparte, quién escribe, y para cada persona del hogar su 
 Lee el mensaje y decide:
 1) Si cuenta comida o pide agregar algo ("2 huevos", "agrégale 100 g de queso", "también un café con leche"): ponlo en cambios.agregar
    con gramos y valores por 100 g. Si dice de quién es ("para Sant", "lo mío"), pon persona con el nombre exacto del hogar (o el de quien escribe).
-2) Si corrige o quita ("quita el arroz", "eran 150 g de pollo", "el arroz era 200"): cambios.quitar (nombre exacto del plato)
-   o cambios.ajustar (nombre exacto del plato y los gramos nuevos).
+2) Si quita algo ("quita el arroz", "no comí la papa"): cambios.quitar (nombre exacto del plato).
+   Si corrige la cantidad ("eran 150 g de pollo", "el arroz era 200"): cambios.ajustar (nombre exacto y gramos nuevos).
+   Si corrige QUÉ alimento era ("no era yuca, eran papas fritas", "era arroz con lenteja, no con menestra", "cámbialo por…"):
+   es un REEMPLAZO: pon el viejo en cambios.quitar Y el nuevo en cambios.agregar, con los mismos gramos que tenía el viejo
+   (o los que diga) y los valores por 100 g del alimento nuevo. Nunca quites sin agregar el reemplazo.
 3) Si dice quién comió o cómo ("esto es para los dos", "comimos los dos", "solo yo", "cada uno su plato", "lo compartimos",
    "la ensalada es de Sant"): pon quien (nombres exactos del hogar; "yo" = quien escribe) y reparto
    ("compartido" se divide en partes iguales, "cada_uno" un plato igual por persona, "distinto" cada cosa a su dueño con cambios.asignar).
@@ -124,6 +127,10 @@ const alimento = (a: Record<string, unknown>) => ({
 });
 const par = (a: Record<string, unknown>) => ({ alimento: texto(a.alimento, 120), persona: texto(a.persona, 60), gramos: num(a.gramos, 0, 3000, 0) });
 
+// «no era yuca, eran papas», «era con lenteja», «cámbialo por…» (y no «quita…», «no comí…»).
+const esReemplazo = (m: string) => /\b(no\s+(era|eran|es|son)|era|eran|en\s+vez|en\s+lugar|c[aá]mbi\w*|reemplaz\w*|confund\w*|sino|por|son|es)\b/i.test(m)
+  && !/\b(quita|quítale|saca|sácale|elimina|borra|no\s+(lo|la|los|las)?\s*com[ií])\b/i.test(m);
+
 function limpiar(d: Record<string, unknown>) {
   return {
     respuesta: texto(d.respuesta, 600),
@@ -176,7 +183,23 @@ Deno.serve(async (req) => {
     if (!r.ok) { ultimoError = `${modelo}: ${r.status} ${(await r.text()).slice(0, 160)}`; console.log("gemini", ultimoError); continue; }
     const j = await r.json();
     const salida = j?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
-    try { return json({ modelo, ...limpiar(JSON.parse(salida)) }); } catch { ultimoError = "respuesta"; }
+    let res;
+    try { res = limpiar(JSON.parse(salida)); } catch { ultimoError = "respuesta"; continue; }
+    // Un reemplazo («no era yuca, eran papas») a veces vuelve solo con «quitar»: se le pide una vez que agregue el nuevo.
+    if (res.quitar.length && !res.agregar.length && !res.duda && esReemplazo(mensaje) && Date.now() < limite - 8000) {
+      const otra = await llamar({ ...pedido, contents: [...contents,
+        { role: "model", parts: [{ text: salida }] },
+        { role: "user", parts: [{ text: `Quitaste ${res.quitar.map((q) => q.nombre).join(", ")} pero no agregaste el alimento correcto. Es un reemplazo: responde de nuevo el JSON completo con quitar Y agregar (el alimento nuevo, con los mismos gramos que tenía el viejo y sus valores por 100 g).` }] }] });
+      if (otra.ok) {
+        try {
+          const j2 = await otra.json();
+          const s2 = j2?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
+          const r2 = limpiar(JSON.parse(s2));
+          if (r2.agregar.length) res = r2;
+        } catch { /* se queda con la primera */ }
+      }
+    }
+    return json({ modelo, ...res });
   }
   return json({ error: "gemini", detalle: ultimoError }, 502);
 });
