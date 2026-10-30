@@ -98,7 +98,7 @@ const SILUETA = '<g stroke-linecap="round">'
   + '<path d="M9 34V25.5A7.5 7.5 0 0 1 16.5 18h17a7.5 7.5 0 0 1 7.5 7.5V34z" fill="#fff"/>'
   + '<path d="M12.5 30V51.5M37.5 30V51.5" stroke="#fff" stroke-width="7"/>'
   + '<rect x="16" y="26" width="18" height="28" fill="#fff"/>'
-  + '<path d="M21 51V87.5M29 51V87.5" stroke="#fff" stroke-width="8"/>'
+  + '<path d="M20.85 51V88M29.15 51V88" stroke="#fff" stroke-width="6.9"/>'
   + `<path d="M16.7 29.5V55.5M33.3 29.5V55.5M25 55V96" stroke="#000" stroke-width="${HUECO}"/>`
   + '</g>';
 /** Máscara con la forma de la figura: lo que se pinta debajo de ella toma su forma. */
