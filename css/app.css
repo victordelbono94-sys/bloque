@@ -1581,3 +1581,20 @@ dialog.pantalla .entrenador { display: flex; flex-direction: column; height: 100
 .ejercicios-hechos .pila { margin-top: 12px; }
 .ejercicio--hecho { opacity: 0.85; }
 ::view-transition-group(*) { animation-duration: 0.35s; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* Estiramientos guiados: fotos de cómo se hace (alternan inicio y final), preparación y pausa */
+.estirar__foto { position: relative; width: 100%; aspect-ratio: 3 / 2; border-radius: 14px; overflow: hidden; background: #e9e6df; margin-bottom: 4px; }
+.estirar__foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity 0.6s ease; }
+.estirar__foto[data-cual="1"] #e-img0, .estirar__foto[data-cual="0"] #e-img1 { opacity: 0; }
+.estirar__actual[data-fase="vista"] { background: var(--grafito-2); }
+.estirar__actual[data-fase="vista"] .estirar__tiempo { font-size: 18px; color: var(--gris); }
+.estirar__actual[data-fase="vista"] .crono__barra { display: none; }
+.estirar__actual[data-fase="preparar"] { background: rgba(94, 230, 200, 0.12); }
+.estirar__actual[data-fase="preparar"] .estirar__tiempo { color: #5EE6C8; font-size: 36px; }
+.estirar__actual[data-fase="preparar"] .estirar__lado { color: #5EE6C8; }
+.estirar__actual--pausa { opacity: 0.6; }
+.estirar__actual--pausa .estirar__tiempo::after { content: ' · en pausa'; font-size: 16px; color: var(--gris); }
+.estirar__lista li { align-items: center; cursor: pointer; }
+.estirar__mini { width: 52px; height: 36px; border-radius: 8px; object-fit: cover; background: var(--grafito-2); flex: 0 0 52px; }
+.estirar .dialogo__pie { flex-wrap: wrap; }
+dialog.pantalla > .estirar .dialogo__pie { position: sticky; bottom: calc(-1 * (env(safe-area-inset-bottom) + 24px)); z-index: 2; margin: 0 -20px calc(-1 * (env(safe-area-inset-bottom) + 24px)); padding: 18px 20px calc(16px + env(safe-area-inset-bottom)); background: linear-gradient(to bottom, rgba(42, 45, 53, 0), var(--grafito) 35%); }
