@@ -114,7 +114,7 @@ export async function vistaHoy(app) {
   try { verId = sessionStorage.getItem('bloque-hoy-ver'); } catch { /* nada */ }
   const personaVista = estado.personas.find((p) => p.id === verId) ?? estado.yo;
   app.innerHTML = `
-    <header class="encabezado">
+    <header class="encabezado encabezado--fijo">
       <div>
         <h1 class="titulo">Hoy</h1>
         <p class="subtitulo">${esc(diaLargo(hoy))}</p>

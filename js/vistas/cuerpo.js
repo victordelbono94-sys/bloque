@@ -34,7 +34,7 @@ export async function vistaCuerpo(app) {
   const cronologico = [...mediciones].reverse();
 
   app.innerHTML = `
-    <header class="encabezado">
+    <header class="encabezado encabezado--fijo">
       <div>
         <h1 class="titulo">Cuerpo</h1>
         <p class="subtitulo">Peso y bioimpedancia</p>

@@ -37,7 +37,7 @@ export async function vistaComida(app) {
     // La base todavía no tiene las tablas de la dieta (falta aplicar la migración).
     if (['PGRST205', '42P01', 'PGRST200'].includes(err?.code) || /alimentos|despensa|comida_items/.test(err?.message ?? '')) {
       app.innerHTML = `
-        <header class="encabezado"><div><h1 class="titulo">Comida</h1></div></header>
+        <header class="encabezado encabezado--fijo"><div><h1 class="titulo">Comida</h1></div></header>
         <div class="tarjeta"><p style="margin:0"><strong>Casi lista.</strong> Falta terminar de preparar la base de datos de la dieta.</p></div>`;
       return;
     }
@@ -72,7 +72,7 @@ async function vistaDia(app, fecha) {
   };
 
   app.innerHTML = `
-    <header class="encabezado">
+    <header class="encabezado encabezado--fijo">
       <div>
         <h1 class="titulo">Comida</h1>
         <p class="subtitulo">${esc(esHoy ? 'Hoy' : diaLargo(fecha))}</p>
@@ -356,7 +356,7 @@ async function vistaSemana(app) {
   const tendencia = filas.at(-1).tendencia;
 
   app.innerHTML = `
-    <header class="encabezado"><div><h1 class="titulo">Comida</h1><p class="subtitulo">Últimos 7 días</p></div></header>
+    <header class="encabezado encabezado--fijo"><div><h1 class="titulo">Comida</h1><p class="subtitulo">Últimos 7 días</p></div></header>
     ${pestanas('semana')}
     <section class="tarjeta">
       ${conDatos.length ? `
@@ -397,7 +397,7 @@ async function vistaDespensa(app) {
   const recargar = () => vistaDespensa(app);
 
   app.innerHTML = `
-    <header class="encabezado"><div><h1 class="titulo">Comida</h1><p class="subtitulo">Lo que hay en casa</p></div></header>
+    <header class="encabezado encabezado--fijo"><div><h1 class="titulo">Comida</h1><p class="subtitulo">Lo que hay en casa</p></div></header>
     ${pestanas('despensa')}
     <section class="tarjeta pila" style="gap:10px">
       <h2 class="seccion__titulo" style="margin:0">Agregar lo que compraste</h2>

@@ -27,7 +27,7 @@ async function detalle(app, rutinaId) {
   const mejor = Object.fromEntries(ejIds.map((id) => [id, mejorSerie(historial.filter((x) => x.ejercicio_id === id))]));
 
   app.innerHTML = `
-    <header class="encabezado">
+    <header class="encabezado encabezado--fijo">
       <div>
         <a href="#/semana" class="boton boton--texto" style="padding:0;min-height:32px">‹ Entrenos</a>
         <h1 class="titulo">${esc(rutina.nombre)}</h1>

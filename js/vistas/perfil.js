@@ -32,7 +32,7 @@ export async function vistaPerfil(app) {
   const gimnasio = lugares[0] ?? null;
   gimnasioActual = gimnasio;
   app.innerHTML = `
-    <header class="encabezado">
+    <header class="encabezado encabezado--fijo">
       <div>
         <h1 class="titulo">Perfil</h1>
         <p class="subtitulo">${esc(estado.usuario?.email ?? '')}</p>

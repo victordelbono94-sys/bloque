@@ -1305,9 +1305,10 @@ dialog.pantalla > .dialogo > h2:first-of-type { padding-right: 52px; }
 .sesion-barra .crono-sesion { position: static; margin: 0; }
 .agua-rapido { white-space: nowrap; border: 0; border-radius: 999px; padding: 10px 14px; background: rgba(43, 167, 216, 0.22); color: #9FE6FF; font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3); backdrop-filter: blur(6px); }
 
-/* Entrenos: línea de tiempo continua con el encabezado fijo */
+/* Encabezado fijo arriba en todas las secciones (queda pegado al desplazar) */
 .encabezado--fijo {
-  position: sticky; top: -16px; z-index: 6; margin: -16px -16px 0; padding: calc(16px + 8px) 16px 12px;
+  --lado: max(16px, calc((100vw - 608px) / 2));
+  position: sticky; top: -16px; z-index: 6; margin: -16px calc(-1 * var(--lado)) 8px; padding: calc(16px + 8px) var(--lado) 12px;
   background: linear-gradient(var(--asfalto) 85%, rgba(21, 23, 28, 0));
 }
 .linea-semanas { display: flex; flex-direction: column; gap: 18px; }
