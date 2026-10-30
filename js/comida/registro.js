@@ -2,7 +2,7 @@
 //   1. Qué comiste: la IA al centro (foto, texto o ambos) o a mano (buscar, escanear, habituales).
 //      Debajo, la lista para revisar y si alcanza para esa comida (desayuno, almuerzo…) con sugerencias.
 //   2. Quién comió (solo si en el hogar hay más personas): uno, varios, y si fue un plato cada uno o compartido.
-import { estado } from '../db.js';
+import { sb, estado } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
 import { hoyISO } from '../fechas.js';
 import { macros, sumar } from '../alimentos.js';
@@ -55,6 +55,8 @@ export function abrirRegistro(ctx, op = {}) {
   let reparto = items.some((it) => it.persona) ? 'distinto' : 'compartido';
   let paso = 1;
   let fotoPendiente = null;
+  const chatLog = [];      // la conversación con la IA sobre este plato (se mantiene al volver del paso 2)
+  const historial = [];    // lo mismo en texto, para que la IA recuerde lo hablado
 
   const d = abrirDialogo(`
     <div class="reg">
@@ -108,10 +110,11 @@ export function abrirRegistro(ctx, op = {}) {
         <div class="ia-comp__barra">
           <label class="ia-icono" aria-label="Sacar foto">${ICONO.camara}<input type="file" id="r-camara" accept="image/*" capture="environment" hidden></label>
           <label class="ia-icono" aria-label="Elegir de la galería">${ICONO.galeria}<input type="file" id="r-galeria" accept="image/*" hidden></label>
-          <button type="button" class="boton boton--ia boton--chico ia-comp__leer" id="r-leer">${ICONO.chispa}<span>Leer</span></button>
+          <button type="button" class="boton boton--ia boton--chico ia-comp__leer" id="r-leer">${ICONO.chispa}<span>Enviar</span></button>
         </div>
         <p class="ia-estado" id="r-estado" hidden></p>
       </section>
+      <div class="ia-chat" id="r-chat" aria-live="polite">${chatLog.join('')}</div>
 
       <div class="frecuentes reg__rapidos" aria-label="Agregar rápido">
         <button type="button" class="chip chip--mini chip--buscar" id="r-buscar-abrir">${ICONO.buscar} Buscar</button>
@@ -123,11 +126,6 @@ export function abrirRegistro(ctx, op = {}) {
       <div class="comida-total" id="r-total"></div>
       <div class="consejo" id="r-consejo" hidden>
         <div class="consejo__meta" id="r-meta"></div>
-        <div id="r-respuesta"></div>
-        <div class="consejo__fila" id="r-pregunta-fila">
-          <input id="r-pregunta" type="text" maxlength="200" placeholder="Pregúntale: ¿me falta proteína o verduras?" aria-label="Pregúntale a la IA">
-          <button type="button" class="boton boton--ia boton--chico" id="r-preguntar" aria-label="Preguntar">${ICONO.chispa}</button>
-        </div>
       </div>`;
     $('#r-pie').innerHTML = `
       ${editar ? '<button type="button" class="boton boton--peligro" id="r-borrar">Eliminar</button>' : ''}
@@ -173,7 +171,7 @@ export function abrirRegistro(ctx, op = {}) {
     const total = sumar(items.map((it) => macros(it.alimento, it.gramos)));
     $('#r-total').innerHTML = items.length ? `<strong>${kc(total.kcal)} kcal</strong> · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}` : '';
     $('#r-seguir').disabled = !items.length;
-    if ($('#r-texto') && !fotoPendiente) $('#r-texto').placeholder = items.length ? 'Agrega algo más, o pregúntale sobre el plato (¿me falta proteína?)' : 'Cuéntale a la IA qué comiste, o saca una foto';
+    if ($('#r-texto') && !fotoPendiente) $('#r-texto').placeholder = items.length ? 'Agrega, corrige o pregúntale algo' : 'Cuéntale a la IA qué comiste, o saca una foto';
     pintarMeta();
 
     const pasoDe = (it) => (Number(it.alimento.porcion_g) > 0 && Number(it.alimento.porcion_g) <= 250 ? Number(it.alimento.porcion_g) : 10);
@@ -212,50 +210,104 @@ export function abrirRegistro(ctx, op = {}) {
       <p class="meta-comida__txt">${estadoTxt}${fecha === hoyISO() ? ` · en el día te quedan ${kc(Math.max(0, b.restoDia))} kcal` : ''}</p>`;
   };
 
-  const aconsejar = async (pregunta = '') => {
+  // ---------- Una sola conversación con la IA sobre el plato ----------
+  // Lo que escribas arriba va acá: comida nueva, órdenes («quita el arroz», «es para los dos») o preguntas.
+  const burbuja = (rol, html) => {
+    const b = `<div class="ia-msg ia-msg--${rol}">${html}</div>`;
+    chatLog.push(b);
+    const cont = $('#r-chat');
+    if (!cont) return null;
+    cont.insertAdjacentHTML('beforeend', b);
+    return cont.lastElementChild;
+  };
+  const contextoPlato = () => {
     const b = balance();
-    if (!b) return;
-    if (!pregunta && b.falta <= 120 && b.falta >= -b.meta * 0.35) return; // está bien: no hace falta preguntar
-    const cont = $('#r-respuesta');
-    const boton = $('#r-preguntar');
-    boton.disabled = true;
-    cont.innerHTML = '<p class="consejo__cargando"><span class="ia-puntos"><i></i><i></i><i></i></span> La IA está pensando…</p>';
+    const nombreDe = (id) => (id ? estado.personas.find((p) => p.id === id)?.nombre ?? null : null);
+    return {
+      quien_escribe: estado.yo.nombre,
+      momento,
+      plato: items.map((it) => {
+        const m = macros(it.alimento, it.gramos);
+        return { nombre: it.alimento.nombre, gramos: Math.round(it.gramos), de: nombreDe(it.persona) ?? 'compartido', kcal: Math.round(m.kcal), proteina_g: Math.round(m.proteina), carbos_g: Math.round(m.carbos), grasas_g: Math.round(m.grasas) };
+      }),
+      comen: quien.map(nombreDe).filter(Boolean),
+      reparto,
+      ...(b ? {
+        objetivo: OBJETIVOS[b.info.foco]?.nombre ?? b.info.foco,
+        meta_de_esta_comida: { kcal: b.meta, proteina_g: b.protMeta, carbos_g: Math.round((b.info.metas.carbos ?? 0) * (PARTE_COMIDA[momento] ?? 0.25)) },
+        le_quedan_kcal_en_el_dia: Math.round(b.restoDia),
+        entrenos_hoy: (b.info.eventos ?? []).filter((e) => e.tipo !== 'descanso').map((e) => e.tipo),
+      } : {}),
+      hogar: hogarContexto() ?? [],
+      personas_del_hogar: estado.personas.map((p) => p.nombre),
+      despensa: (ctx.despensa ?? []).slice(0, 30).map((p) => p.alimento?.nombre).filter(Boolean),
+    };
+  };
+  const preguntarPlato = async (mensaje) => {
+    const espera = new Promise((_, no) => setTimeout(() => no(new Error('La IA tardó demasiado. Prueba de nuevo.')), 60000));
+    const { data, error } = await Promise.race([sb.functions.invoke('plato', { body: { mensaje, contexto: contextoPlato(), historial: historial.slice(-8) } }), espera]);
+    if (error) {
+      let codigo = null;
+      try { codigo = (await error.context?.json?.())?.error; } catch { /* sin detalle */ }
+      throw new Error({ limite: 'La IA llegó al límite gratis por ahora. Prueba en un minuto.', gemini: 'La IA está saturada. Prueba en un rato.', sesion: 'Tu sesión se venció: vuelve a entrar.' }[codigo] ?? 'No se pudo conectar con la IA. Revisa la conexión.');
+    }
+    return data;
+  };
+  const aplicarCambios = async (r) => {
+    const idDe = (n) => personaPorNombre(n)?.id ?? null;
+    for (const x of r.quitar ?? []) {
+      const it = itemPorNombre(x.nombre, idDe(x.persona));
+      if (it) items.splice(items.indexOf(it), 1);
+    }
+    for (const x of r.ajustar ?? []) {
+      const it = itemPorNombre(x.nombre, idDe(x.persona));
+      if (it) it.gramos = Number(x.gramos) || it.gramos;
+    }
+    for (const x of r.agregar ?? []) {
+      const persona = x.persona ? idDe(x.persona) : null;
+      items.push({ alimento: await aAlimento(x), gramos: Number(x.gramos) || 100, paquete: null, persona });
+      if (persona && !quien.includes(persona)) quien = [...quien, persona];
+    }
+    const nuevos = (r.quien ?? []).map(idDe).filter(Boolean);
+    if (nuevos.length) quien = [...new Set(nuevos)];
+    if (r.reparto) reparto = r.reparto;
+    if (r.asignar?.length) aplicarReparto(r.asignar, { callado: true });
+    if (items.some((it) => it.persona) && quien.length > 1 && reparto !== 'cada_uno') reparto = 'distinto';
+    if (r.momento && MOMENTOS[r.momento]) { momento = r.momento; pintarMomento(); }
+    pintarItems();
+  };
+  const hablar = async (texto, { auto = false } = {}) => {
+    if (!auto) {
+      burbuja('yo', esc(texto));
+      historial.push({ rol: 'yo', texto });
+    }
+    const pensando = burbuja('ia', '<span class="ia-puntos"><i></i><i></i><i></i></span>');
+    pensando?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
-      const r = await gemini('consejo', {
-        texto: pregunta ? `${pregunta}\n(Contesta mirando el balance del plato: proteína, carbohidratos, grasas y verduras o fibra; si faltan verduras, sugiere cuáles y cuántos gramos.)` : undefined,
-        contexto: {
-          objetivo: OBJETIVOS[b.info.foco]?.nombre ?? b.info.foco,
-          comida: MOMENTOS[momento],
-          meta_de_esta_comida: { kcal: b.meta, proteina_g: b.protMeta, carbos_g: Math.round((b.info.metas.carbos ?? 0) * (PARTE_COMIDA[momento] ?? 0.25)) },
-          esta_comida: items.map((it) => {
-            const m = macros(it.alimento, it.gramos);
-            const dueno = it.persona ? estado.personas.find((p) => p.id === it.persona)?.nombre : null;
-            return { nombre: it.alimento.nombre, gramos: Math.round(it.gramos), kcal: Math.round(m.kcal), proteina_g: Math.round(m.proteina), carbos_g: Math.round(m.carbos), grasas_g: Math.round(m.grasas), ...(dueno ? { de: dueno } : {}) };
-          }),
-          quien_pregunta: estado.yo.nombre,
-          hogar: hogarContexto(),
-          le_faltan_kcal_en_esta_comida: Math.round(b.falta),
-          meta_del_dia: { kcal: Math.round(b.info.metas.kcal), proteina_g: Math.round(b.info.metas.proteina) },
-          le_quedan_kcal_en_el_dia: Math.round(b.restoDia),
-          entrenos_hoy: (b.info.eventos ?? []).filter((e) => e.tipo !== 'descanso').map((e) => e.tipo),
-          despensa: (ctx.despensa ?? []).slice(0, 30).map((p) => p.alimento?.nombre).filter(Boolean),
-        },
-      });
-      cont.innerHTML = `
-        <p class="consejo__respuesta"><span class="ia-logo ia-logo--mini" aria-hidden="true">${ICONO.chispa}</span>${esc(r.respuesta)}</p>
+      const r = await preguntarPlato(texto);
+      await aplicarCambios(r);
+      historial.push({ rol: 'ia', texto: r.respuesta });
+      const html = `<span class="ia-logo ia-logo--mini" aria-hidden="true">${ICONO.chispa}</span><span>${esc(r.respuesta || 'Listo.')}</span>
         ${r.sugerencias?.length ? `<div class="chips">${r.sugerencias.map((x, k) =>
           `<button type="button" class="chip chip--mini chip--sugerencia" data-sug="${k}">+ ${esc(x.cantidad || `${Math.round(x.gramos)} g`)} ${esc(x.nombre.toLowerCase())} · ${kc(x.kcal * x.gramos / 100)} kcal</button>`).join('')}</div>` : ''}
-        ${htmlReparto(r.reparto)}`;
-      cont.querySelector('#r-aplicar-reparto')?.addEventListener('click', (e) => { aplicarReparto(r.reparto); e.currentTarget.closest('.reparto-ia').remove(); });
-      cont.querySelectorAll('[data-sug]').forEach((btn) => btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        const x = r.sugerencias[Number(btn.dataset.sug)];
-        agregar(await aAlimento(x), x.gramos, null, reparto === 'distinto' ? estado.yo.id : null);
-        btn.remove();
-      }));
+        ${htmlReparto(r.reparto_sugerido)}`;
+      chatLog.pop();
+      chatLog.push(`<div class="ia-msg ia-msg--ia">${esc(r.respuesta || 'Listo.')}</div>`); // al volver del paso 2, sin botones
+      if (pensando) {
+        pensando.innerHTML = html;
+        pensando.querySelector('#r-aplicar-reparto')?.addEventListener('click', (e) => { aplicarReparto(r.reparto_sugerido); e.currentTarget.closest('.reparto-ia').remove(); });
+        pensando.querySelectorAll('[data-sug]').forEach((btn) => btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          const x = r.sugerencias[Number(btn.dataset.sug)];
+          agregar(await aAlimento(x), x.gramos, null, reparto === 'distinto' ? estado.yo.id : null);
+          btn.remove();
+        }));
+        pensando.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     } catch (err) {
-      cont.innerHTML = `<p class="quieto">${esc(err.message)}</p>`;
-    } finally { if (boton) boton.disabled = false; }
+      chatLog.pop();
+      if (pensando) pensando.innerHTML = `<span class="quieto">${esc(err.message)}</span>`;
+    }
   };
 
   // Lo que le queda del día a cada persona del hogar: para que la IA pueda proponer cómo repartir el plato.
@@ -283,10 +335,12 @@ export function abrirRegistro(ctx, op = {}) {
     return estado.personas.find((p) => p.nombre.toLowerCase() === t)
       ?? estado.personas.find((p) => p.nombre.toLowerCase().startsWith(t) || t.startsWith(p.nombre.toLowerCase())) ?? null;
   };
-  const itemPorNombre = (n) => {
+  const itemPorNombre = (n, persona = null) => {
     const t = String(n ?? '').trim().toLowerCase();
-    return items.find((it) => it.alimento.nombre.toLowerCase() === t)
-      ?? items.find((it) => it.alimento.nombre.toLowerCase().includes(t) || t.includes(it.alimento.nombre.toLowerCase())) ?? null;
+    const candidatos = persona ? items.filter((it) => it.persona === persona) : items;
+    const buscar = (lista) => lista.find((it) => it.alimento.nombre.toLowerCase() === t)
+      ?? lista.find((it) => it.alimento.nombre.toLowerCase().includes(t) || t.includes(it.alimento.nombre.toLowerCase())) ?? null;
+    return buscar(candidatos) ?? (persona ? buscar(items) : null);
   };
   // Reparto sugerido por la IA, agrupado por alimento: «Arroz: Yo 150 g · Vic 250 g».
   const htmlReparto = (reparto) => {
@@ -308,7 +362,7 @@ export function abrirRegistro(ctx, op = {}) {
         <button type="button" class="boton boton--ia boton--chico" id="r-aplicar-reparto">${ICONO.chispa} Aplicar reparto</button>
       </div>`;
   };
-  const aplicarReparto = (sugerido) => {
+  const aplicarReparto = (sugerido, { callado = false } = {}) => {
     const validos = (sugerido ?? []).filter((x) => itemPorNombre(x.alimento) && personaPorNombre(x.persona) && Number(x.gramos) >= 0);
     const tocados = new Set();
     for (const x of validos) tocados.add(itemPorNombre(x.alimento));
@@ -321,7 +375,7 @@ export function abrirRegistro(ctx, op = {}) {
     }
     reparto = 'distinto';
     pintarItems();
-    aviso('Reparto aplicado: revísalo en el paso 2.');
+    if (!callado) aviso('Reparto aplicado: revísalo en el paso 2.');
   };
 
   // ---------- La IA: texto, foto o ambas ----------
@@ -342,52 +396,26 @@ export function abrirRegistro(ctx, op = {}) {
   const leer = async () => {
     const texto = $('#r-texto').value.trim();
     if (!fotoPendiente && !texto) return $('#r-texto').focus();
-    // Sin foto, una pregunta sobre lo que ya está en el plato va directo a la IA (no se lee como comida).
-    if (!fotoPendiente && items.length && esPregunta(texto)) {
-      $('#r-texto').value = '';
-      aconsejar(texto);
-      $('#r-consejo')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
-    }
     const boton = $('#r-leer');
     boton.disabled = true;
+    $('#r-texto').value = '';
+    $('#r-texto').style.height = '';
     try {
-      // «¿Con esto de carbohidratos estoy bien?»: con foto, una pregunta no es parte del plato; primero se lee la foto y después se pregunta.
-      const pregunta = esPregunta(texto) ? texto : '';
       if (fotoPendiente) {
-        mensaje(pregunta ? 'Mirando la foto…' : texto ? 'Mirando la foto y lo que le agregaste…' : 'Mirando la foto…', true);
+        // Con foto: primero se lee el plato. Lo que escribiste va como aclaración del plato, salvo que sea una pregunta.
+        const pregunta = esPregunta(texto) ? texto : '';
+        mensaje(texto && !pregunta ? 'Mirando la foto y lo que le agregaste…' : 'Mirando la foto…', true);
         const r = await gemini('foto', { imagen: await fotoBase64(fotoPendiente), tipo: 'image/jpeg', texto: (pregunta ? '' : texto) || undefined });
         if (!r.alimentos?.length) { mensaje('No reconocí comida en la foto. Prueba más cerca o escríbelo.'); return; }
         for (const x of r.alimentos) agregar(await aAlimento(x), x.gramos);
         quitarFoto();
-        $('#r-texto').value = '';
-        mensaje(pregunta ? 'Listo. Ahora respondo tu pregunta abajo 👇' : 'Listo. Revisa las cantidades: la IA las estima a ojo.');
-        // Con foto, la IA revisa siempre el plato (proteína, carbohidratos y verduras), o responde lo que preguntaste.
-        aconsejar(pregunta || REVISION);
-        setTimeout(() => $('#r-consejo')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
-        return;
+        mensaje(null);
+        $('#r-ia')?.classList.remove('ia-caja--pensando');
+        // Y la IA revisa el plato sola (proteína, carbohidratos y verduras), o responde lo que preguntaste.
+        await hablar(pregunta || REVISION, { auto: !pregunta });
       } else {
-        mensaje('Leyendo…', true);
-        const otro = estado.personas.find((p) => p.id !== estado.yo.id);
-        const r = await gemini('texto', { texto, personas: { yo: estado.yo.nombre, otro: otro?.nombre ?? null } });
-        const lista = r.alimentos ?? [];
-        if (!lista.length) { mensaje('No entendí comida en eso. Prueba con otras palabras o agrégalo a mano.'); return; }
-        if (r.momento) { momento = r.momento; pintarMomento(); }
-        // Si habla de los dos, cada cosa va a su dueño y en el paso 2 quedan elegidos ambos.
-        const deYo = lista.some((x) => x.gramos_yo > 0), deOtro = otro && lista.some((x) => x.gramos_otro > 0);
-        for (const x of lista) {
-          const alimento = await aAlimento(x);
-          if (deYo && deOtro) {
-            if (x.gramos_yo > 0) agregar(alimento, x.gramos_yo, null, estado.yo.id);
-            if (x.gramos_otro > 0) agregar(alimento, x.gramos_otro, null, otro.id);
-          } else agregar(alimento, (x.gramos_yo || 0) + (x.gramos_otro || 0));
-        }
-        if (deYo && deOtro) { quien = [estado.yo.id, otro.id]; reparto = 'distinto'; }
-        else if (deOtro) quien = [otro.id];
-        $('#r-texto').value = '';
-        mensaje(deYo && deOtro ? `Separé lo de cada uno: lo ves en el paso 2.` : null);
+        await hablar(texto);
       }
-      aconsejar();
     } catch (err) {
       mensaje(`${err.message} Mientras tanto, agrégalo a mano.`);
     } finally {
@@ -409,7 +437,7 @@ export function abrirRegistro(ctx, op = {}) {
         if (!f) return;
         fotoPendiente = f;
         mostrarFoto(f);
-        mensaje('📷 Foto lista. Si le pusiste algo que no se ve, escríbelo; después toca «Leer foto».');
+        mensaje('📷 Foto lista. Si le pusiste algo que no se ve, escríbelo; después toca «Enviar».');
       });
     }
     $('#r-foto-quitar').addEventListener('click', quitarFoto);
@@ -430,8 +458,6 @@ export function abrirRegistro(ctx, op = {}) {
       if (!cont.hidden) cont.querySelector('#ba-q')?.focus();
     });
     d.querySelectorAll('[data-frec]').forEach((b) => b.addEventListener('click', () => { const f = lista[Number(b.dataset.frec)]; agregar(f.alimento, f.gramos); }));
-    $('#r-preguntar').addEventListener('click', () => { const q = $('#r-pregunta').value.trim(); $('#r-pregunta').value = ''; aconsejar(q || REVISION); });
-    $('#r-pregunta').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#r-preguntar').click(); } });
     $('#r-borrar')?.addEventListener('click', async () => {
       try { await borrarComida(op.comida); d.close(); aviso('Comida eliminada.'); ctx.recargar(); } catch (err) { avisoError(err); }
     });
@@ -534,7 +560,7 @@ export function abrirRegistro(ctx, op = {}) {
   };
 
   pintarPaso1();
-  if (op.foto) { fotoPendiente = op.foto; mostrarFoto(op.foto); mensaje('📷 Foto lista. Si le pusiste algo que no se ve, escríbelo; después toca «Leer foto».'); }
+  if (op.foto) { fotoPendiente = op.foto; mostrarFoto(op.foto); mensaje('📷 Foto lista. Si le pusiste algo que no se ve, escríbelo; después toca «Enviar».'); }
   else if (op.texto) leer();
   return d;
 }

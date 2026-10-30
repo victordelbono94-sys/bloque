@@ -94,19 +94,31 @@ export function abrirDialogo(html, etiqueta, { pantalla = false } = {}) {
 function arrastrarParaCerrar(d) {
   if (!matchMedia('(max-width: 600px)').matches) return;
   let inicioY = 0, inicioT = 0, dy = 0, arrastrando = false, posible = false;
+  let scroller = d, arriba = false;
+  // El que realmente se desplaza bajo el dedo (en las pantallas completas es el contenido, no la hoja).
+  const desplazable = (el) => {
+    for (let n = el; n && n !== d; n = n.parentElement) {
+      const oy = getComputedStyle(n).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1) return n;
+    }
+    return d;
+  };
   d.addEventListener('touchstart', (e) => {
     const t = e.touches[0];
     const r = d.getBoundingClientRect();
-    // Desde la zona de arriba (la manija y el título) siempre; desde el resto, solo si ya está al tope.
+    // Desde la zona de arriba (la manija y el título) siempre; desde el resto, solo si lo de abajo ya está al tope.
+    // En pantalla completa, solo desde arriba: así subir el contenido nunca cierra.
     const desdeArriba = t.clientY - r.top < 64;
+    arriba = desdeArriba;
     const enCampo = e.target.closest('input, textarea, select, .chips--scroll, .paso-mini');
-    posible = !enCampo && (desdeArriba || d.scrollTop <= 0);
+    scroller = desplazable(e.target);
+    posible = !enCampo && (desdeArriba || (!d.classList.contains('pantalla') && scroller.scrollTop <= 0));
     inicioY = t.clientY; inicioT = Date.now(); dy = 0; arrastrando = false;
   }, { passive: true });
   d.addEventListener('touchmove', (e) => {
     if (!posible) return;
     dy = e.touches[0].clientY - inicioY;
-    if (!arrastrando && dy > 8 && d.scrollTop <= 0) arrastrando = true;
+    if (!arrastrando && dy > 8 && (arriba || scroller.scrollTop <= 0)) arrastrando = true;
     if (!arrastrando) return;
     e.preventDefault();
     d.style.transition = 'none';
