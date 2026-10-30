@@ -110,6 +110,9 @@ export async function vistaHoy(app) {
     }
   }
 
+  let verId = null;
+  try { verId = sessionStorage.getItem('bloque-hoy-ver'); } catch { /* nada */ }
+  const personaVista = estado.personas.find((p) => p.id === verId) ?? estado.yo;
   app.innerHTML = `
     <header class="encabezado">
       <div>
@@ -150,11 +153,38 @@ export async function vistaHoy(app) {
 
     ${htmlNumerosHoy(comidaHoy, mia)}
 
-    ${estado.personas.map((p, i) => `
-      <section class="seccion" aria-labelledby="como-${i}">
-        <h2 class="seccion__titulo" id="como-${i}">${p.id === estado.yo.id ? 'Cómo estoy' : `Cómo está ${esc(p.nombre)}`}</h2>
+    <section class="seccion" aria-labelledby="como-titulo">
+      <div class="fila fila--entre como-cabeza">
+        <h2 class="seccion__titulo" id="como-titulo" style="margin:0">${esc(personaVista.id === estado.yo.id ? 'Cómo estoy' : `Cómo está ${personaVista.nombre}`)}</h2>
+      </div>
+      ${estado.personas.length > 1 ? `
+        <div class="ver-persona" role="tablist" aria-label="De quién ver el semáforo">
+          ${estado.personas.map((p) => {
+            const est = estados.find((e) => e.persona_id === p.id);
+            const sem = (est && (est.cansancio != null || est.dolor_muscular != null) ? est : semaforoDe(p.id, est))?.semaforo;
+            return `<button type="button" class="ver-persona__op" role="tab" data-ver-como="${esc(p.id)}" aria-selected="${p.id === personaVista.id}">
+              <span class="ver-persona__cara">${cara(p)}</span><span>${esc(p.id === estado.yo.id ? 'Yo' : p.nombre)}</span>
+              ${sem ? `<span class="punto punto--${sem}" aria-label="Semáforo ${sem}"></span>` : ''}
+            </button>`;
+          }).join('')}
+        </div>` : ''}
+      ${estado.personas.map((p) => `<div class="como-persona" data-persona-como="${esc(p.id)}" ${p.id === personaVista.id ? '' : 'hidden'}>
         ${tarjetaPersona(p, estados.find((e) => e.persona_id === p.id), mediciones.find((m) => m.persona_id === p.id), esDescanso(deHoy, p.id), banda(p.id), semaforoDe)}
-      </section>`).join('')}`;
+      </div>`).join('')}
+    </section>`;
+  // Cambiar de persona: se muestra su semáforo y sus datos (se recuerda mientras la app esté abierta).
+  app.querySelectorAll('[data-ver-como]').forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.verComo;
+    try { sessionStorage.setItem('bloque-hoy-ver', id); } catch { /* nada */ }
+    app.querySelectorAll('[data-ver-como]').forEach((o) => o.setAttribute('aria-selected', String(o === b)));
+    app.querySelectorAll('[data-persona-como]').forEach((c) => {
+      const ver = c.dataset.personaComo === id;
+      c.hidden = !ver;
+      if (ver) { c.classList.remove('fundido'); void c.offsetWidth; c.classList.add('fundido'); }
+    });
+    const p = estado.personas.find((x) => x.id === id);
+    app.querySelector('#como-titulo').textContent = p.id === estado.yo.id ? 'Cómo estoy' : `Cómo está ${p.nombre}`;
+  }));
 
   conectarPorConfirmar(app.querySelector('#por-confirmar'), porConfirmarLista, () => vistaHoy(app));
   conectarCheckIn(app, contexto, estados.find((e) => e.persona_id === estado.yo.id));

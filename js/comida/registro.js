@@ -188,11 +188,21 @@ export function abrirRegistro(ctx, op = {}) {
     const info = ctx.info?.find((x) => x.p.id === estado.yo.id);
     if (!info?.metas?.ok) return null;
     const mio = porPersona().find(([id]) => id === estado.yo.id)?.[1] ?? sumar(items.map((it) => macros(it.alimento, it.gramos)));
-    const meta = Math.round(info.metas.kcal * (PARTE_COMIDA[momento] ?? 0.25) / 10) * 10;
-    const protMeta = Math.round(info.metas.proteina * (PARTE_COMIDA[momento] ?? 0.25));
+    // La meta de esta comida sale de lo que te QUEDA del día (meta, que ya suma lo que quemaste según el reloj, menos lo comido),
+    // repartido entre esta comida y las principales que vienen después. La cena se lleva todo lo que queda.
     const antes = op.comida?.porciones?.find((x) => x.persona_id === estado.yo.id);
-    const restoDia = info.metas.kcal - (info.comido.kcal - Number(antes?.kcal ?? 0)) - mio.kcal;
-    return { info, mio, meta, protMeta, falta: meta - mio.kcal, restoDia };
+    const disponible = Math.max(0, info.metas.kcal - (info.comido.kcal - Number(antes?.kcal ?? 0)));
+    const PRINCIPALES = ['desayuno', 'almuerzo', 'merienda', 'cena'];
+    const k = PRINCIPALES.indexOf(momento);
+    const parte = PARTE_COMIDA[momento] ?? 0.25;
+    const resto = k >= 0 ? PRINCIPALES.slice(k).reduce((a, m) => a + (PARTE_COMIDA[m] ?? 0), 0) : 1;
+    const metaKcal = k >= 0 ? disponible * (parte / resto) : Math.min(info.metas.kcal * parte, disponible);
+    const meta = Math.round(metaKcal / 10) * 10;
+    const protDisp = Math.max(0, info.metas.proteina - (info.comido.proteina - Number(antes?.proteina ?? 0)));
+    const protMeta = Math.round(k >= 0 ? protDisp * (parte / resto) : Math.min(info.metas.proteina * parte, protDisp));
+    const restoDia = disponible - mio.kcal;
+    const quemado = Math.round(info.metas.medido || info.metas.ejercicio || 0);
+    return { info, mio, meta, protMeta, falta: meta - mio.kcal, restoDia, disponible, quemado, medido: !!info.metas.medido };
   };
   const pintarMeta = () => {
     const b = items.length && paso === 1 ? balance() : null;
@@ -208,7 +218,8 @@ export function abrirRegistro(ctx, op = {}) {
     $('#r-meta').innerHTML = `
       <div class="meta-comida__fila"><span>${MOMENTOS[momento]}${varios ? ' · tu parte' : ''}</span><span><strong>${kc(b.mio.kcal)}</strong> / ~${kc(b.meta)} kcal · P ${Math.round(b.mio.proteina)}/${b.protMeta} g</span></div>
       <div class="meta-comida__barra"><span style="width:${pct}%"></span></div>
-      <p class="meta-comida__txt">${estadoTxt}${fecha === hoyISO() ? ` · en el día te quedan ${kc(Math.max(0, b.restoDia))} kcal` : ''}</p>`;
+      <p class="meta-comida__txt">${estadoTxt}${fecha === hoyISO() ? ` · después te quedan ${kc(Math.max(0, b.restoDia))} kcal en el día` : ''}</p>
+      <p class="meta-comida__base">Antes de esta comida te quedaban <strong>${kc(b.disponible)} kcal</strong>${b.quemado ? ` · ${b.medido ? 'quemaste' : 'entrenos de hoy:'} ~${kc(b.quemado)} kcal${b.medido ? ' según tu reloj' : ''} (ya sumadas)` : ''}</p>`;
   };
 
   // ---------- Una sola conversación con la IA sobre el plato ----------
@@ -237,8 +248,20 @@ export function abrirRegistro(ctx, op = {}) {
       reparto,
       ...(b ? {
         objetivo: OBJETIVOS[b.info.foco]?.nombre ?? b.info.foco,
+        // El cuerpo de quien escribe: las metas ya salen de acá (masa magra, peso, altura, edad), y la IA lo usa para opinar.
+        cuerpo: {
+          peso_kg: b.info.med?.peso_kg != null ? Number(b.info.med.peso_kg) : null,
+          grasa_pct: b.info.med?.grasa_pct != null ? Number(b.info.med.grasa_pct) : null,
+          masa_muscular_kg: b.info.med?.masa_muscular_kg != null ? Number(b.info.med.masa_muscular_kg) : null,
+          altura_cm: estado.yo.altura_cm ?? null, sexo: estado.yo.sexo ?? null,
+          muy_magro: !!b.info.metas.magro,
+          tendencia_peso: b.info.tendencia?.nota ?? null,
+        },
+        metas_del_dia: { kcal: b.info.metas.kcal, proteina_g: b.info.metas.proteina, carbos_g: b.info.metas.carbos, grasas_g: b.info.metas.grasas },
         meta_de_esta_comida: { kcal: b.meta, proteina_g: b.protMeta, carbos_g: Math.round((b.info.metas.carbos ?? 0) * (PARTE_COMIDA[momento] ?? 0.25)) },
-        le_quedan_kcal_en_el_dia: Math.round(b.restoDia),
+        le_quedaban_kcal_antes_de_esta_comida: Math.round(b.disponible),
+        le_quedan_kcal_en_el_dia_despues: Math.round(b.restoDia),
+        quemo_entrenando_hoy_kcal: b.quemado,
         entrenos_hoy: (b.info.eventos ?? []).filter((e) => e.tipo !== 'descanso').map((e) => e.tipo),
       } : {}),
       hogar: hogarContexto() ?? [],
@@ -332,6 +355,8 @@ export function abrirRegistro(ctx, op = {}) {
       return {
         nombre: x.p.nombre, es_quien_pregunta: x.p.id === estado.yo.id, come_de_este_plato: quien.includes(x.p.id),
         objetivo: OBJETIVOS[x.foco]?.nombre ?? x.foco,
+        peso_kg: x.med?.peso_kg != null ? Number(x.med.peso_kg) : null,
+        grasa_pct: x.med?.grasa_pct != null ? Number(x.med.grasa_pct) : null,
         meta_de_esta_comida: { kcal: Math.round(x.metas.kcal * parte), proteina_g: Math.round(x.metas.proteina * parte), carbos_g: Math.round((x.metas.carbos ?? 0) * parte) },
         le_quedan_en_el_dia_sin_este_plato: {
           kcal: Math.round(x.metas.kcal - x.comido.kcal + Number(antes?.kcal ?? 0)),

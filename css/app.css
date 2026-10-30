@@ -1609,3 +1609,4 @@ dialog.pantalla > .estirar .dialogo__pie { position: sticky; bottom: calc(-1 * (
 .ia-msg--ia .chips, .ia-msg--ia .reparto-ia { flex-basis: 100%; }
 .ia-msg__duda { flex-basis: 100%; margin: 2px 0 0; font-weight: 600; }
 .ia-msg__opciones .chip { border-color: rgba(198, 244, 50, 0.5); color: var(--volt); }
+.meta-comida__base { margin: 4px 0 0; font-size: 12px; color: var(--gris); }

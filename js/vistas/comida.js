@@ -566,7 +566,7 @@ function datosPersona(p, d) {
     entradas,
   };
   agua.tomado = agua.deComidas + entradas.reduce((a, x) => a + x.ml, 0);
-  return { p, metas, comido, foco, eventos, tendencia, agua };
+  return { p, metas, comido, foco, eventos, tendencia, agua, med };
 }
 
 
