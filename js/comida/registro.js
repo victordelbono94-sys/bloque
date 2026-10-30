@@ -69,6 +69,8 @@ export function abrirRegistro(ctx, op = {}) {
       <footer class="reg__pie" id="r-pie"></footer>
     </div>`, editar ? 'Editar comida' : 'Agregar comida', { pantalla: true });
   const $ = (q) => d.querySelector(q);
+  // Atrás, tocar afuera o deslizar no borran lo anotado sin preguntar.
+  d.proteger = () => paso === 2 || !!fotoPendiente || !!$('#r-texto')?.value.trim() || (!editar && items.length > 0);
   const pintarMomento = () => {
     $('#r-momento-btn').textContent = `${MOMENTOS[momento]} ▾`;
     d.querySelectorAll('#r-momento [data-valor]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.valor === momento)));
@@ -220,8 +222,14 @@ export function abrirRegistro(ctx, op = {}) {
         contexto: {
           objetivo: OBJETIVOS[b.info.foco]?.nombre ?? b.info.foco,
           comida: MOMENTOS[momento],
-          meta_de_esta_comida: { kcal: b.meta, proteina_g: b.protMeta },
-          esta_comida: items.map((it) => { const m = macros(it.alimento, it.gramos); return { nombre: it.alimento.nombre, gramos: Math.round(it.gramos), kcal: Math.round(m.kcal), proteina_g: Math.round(m.proteina) }; }),
+          meta_de_esta_comida: { kcal: b.meta, proteina_g: b.protMeta, carbos_g: Math.round((b.info.metas.carbos ?? 0) * (PARTE_COMIDA[momento] ?? 0.25)) },
+          esta_comida: items.map((it) => {
+            const m = macros(it.alimento, it.gramos);
+            const dueno = it.persona ? estado.personas.find((p) => p.id === it.persona)?.nombre : null;
+            return { nombre: it.alimento.nombre, gramos: Math.round(it.gramos), kcal: Math.round(m.kcal), proteina_g: Math.round(m.proteina), carbos_g: Math.round(m.carbos), grasas_g: Math.round(m.grasas), ...(dueno ? { de: dueno } : {}) };
+          }),
+          quien_pregunta: estado.yo.nombre,
+          hogar: hogarContexto(),
           le_faltan_kcal_en_esta_comida: Math.round(b.falta),
           meta_del_dia: { kcal: Math.round(b.info.metas.kcal), proteina_g: Math.round(b.info.metas.proteina) },
           le_quedan_kcal_en_el_dia: Math.round(b.restoDia),
@@ -232,7 +240,9 @@ export function abrirRegistro(ctx, op = {}) {
       cont.innerHTML = `
         <p class="consejo__respuesta"><span class="ia-logo ia-logo--mini" aria-hidden="true">${ICONO.chispa}</span>${esc(r.respuesta)}</p>
         ${r.sugerencias?.length ? `<div class="chips">${r.sugerencias.map((x, k) =>
-          `<button type="button" class="chip chip--mini chip--sugerencia" data-sug="${k}">+ ${esc(x.cantidad || `${Math.round(x.gramos)} g`)} ${esc(x.nombre.toLowerCase())} · ${kc(x.kcal * x.gramos / 100)} kcal</button>`).join('')}</div>` : ''}`;
+          `<button type="button" class="chip chip--mini chip--sugerencia" data-sug="${k}">+ ${esc(x.cantidad || `${Math.round(x.gramos)} g`)} ${esc(x.nombre.toLowerCase())} · ${kc(x.kcal * x.gramos / 100)} kcal</button>`).join('')}</div>` : ''}
+        ${htmlReparto(r.reparto)}`;
+      cont.querySelector('#r-aplicar-reparto')?.addEventListener('click', (e) => { aplicarReparto(r.reparto); e.currentTarget.closest('.reparto-ia').remove(); });
       cont.querySelectorAll('[data-sug]').forEach((btn) => btn.addEventListener('click', async () => {
         btn.disabled = true;
         const x = r.sugerencias[Number(btn.dataset.sug)];
@@ -242,6 +252,72 @@ export function abrirRegistro(ctx, op = {}) {
     } catch (err) {
       cont.innerHTML = `<p class="quieto">${esc(err.message)}</p>`;
     } finally { if (boton) boton.disabled = false; }
+  };
+
+  // Lo que le queda del día a cada persona del hogar: para que la IA pueda proponer cómo repartir el plato.
+  const hogarContexto = () => {
+    if (estado.personas.length < 2) return undefined;
+    return (ctx.info ?? []).filter((x) => x.metas?.ok).map((x) => {
+      const parte = PARTE_COMIDA[momento] ?? 0.25;
+      const antes = op.comida?.porciones?.find((y) => y.persona_id === x.p.id);
+      return {
+        nombre: x.p.nombre, es_quien_pregunta: x.p.id === estado.yo.id, come_de_este_plato: quien.includes(x.p.id),
+        objetivo: OBJETIVOS[x.foco]?.nombre ?? x.foco,
+        meta_de_esta_comida: { kcal: Math.round(x.metas.kcal * parte), proteina_g: Math.round(x.metas.proteina * parte), carbos_g: Math.round((x.metas.carbos ?? 0) * parte) },
+        le_quedan_en_el_dia_sin_este_plato: {
+          kcal: Math.round(x.metas.kcal - x.comido.kcal + Number(antes?.kcal ?? 0)),
+          proteina_g: Math.round(x.metas.proteina - x.comido.proteina),
+          carbos_g: Math.round((x.metas.carbos ?? 0) - (x.comido.carbos ?? 0)),
+        },
+      };
+    });
+  };
+  const personaPorNombre = (n) => {
+    const t = String(n ?? '').trim().toLowerCase();
+    if (!t) return null;
+    if (['yo', 'mi', 'mí'].includes(t)) return estado.yo;
+    return estado.personas.find((p) => p.nombre.toLowerCase() === t)
+      ?? estado.personas.find((p) => p.nombre.toLowerCase().startsWith(t) || t.startsWith(p.nombre.toLowerCase())) ?? null;
+  };
+  const itemPorNombre = (n) => {
+    const t = String(n ?? '').trim().toLowerCase();
+    return items.find((it) => it.alimento.nombre.toLowerCase() === t)
+      ?? items.find((it) => it.alimento.nombre.toLowerCase().includes(t) || t.includes(it.alimento.nombre.toLowerCase())) ?? null;
+  };
+  // Reparto sugerido por la IA, agrupado por alimento: «Arroz: Yo 150 g · Vic 250 g».
+  const htmlReparto = (reparto) => {
+    const validos = (reparto ?? []).filter((x) => itemPorNombre(x.alimento) && personaPorNombre(x.persona));
+    if (!validos.length) return '';
+    const porAlimento = new Map();
+    for (const x of validos) {
+      const it = itemPorNombre(x.alimento);
+      if (!porAlimento.has(it)) porAlimento.set(it, []);
+      porAlimento.get(it).push(x);
+    }
+    return `
+      <div class="reparto-ia">
+        <p class="reparto-ia__titulo">Reparto sugerido</p>
+        ${[...porAlimento].map(([it, xs]) => `<p class="reparto-ia__fila"><strong>${esc(nombreCorto(it.alimento))}</strong> ${xs.map((x) => {
+          const p = personaPorNombre(x.persona);
+          return `<span class="reparto-ia__persona"><span class="persona-op__cara persona-op__cara--mini">${cara(p)}</span>${esc(p.id === estado.yo.id ? 'Yo' : p.nombre)} ${g(x.gramos)}</span>`;
+        }).join('')}</p>`).join('')}
+        <button type="button" class="boton boton--ia boton--chico" id="r-aplicar-reparto">${ICONO.chispa} Aplicar reparto</button>
+      </div>`;
+  };
+  const aplicarReparto = (sugerido) => {
+    const validos = (sugerido ?? []).filter((x) => itemPorNombre(x.alimento) && personaPorNombre(x.persona) && Number(x.gramos) >= 0);
+    const tocados = new Set();
+    for (const x of validos) tocados.add(itemPorNombre(x.alimento));
+    for (const it of tocados) {
+      const xs = validos.filter((x) => itemPorNombre(x.alimento) === it);
+      const pos = items.indexOf(it);
+      const nuevos = xs.filter((x) => Number(x.gramos) > 0).map((x, k) => ({ ...it, gramos: Math.round(Number(x.gramos)), persona: personaPorNombre(x.persona).id, paquete: k === 0 ? it.paquete : null }));
+      items.splice(pos, 1, ...nuevos);
+      for (const x of xs) { const id = personaPorNombre(x.persona).id; if (!quien.includes(id)) quien = [...quien, id]; }
+    }
+    reparto = 'distinto';
+    pintarItems();
+    aviso('Reparto aplicado: revísalo en el paso 2.');
   };
 
   // ---------- La IA: texto, foto o ambas ----------
@@ -262,17 +338,27 @@ export function abrirRegistro(ctx, op = {}) {
   const leer = async () => {
     const texto = $('#r-texto').value.trim();
     if (!fotoPendiente && !texto) return $('#r-texto').focus();
+    // Sin foto, una pregunta sobre lo que ya está en el plato va directo a la IA (no se lee como comida).
+    if (!fotoPendiente && items.length && /^¿|\?\s*$/.test(texto)) {
+      $('#r-texto').value = '';
+      aconsejar(texto);
+      $('#r-consejo')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     const boton = $('#r-leer');
     boton.disabled = true;
     try {
+      // «¿Con esto de carbohidratos estoy bien?»: con foto, una pregunta no es parte del plato; primero se lee la foto y después se pregunta.
+      const pregunta = /^¿|\?\s*$/.test(texto) ? texto : '';
       if (fotoPendiente) {
-        mensaje(texto ? 'Mirando la foto y lo que le agregaste…' : 'Mirando la foto…', true);
-        const r = await gemini('foto', { imagen: await fotoBase64(fotoPendiente), tipo: 'image/jpeg', texto: texto || undefined });
+        mensaje(pregunta ? 'Mirando la foto…' : texto ? 'Mirando la foto y lo que le agregaste…' : 'Mirando la foto…', true);
+        const r = await gemini('foto', { imagen: await fotoBase64(fotoPendiente), tipo: 'image/jpeg', texto: (pregunta ? '' : texto) || undefined });
         if (!r.alimentos?.length) { mensaje('No reconocí comida en la foto. Prueba más cerca o escríbelo.'); return; }
         for (const x of r.alimentos) agregar(await aAlimento(x), x.gramos);
         quitarFoto();
         $('#r-texto').value = '';
-        mensaje('Listo. Revisa las cantidades: la IA las estima a ojo.');
+        mensaje(pregunta ? 'Listo. Ahora respondo tu pregunta abajo 👇' : 'Listo. Revisa las cantidades: la IA las estima a ojo.');
+        if (pregunta) { aconsejar(pregunta); $('#r-consejo')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
       } else {
         mensaje('Leyendo…', true);
         const otro = estado.personas.find((p) => p.id !== estado.yo.id);

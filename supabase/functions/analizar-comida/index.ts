@@ -139,7 +139,7 @@ usando sobre todo lo que hay en su despensa (marca de_despensa=true en esos ingr
 y los entrenos (antes de entrenar: carbohidratos fáciles y poca grasa; después: proteína y carbohidratos).
 Da gramos de cada ingrediente para UNA persona y valores por 100 g. "por_que" en una línea; "pasos" en dos o tres frases.
 Todo en español de Ecuador.`,
-  consejo: `Eres nutricionista deportivo y hablas en español de Ecuador, directo y breve (máximo 3 frases).
+  consejo: `Eres nutricionista deportivo y hablas en español de Ecuador, directo y breve (máximo 4 frases).
 Ayudas a una persona a armar ESTA comida (desayuno, almuerzo, cena…) según su objetivo. El contexto trae la meta de esta comida
 (una parte de su día), lo que tiene el plato, lo que le queda del día, sus entrenos de hoy y lo que hay en su despensa.
 Juzga la comida, no el día: si a esta comida le faltan calorías o proteína, di cuánto y qué agregar; si ya está bien, dilo.
@@ -150,6 +150,14 @@ si después, proteína y carbohidratos.
 Si hace una pregunta ("¿si agrego una lata de atún alcanza?", "¿pan blanco o integral?"), respóndela con números frente a la meta de esta comida.
 En "sugerencias" pon 1 a 3 alimentos concretos para agregar o cambiar (de la despensa si se puede), con gramos para UNA persona
 y valores por 100 g. Si preguntó por algo concreto, inclúyelo. Si la comida ya está bien, sugerencias vacía.
+Responde lo que pregunta sobre cualquier macro (calorías, proteína, carbohidratos, grasas) con números frente a su meta.
+HOGAR: si el contexto trae "hogar", son las personas de la casa con su objetivo, la meta de esta comida y lo que le queda del día
+a cada una SIN contar este plato. Si el plato se comparte o conviene pasarle comida a otra persona (a quien pregunta le sobra
+y a la otra le falta, o al revés), dilo con nombres y gramos: "Sí, te pasas de carbohidratos: quédate con 150 g de arroz y que Vic coma
+los 250 g que quedan, a él le faltan ~600 kcal". Usa los nombres tal cual vienen en "hogar" ("tú" para quien pregunta en la respuesta).
+En "reparto" pon, por cada alimento del plato que propones repartir, cuántos gramos come cada persona: alimento = nombre exacto de
+esta_comida, persona = nombre exacto de hogar, gramos = lo que come esa persona (la suma puede ser menor si propones dejar algo).
+Si no hay hogar o no hace falta repartir distinto, reparto vacío.
 ${PORCIONES}`,
 };
 const ESQ_CONSEJO = {
@@ -162,6 +170,14 @@ const ESQ_CONSEJO = {
         type: "OBJECT",
         properties: { nombre: { type: "STRING" }, gramos: { type: "NUMBER" }, cantidad: { type: "STRING" }, ...NUTRIENTES },
         required: ["nombre", "gramos", ...REQ_NUT],
+      },
+    },
+    reparto: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { alimento: { type: "STRING" }, persona: { type: "STRING" }, gramos: { type: "NUMBER" } },
+        required: ["alimento", "persona", "gramos"],
       },
     },
   },
@@ -235,6 +251,9 @@ function limpiar(modo: string, d: Record<string, unknown>) {
       sugerencias: lista(d.sugerencias, 3).map((a) => ({
         nombre: texto(a.nombre, 120) || "Alimento", gramos: num(a.gramos, 1, 1000), cantidad: texto(a.cantidad, 40) || null, ...nutrientes(a),
       })),
+      reparto: lista(d.reparto, 24).map((a) => ({
+        alimento: texto(a.alimento, 120), persona: texto(a.persona, 60), gramos: num(a.gramos, 0, 3000),
+      })).filter((a) => a.alimento && a.persona),
     };
   }
   if (modo === "texto") {

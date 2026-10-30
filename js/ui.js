@@ -62,18 +62,25 @@ export function abrirDialogo(html, etiqueta, { pantalla = false } = {}) {
     d.classList.add('saliendo');
     setTimeout(cerrarDeVerdad, 200);
   };
-  d.addEventListener('cancel', (e) => { e.preventDefault(); d.close(); }); // tecla Esc
+  // Cerrar por el usuario (atrás, tocar afuera, deslizar, X, Esc). Si la hoja tiene algo sin guardar
+  // (d.proteger() devuelve true), primero pregunta; cerrar desde el código (al guardar) usa d.close().
+  d.descartar = () => {
+    if (cerrando || !d.open) return;
+    if (typeof d.proteger === 'function' && d.proteger()) return preguntarDescartar(d);
+    d.close();
+  };
+  d.addEventListener('cancel', (e) => { e.preventDefault(); d.descartar(); }); // tecla Esc
   // Tocar afuera (el fondo): por coordenadas, porque en Android el toque al fondo no siempre llega como click.
   d.addEventListener('pointerdown', (e) => {
     const r = d.getBoundingClientRect();
-    if (e.clientY < r.top || e.clientY > r.bottom || e.clientX < r.left || e.clientX > r.right) d.close();
+    if (e.clientY < r.top || e.clientY > r.bottom || e.clientX < r.left || e.clientX > r.right) d.descartar();
   });
   // Pantalla completa con contenido común: una X arriba para cerrar.
   if (pantalla && !d.querySelector('.reg')) {
     d.insertAdjacentHTML('afterbegin', '<button type="button" class="pantalla__cerrar" data-cerrar aria-label="Cerrar"><svg class="icono" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>');
   }
   d.addEventListener('close', () => d.remove());
-  d.querySelectorAll('[data-cerrar]').forEach((b) => b.addEventListener('click', () => d.close()));
+  d.querySelectorAll('[data-cerrar]').forEach((b) => b.addEventListener('click', () => d.descartar()));
   // El foco va al título, no al primer campo, para no abrir el teclado de golpe.
   const titulo = d.querySelector('h2');
   if (titulo) { titulo.tabIndex = -1; titulo.autofocus = true; titulo.style.outline = 'none'; }
@@ -109,7 +116,10 @@ function arrastrarParaCerrar(d) {
     if (!arrastrando) return;
     const rapido = dy / Math.max(1, Date.now() - inicioT) > 0.6;
     d.style.transition = 'transform 0.2s ease';
-    if (dy > Math.min(140, d.offsetHeight * 0.25) || (rapido && dy > 40)) {
+    if ((dy > Math.min(140, d.offsetHeight * 0.25) || (rapido && dy > 40)) && typeof d.proteger === 'function' && d.proteger()) {
+      d.style.transform = '';
+      preguntarDescartar(d);
+    } else if (dy > Math.min(140, d.offsetHeight * 0.25) || (rapido && dy > 40)) {
       d.style.transform = `translateY(${d.offsetHeight}px)`;
       d.classList.add('sin-animacion');
       setTimeout(() => d.close(), 180);
@@ -176,9 +186,38 @@ export function cara(p) {
 
 // Gesto o botón de atrás de Android: la app nativa pregunta primero acá. Si hay una hoja abierta,
 // se cierra la de más arriba y no se navega.
+// Con el teclado abierto, atrás solo baja el teclado (no cierra la hoja ni se pierde lo escrito).
+let altoMax = window.innerHeight;
+window.addEventListener('resize', () => { if (!tecladoAbierto()) altoMax = Math.max(altoMax, window.innerHeight); });
+window.addEventListener('orientationchange', () => { altoMax = 0; setTimeout(() => { altoMax = window.innerHeight; }, 400); });
+function tecladoAbierto() {
+  const alto = window.visualViewport?.height ?? window.innerHeight;
+  return alto < altoMax * 0.78;
+}
 window.bloqueAtras = () => {
+  const foco = document.activeElement;
+  const escribiendo = foco && foco.matches?.('input:not([type="checkbox"]):not([type="radio"]):not([type="button"]), textarea, [contenteditable="true"]');
+  if (escribiendo && tecladoAbierto()) { foco.blur(); return true; }
   const abiertas = [...document.querySelectorAll('dialog[open]')];
-  if (!abiertas.length) return false;
-  abiertas.at(-1).close();
+  if (!abiertas.length) { if (escribiendo) foco.blur(); return false; }
+  const arriba = abiertas.at(-1);
+  if (arriba.descartar) arriba.descartar(); else arriba.close();
   return true;
 };
+
+/** «¿Descartar lo que anotaste?» antes de cerrar una hoja con cambios sin guardar. */
+function preguntarDescartar(d) {
+  if (document.querySelector('dialog.descartar[open]')) return;
+  const q = abrirDialogo(`
+    <div class="dialogo">
+      <h2 class="tarjeta__titulo">${esc(d.textoDescartar ?? '¿Descartar lo que anotaste?')}</h2>
+      <p class="quieto" style="margin:-6px 0 0">Si sales ahora se pierde lo que escribiste y la foto.</p>
+      <div class="dialogo__pie">
+        <button type="button" class="boton boton--sec" id="dsc-seguir">Seguir editando</button>
+        <button type="button" class="boton boton--peligro" id="dsc-salir">Descartar</button>
+      </div>
+    </div>`, 'Descartar cambios');
+  q.classList.add('descartar');
+  q.querySelector('#dsc-seguir').addEventListener('click', () => q.close());
+  q.querySelector('#dsc-salir').addEventListener('click', () => { q.close(); d.close(); });
+}
