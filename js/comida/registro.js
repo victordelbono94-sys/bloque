@@ -286,15 +286,22 @@ export function abrirRegistro(ctx, op = {}) {
     try {
       const r = await preguntarPlato(texto);
       await aplicarCambios(r);
-      historial.push({ rol: 'ia', texto: r.respuesta });
+      historial.push({ rol: 'ia', texto: [r.respuesta, r.duda].filter(Boolean).join(' ') });
       const html = `<span class="ia-logo ia-logo--mini" aria-hidden="true">${ICONO.chispa}</span><span>${esc(r.respuesta || 'Listo.')}</span>
         ${r.sugerencias?.length ? `<div class="chips">${r.sugerencias.map((x, k) =>
           `<button type="button" class="chip chip--mini chip--sugerencia" data-sug="${k}">+ ${esc(x.cantidad || `${Math.round(x.gramos)} g`)} ${esc(x.nombre.toLowerCase())} · ${kc(x.kcal * x.gramos / 100)} kcal</button>`).join('')}</div>` : ''}
-        ${htmlReparto(r.reparto_sugerido)}`;
+        ${htmlReparto(r.reparto_sugerido)}
+        ${r.duda ? `<p class="ia-msg__duda">${esc(r.duda)}</p>` : ''}
+        ${r.opciones?.length ? `<div class="chips ia-msg__opciones">${r.opciones.map((o, k) => `<button type="button" class="chip chip--mini" data-opcion="${k}">${esc(o)}</button>`).join('')}</div>` : ''}`;
       chatLog.pop();
-      chatLog.push(`<div class="ia-msg ia-msg--ia">${esc(r.respuesta || 'Listo.')}</div>`); // al volver del paso 2, sin botones
+      chatLog.push(`<div class="ia-msg ia-msg--ia">${esc([r.respuesta || 'Listo.', r.duda].filter(Boolean).join(' '))}</div>`); // al volver del paso 2, sin botones
       if (pensando) {
         pensando.innerHTML = html;
+        // Si la IA tiene una duda, se responde tocando una opción (o escribiendo arriba).
+        pensando.querySelectorAll('[data-opcion]').forEach((btn) => btn.addEventListener('click', () => {
+          pensando.querySelector('.ia-msg__opciones')?.remove();
+          hablar(r.opciones[Number(btn.dataset.opcion)]);
+        }));
         pensando.querySelector('#r-aplicar-reparto')?.addEventListener('click', (e) => { aplicarReparto(r.reparto_sugerido); e.currentTarget.closest('.reparto-ia').remove(); });
         pensando.querySelectorAll('[data-sug]').forEach((btn) => btn.addEventListener('click', async () => {
           btn.disabled = true;
@@ -408,6 +415,10 @@ export function abrirRegistro(ctx, op = {}) {
         const r = await gemini('foto', { imagen: await fotoBase64(fotoPendiente), tipo: 'image/jpeg', texto: (pregunta ? '' : texto) || undefined });
         if (!r.alimentos?.length) { mensaje('No reconocí comida en la foto. Prueba más cerca o escríbelo.'); return; }
         for (const x of r.alimentos) agregar(await aAlimento(x), x.gramos);
+        // Lo que vio en la foto queda en la conversación: así después puedes decir «la foto era para los dos».
+        const visto = `📷 En la foto veo: ${r.alimentos.map((x) => `${x.nombre.toLowerCase()} (${Math.round(x.gramos)} g)`).join(', ')}.`;
+        burbuja('ia', esc(visto));
+        historial.push({ rol: 'yo', texto: texto && !pregunta ? `Te mando una foto del plato. ${texto}` : 'Te mando una foto del plato.' }, { rol: 'ia', texto: visto });
         quitarFoto();
         mensaje(null);
         $('#r-ia')?.classList.remove('ia-caja--pensando');

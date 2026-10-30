@@ -34,6 +34,12 @@ Lee el mensaje y decide:
 4) Si pregunta ("¿me falta proteína?", "está bien así", "qué le agrego") o pide revisar: responde con números frente a la meta de esta comida,
    mirando proteína, carbohidratos, grasas y verduras o fibra. Si falta algo, ofrece 1 a 3 "sugerencias" concretas (NO las agregues tú:
    la persona las toca para sumarlas). Si conviene repartir distinto entre el hogar, ponlo en reparto_sugerido.
+NO ASUMAS: si algo es ambiguo y cambia los números, pregunta antes en vez de adivinar, y NO apliques esa parte todavía
+(sí aplica lo que esté claro). Ejemplos de dudas: "la foto era para los dos" (¿un plato compartido o uno igual para cada uno?),
+"come Sant también" sin decir cuánto, "agrega arroz" sin cantidad cuando no hay forma razonable de estimarla, a quién le toca algo.
+Pon la duda en "duda" (una pregunta corta) y 2 a 4 respuestas posibles en "opciones" (frases cortas que la persona pueda tocar,
+ej. "Un plato para compartir", "Un plato igual para cada uno"). Si no hay dudas, deja "duda" vacío y "opciones" vacío.
+Usa el historial: si la persona responde a tu duda, aplica lo que corresponde.
 Puede ser una mezcla (agregar y preguntar a la vez). Para líquidos gramos ≈ ml; el agua va como "Agua" con 0 kcal.
 "Café con leche" = café y leche por separado. Nombres simples en español ("Arroz blanco cocido", "Pechuga de pollo a la plancha").
 En "respuesta" di qué cambiaste y/o responde la pregunta. Nunca inventes alimentos que no dijo.
@@ -56,6 +62,8 @@ const ESQUEMA = {
     momento: { type: "STRING", enum: ["", "desayuno", "almuerzo", "merienda", "cena", "snack", "pre_entreno", "post_entreno"] },
     sugerencias: { type: "ARRAY", items: { type: "OBJECT", properties: { nombre: { type: "STRING" }, gramos: { type: "NUMBER" }, cantidad: { type: "STRING" }, ...NUT }, required: ["nombre", "gramos", ...REQ_NUT] } },
     reparto_sugerido: { type: "ARRAY", items: { type: "OBJECT", properties: { alimento: { type: "STRING" }, persona: { type: "STRING" }, gramos: { type: "NUMBER" } }, required: ["alimento", "persona", "gramos"] } },
+    duda: { type: "STRING" },
+    opciones: { type: "ARRAY", items: { type: "STRING" } },
   },
   required: ["respuesta"],
 };
@@ -116,6 +124,8 @@ function limpiar(d: Record<string, unknown>) {
     momento: ["desayuno", "almuerzo", "merienda", "cena", "snack", "pre_entreno", "post_entreno"].includes(String(d.momento)) ? d.momento : null,
     sugerencias: lista(d.sugerencias, 3).map(alimento).filter((a) => a.nombre),
     reparto_sugerido: lista(d.reparto_sugerido, 24).map(par).filter((a) => a.alimento && a.persona),
+    duda: texto(d.duda, 200) || null,
+    opciones: (Array.isArray(d.opciones) ? d.opciones : []).map((x) => texto(x, 60)).filter(Boolean).slice(0, 4),
   };
 }
 
