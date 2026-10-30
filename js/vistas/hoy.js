@@ -161,8 +161,8 @@ export async function vistaHoy(app) {
     ${htmlNumerosHoy(comidaHoy, mia)}
 
     <section class="seccion" aria-labelledby="como-titulo">
-      <div class="fila fila--entre como-cabeza">
-        <h2 class="seccion__titulo" id="como-titulo" style="margin:0">${esc(personaVista.id === estado.yo.id ? 'Cómo estoy' : `Cómo está ${personaVista.nombre}`)}</h2>
+      <div class="fila fila--entre como-cabeza" ${estado.personas.length > 1 ? 'hidden' : ''}>
+        <h2 class="seccion__titulo" id="como-titulo" style="margin:0">${esc(tituloComo(personaVista))}</h2>
       </div>
       ${estado.personas.length > 1 ? `
         <div class="ver-persona" role="tablist" aria-label="De quién ver el semáforo">
@@ -170,7 +170,7 @@ export async function vistaHoy(app) {
             const est = estados.find((e) => e.persona_id === p.id);
             const sem = (est && (est.cansancio != null || est.dolor_muscular != null) ? est : semaforoDe(p.id, est))?.semaforo;
             return `<button type="button" class="ver-persona__op" role="tab" data-ver-como="${esc(p.id)}" aria-selected="${p.id === personaVista.id}">
-              <span class="ver-persona__cara">${cara(p)}</span><span>${esc(p.id === estado.yo.id ? 'Yo' : p.nombre)}</span>
+              <span class="ver-persona__cara">${cara(p)}</span><span class="ver-persona__txt">${esc(p.id === personaVista.id ? tituloComo(p) : (p.id === estado.yo.id ? 'Yo' : p.nombre))}</span>
               ${sem ? `<span class="punto punto--${sem}" aria-label="Semáforo ${sem}"></span>` : ''}
             </button>`;
           }).join('')}
@@ -184,14 +184,19 @@ export async function vistaHoy(app) {
   app.querySelectorAll('[data-ver-como]').forEach((b) => b.addEventListener('click', () => {
     const id = b.dataset.verComo;
     try { sessionStorage.setItem('bloque-hoy-ver', id); } catch { /* nada */ }
-    app.querySelectorAll('[data-ver-como]').forEach((o) => o.setAttribute('aria-selected', String(o === b)));
+    app.querySelectorAll('[data-ver-como]').forEach((o) => {
+      o.setAttribute('aria-selected', String(o === b));
+      // El elegido dice «Cómo estoy» / «Cómo está Sant»; los demás, solo el nombre.
+      const q = estado.personas.find((x) => x.id === o.dataset.verComo);
+      o.querySelector('.ver-persona__txt').textContent = o === b ? tituloComo(q) : (q.id === estado.yo.id ? 'Yo' : q.nombre);
+    });
     app.querySelectorAll('[data-persona-como]').forEach((c) => {
       const ver = c.dataset.personaComo === id;
       c.hidden = !ver;
       if (ver) { c.classList.remove('fundido'); void c.offsetWidth; c.classList.add('fundido'); }
     });
     const p = estado.personas.find((x) => x.id === id);
-    app.querySelector('#como-titulo').textContent = p.id === estado.yo.id ? 'Cómo estoy' : `Cómo está ${p.nombre}`;
+    app.querySelector('#como-titulo').textContent = tituloComo(p);
   }));
 
   conectarPendientes(app, () => vistaHoy(app));
@@ -327,6 +332,8 @@ function conectarRapido(app, hoy) {
     }
   }));
 }
+
+const tituloComo = (p) => (p.id === estado.yo.id ? 'Cómo estoy' : `Cómo está ${p.nombre}`);
 
 function tarjetaPersona(p, est, med, descanso, b, semaforoDe) {
   const soyYo = p.id === estado.yo.id;
