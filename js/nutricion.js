@@ -3,14 +3,62 @@
 //
 // Cómo se calcula la meta del día:
 //   metabolismo basal (Katch-McArdle si hay % de grasa, si no Mifflin-St Jeor)
-//   × 1,3 por la vida diaria
-//   + lo que gastan los entrenos de ese día (lo que midió el reloj o, si todavía
-//     no pasó, una estimación por tipo de entreno)
-//   ajustado según el objetivo (déficit, superávit o mantenimiento).
+//   + la vida diaria: con reloj, lo que de verdad te movés fuera de los entrenos (promedio de 2 semanas);
+//     sin reloj, ×1,3
+//   + lo que gastan los entrenos de ese día (lo que midió el reloj; si todavía no pasó, una estimación)
+//   ajustado según el objetivo (déficit, superávit o mantenimiento)
+//   y corregido por lo que hace tu peso real (si buscas ganar y no subes, se suma; si bajas muy rápido, también).
 // Proteína alta para cuidar el músculo, grasas mínimas sanas, y el resto
 // carbohidratos: por eso los días de derby o piernas piden más carbohidratos.
 
 const ACTIVIDAD_DIARIA = 1.3;
+import { emparejar, porConfirmar } from './actividades.js';
+
+/**
+ * Cuánto gastas en un día sin contar los entrenos, según tu reloj: promedio de las últimas 2 semanas del
+ * gasto total del día menos lo que fueron entrenos (queda el cuerpo + pasos y tareas), más ~7 % por digerir lo que comes.
+ * Solo días completos (con pasos y un total creíble). Con menos de 5 días, null (se usa basal × 1,3).
+ */
+export function vidaDiariaMedida(historial, basal) {
+  if (!historial?.dias?.length) return null;
+  const porDia = new Map();
+  for (const s of historial.sesiones ?? []) {
+    const f = s.fecha ?? s.inicio?.slice(0, 10);
+    porDia.set(f, (porDia.get(f) ?? 0) + Number(s.calorias ?? 0));
+  }
+  const sinEntrenos = historial.dias
+    .filter((d) => Number(d.calorias_totales) > basal * 0.9 && Number(d.pasos ?? 0) > 500)
+    .map((d) => Number(d.calorias_totales) - (porDia.get(d.fecha) ?? 0));
+  if (sinEntrenos.length < 5) return null;
+  const orden = [...sinEntrenos].sort((a, b) => a - b);
+  // Sin los extremos (un día de cama o un día de mudanza no deberían mover la meta).
+  const medio = orden.slice(Math.floor(orden.length * 0.15), Math.ceil(orden.length * 0.85));
+  const promedio = medio.reduce((a, b) => a + b, 0) / medio.length;
+  const base = promedio * 1.07;
+  return { base: Math.min(basal * 1.7, Math.max(basal * 1.15, base)), promedio: Math.round(promedio), dias: sinEntrenos.length };
+}
+
+/** Corrección por lo que hace tu peso real (kg por semana) según el objetivo. */
+export function ajustePorPeso(tendencia, foco, peso) {
+  const k = tendencia?.kgSemana;
+  if (k == null || !peso) return { kcal: 0, nota: null };
+  const rapido = -0.01 * peso; // bajar más de 1 % del peso por semana
+  if (foco === 'masa_muscular') {
+    if (k < -0.1) return { kcal: 250, nota: `Estás bajando ${Math.abs(k).toLocaleString('es-EC')} kg por semana con objetivo de ganar: sumé 250 kcal a tu meta.` };
+    if (k < 0.05) return { kcal: 150, nota: 'Tu peso no sube: sumé 150 kcal a tu meta para que puedas ganar músculo.' };
+    if (k > 0.5) return { kcal: -150, nota: `Subes ${k.toLocaleString('es-EC')} kg por semana: es rápido (puede ser grasa), resté 150 kcal.` };
+  } else if (foco === 'perder_grasa') {
+    if (k < rapido) return { kcal: 200, nota: `Bajas ${Math.abs(k).toLocaleString('es-EC')} kg por semana: muy rápido, cuesta músculo. Sumé 200 kcal.` };
+    if (k > 0.05) return { kcal: -150, nota: 'Tu peso no baja: resté 150 kcal a tu meta.' };
+  } else if (foco === 'recomposicion') {
+    if (k < rapido * 0.75) return { kcal: 200, nota: `Bajas ${Math.abs(k).toLocaleString('es-EC')} kg por semana: rápido para ganar músculo a la vez. Sumé 200 kcal.` };
+    if (k > 0.3) return { kcal: -150, nota: `Subes ${k.toLocaleString('es-EC')} kg por semana: para bajar grasa resté 150 kcal.` };
+  } else {
+    if (k > 0.25) return { kcal: -150, nota: 'Tu peso sube: resté 150 kcal para mantenerte.' };
+    if (k < -0.25) return { kcal: 150, nota: 'Tu peso baja: sumé 150 kcal para mantenerte.' };
+  }
+  return { kcal: 0, nota: null };
+}
 
 // Gasto extra estimado de cada entreno: MET y duración típica.
 const ENTRENO = {
@@ -56,7 +104,7 @@ export function gastoEvento(ev, pesoKg) {
  * @param {Array} [p.eventos] eventos de hoy de esta persona ({ tipo, actividad, liviana })
  * @param {Array} [p.entrenosReloj] entrenos de hoy que registró el reloj ({ calorias })
  */
-export function calcularMetas({ persona, medicion, foco = 'recomposicion', eventos = [], entrenosReloj = [], hoy = new Date() }) {
+export function calcularMetas({ persona, medicion, foco = 'recomposicion', eventos = [], entrenosReloj = [], hoy = new Date(), historial = null, tendencia = null }) {
   const falta = [];
   const peso = medicion?.peso_kg != null ? Number(medicion.peso_kg) : null;
   if (peso == null) falta.push('un peso');
@@ -74,11 +122,31 @@ export function calcularMetas({ persona, medicion, foco = 'recomposicion', event
   const basal = magra != null
     ? 370 + 21.6 * magra
     : 10 * peso + 6.25 * altura - 5 * anios + (persona.sexo === 'f' ? -161 : 5);
-  const base = basal * ACTIVIDAD_DIARIA;
+  const vida = vidaDiariaMedida(historial, basal);
+  const base = vida ? vida.base : basal * ACTIVIDAD_DIARIA;
 
-  const estimado = eventos.filter((e) => e.tipo !== 'descanso').reduce((a, e) => a + gastoEvento(e, peso), 0);
+  // Entrenos: si el reloj ya registró uno, manda lo medido; si todavía no pasó, se estima.
+  // Un entreno del reloj sin confirmar y un evento sin pareja se cuentan una sola vez (el mayor).
+  const agendados = eventos.filter((e) => e.tipo !== 'descanso');
+  const estimado = agendados.reduce((a, e) => a + gastoEvento(e, peso), 0);
   const medido = entrenosReloj.reduce((a, s) => a + (s.calorias ?? 0), 0);
-  const ejercicio = Math.max(estimado, medido);
+  let ejercicio = medido;
+  if (agendados.length && entrenosReloj.length && entrenosReloj.every((s) => s.inicio)) {
+    const { pares, sueltas } = emparejar(agendados, entrenosReloj);
+    const sinPar = agendados.filter((e) => !pares.has(e));
+    const pendientes = sueltas.filter(porConfirmar).sort((a, b) => (b.calorias ?? 0) - (a.calorias ?? 0));
+    let total = [...pares.values()].reduce((a, s) => a + (s.calorias ?? 0), 0);
+    for (const e of sinPar) {
+      const s = pendientes.shift();
+      total += Math.max(gastoEvento(e, peso), s?.calorias ?? 0);
+    }
+    total += [...sueltas.filter((s) => !porConfirmar(s)), ...pendientes].reduce((a, s) => a + (s.calorias ?? 0), 0);
+    ejercicio = total;
+  } else if (!entrenosReloj.length) {
+    ejercicio = estimado;
+  } else {
+    ejercicio = Math.max(estimado, medido);
+  }
 
   const obj = OBJETIVOS[foco] ?? OBJETIVOS.recomposicion;
   // Muy magro: con poca grasa, un déficit come músculo. Se come a mantenimiento o un poco más.
@@ -95,7 +163,9 @@ export function calcularMetas({ persona, medicion, foco = 'recomposicion', event
       : 'Con tu peso para tu altura no conviene déficit: comer un poco por encima del gasto ayuda a ganar músculo.');
   }
 
-  const kcalDe = (gasto) => Math.round((base + gasto) * factor / 10) * 10;
+  const ajuste = ajustePorPeso(tendencia, foco, peso);
+  if (ajuste.nota) notas.unshift(ajuste.nota);
+  const kcalDe = (gasto) => Math.round(((base + gasto) * factor + ajuste.kcal) / 10) * 10;
   const kcal = kcalDe(ejercicio);
   const proteina = Math.round(Math.min(obj.proteinaKg * peso, magra != null ? 2.7 * magra : Infinity));
   const grasas = Math.round(Math.max(0.8 * peso, (0.25 * kcal) / 9));
@@ -116,6 +186,7 @@ export function calcularMetas({ persona, medicion, foco = 'recomposicion', event
   return {
     ok: true, foco, magro, basal: Math.round(basal), base: Math.round(base), ejercicio: Math.round(ejercicio),
     medido: Math.round(medido), gasto: Math.round(base + ejercicio), kcal, proteina, carbos, grasas, extraCarbos, notas, peso,
+    vidaDiaria: vida, ajustePeso: ajuste.kcal,
   };
 }
 

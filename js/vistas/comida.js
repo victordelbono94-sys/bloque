@@ -544,8 +544,16 @@ async function cargarDia(fecha) {
   const rutinaIds = [...new Set(eventos.map((e) => e.rutina_id).filter(Boolean))];
   const rutinas = rutinaIds.length ? datos(await sb.from('rutinas').select('id, foco').in('id', rutinaIds)) : [];
   for (const e of eventos) e.liviana = rutinas.find((r) => r.id === e.rutina_id)?.foco === 'recuperacion';
-  const [syncs, agua] = await Promise.all([cargarSyncs(), cargarAgua(fecha, ids).catch(() => [])]);
-  return { fecha, eventos, mediciones, objetivos, reloj, comidas, despensa, syncs, agua };
+  // Últimas 2 semanas del reloj (sin el día que se mira): cuánto te movés fuera de los entrenos.
+  const hace15 = sumarDias(fecha, -15);
+  const [syncs, agua, diasReloj, sesionesReloj] = await Promise.all([
+    cargarSyncs(), cargarAgua(fecha, ids).catch(() => []),
+    sb.from('actividad_diaria').select('persona_id, fecha, pasos, calorias_activas, calorias_totales').in('persona_id', ids)
+      .gte('fecha', hace15).lt('fecha', fecha).then(datos).catch(() => []),
+    sb.from('sesiones_banda').select('persona_id, inicio, calorias').or('confirmado.is.null,confirmado.neq.nada').in('persona_id', ids)
+      .gte('inicio', new Date(`${hace15}T00:00:00`).toISOString()).lt('inicio', desde.toISOString()).then(datos).catch(() => []),
+  ]);
+  return { fecha, eventos, mediciones, objetivos, reloj, comidas, despensa, syncs, agua, diasReloj, sesionesReloj };
 }
 
 function datosPersona(p, d) {
@@ -558,14 +566,20 @@ function datosPersona(p, d) {
   const relojP = d.reloj.filter((s) => s.persona_id === p.id);
   const { pares } = emparejar(suyos.filter((e) => e.tipo !== 'descanso'), relojP);
   const eventos = suyos.filter((e) => !esIndividual(e) || asistenciaIndividual(e, pares.get(e) ?? null, d.syncs?.[p.id], new Date(), relojP.some(porConfirmar)) !== 'no_fue');
+  const tendencia = tendenciaPeso(d.mediciones.filter((m) => m.persona_id === p.id), foco);
+  const fechaLocalDe = (iso) => { const f = new Date(iso); return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}`; };
   const metas = calcularMetas({
     persona: p, medicion: med, foco, eventos,
     entrenosReloj: d.reloj.filter((s) => s.persona_id === p.id),
     hoy: new Date(`${d.fecha}T12:00:00`),
+    tendencia,
+    historial: {
+      dias: (d.diasReloj ?? []).filter((x) => x.persona_id === p.id),
+      sesiones: (d.sesionesReloj ?? []).filter((x) => x.persona_id === p.id).map((x) => ({ fecha: fechaLocalDe(x.inicio), calorias: x.calorias })),
+    },
   });
   const comido = sumar(d.comidas.flatMap((c) => c.porciones.filter((x) => x.persona_id === p.id))
     .map((x) => ({ kcal: Number(x.kcal ?? 0), proteina: Number(x.proteina_g ?? 0), carbos: Number(x.carbohidratos_g ?? 0), grasas: Number(x.grasas_g ?? 0) })));
-  const tendencia = tendenciaPeso(d.mediciones.filter((m) => m.persona_id === p.id), foco);
   const entradas = (d.agua ?? []).filter((x) => x.persona_id === p.id);
   const agua = {
     meta: metaAgua({ peso: metas.ok ? metas.peso : null, ejercicioKcal: metas.ok ? metas.ejercicio : 0 }),
@@ -637,7 +651,7 @@ function htmlResumen(x, esYo, esHoy = true, mio = esYo) {
         <p class="quieto" style="margin:8px 0 0">Proteína ${Math.round(comido.proteina)} / ${metas.proteina} g · ${esc(OBJETIVOS[x.foco]?.nombre ?? '')}</p>
       </section>`;
   }
-  const notas = [...metas.notas, ...consejosDelDia(metas, comido), x.tendencia?.nota].filter(Boolean);
+  const notas = [...metas.notas, ...consejosDelDia(metas, comido)].filter(Boolean); // la tendencia del peso ya ajusta la meta (y avisa en metas.notas)
   return `
     <section class="tarjeta dia-comida" style="margin-top:4px">
       <div class="kcal">
@@ -656,7 +670,7 @@ function htmlResumen(x, esYo, esHoy = true, mio = esYo) {
       ${htmlAgua(x, esHoy, mio)}
       ${notas.length ? `<ul class="notas-comida">${notas.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
       <p class="ayuda dia-comida__pie">
-        Gasto estimado ${kc(metas.gasto)} kcal (${metas.medido ? `entrenos según el reloj: ${kc(metas.medido)}` : `entrenos: ${kc(metas.ejercicio)}`})
+        Gasto ~${kc(metas.gasto)} kcal: cuerpo y día ${kc(metas.base)}${metas.vidaDiaria ? ' (según tu reloj)' : ''} + entrenos ${kc(metas.ejercicio)}${metas.medido ? ' (medidos)' : ''}${metas.ajustePeso ? ` · ajuste por tu peso ${metas.ajustePeso > 0 ? '+' : ''}${kc(metas.ajustePeso)}` : ''}
         · ${mio ? `<button type="button" class="enlace-boton" id="cambiar-objetivo">${esc(OBJETIVOS[x.foco]?.nombre ?? 'Objetivo')}</button>` : esc(OBJETIVOS[x.foco]?.nombre ?? '')}
       </p>
     </section>`;
