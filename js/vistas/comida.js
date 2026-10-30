@@ -8,7 +8,7 @@ import { metaAgua, aguaDeComidas, cargarAgua, sumarAgua, borrarAgua, litros } fr
 import { sb, estado, datos } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
 import { hoyISO, sumarDias, diaLargo, diaCorto, numeroDia } from '../fechas.js';
-import { calcularMetas, consejosDelDia, snacksDelDia, tendenciaPeso, OBJETIVOS } from '../nutricion.js';
+import { calcularMetas, consejosDelDia, diagnosticoDia, snacksDelDia, tendenciaPeso, OBJETIVOS } from '../nutricion.js';
 import { macros, sumar, cargarCatalogo } from '../alimentos.js';
 import { panelBuscar } from '../comida/buscar.js';
 import { abrirRegistro } from '../comida/registro.js';
@@ -101,7 +101,14 @@ async function vistaDia(app, fecha) {
       <div class="ver-persona" role="tablist" aria-label="De quién ver el día">
         ${info.map((x) => `<button type="button" class="ver-persona__op" role="tab" data-ver="${esc(x.p.id)}" aria-selected="${x === visto}">
           <span class="ver-persona__cara">${cara(x.p)}</span><span>${esc(x === yo ? 'Yo' : x.p.nombre)}</span>
-          ${x.metas.ok ? `<span class="ver-persona__kcal">${kc(Math.max(0, x.metas.kcal - x.comido.kcal))} kcal</span>` : ''}
+          ${x.metas.ok ? (() => {
+            // Lo que le queda por comer hoy, o cuánto se pasó (con el mismo criterio del resumen: según su objetivo).
+            const resto = Math.round(x.metas.kcal - x.comido.kcal);
+            const diag = diagnosticoDia({ metas: x.metas, comido: x.comido });
+            return resto >= 0
+              ? `<span class="ver-persona__kcal">faltan ${kc(resto)}</span>`
+              : `<span class="ver-persona__kcal ver-persona__kcal--${diag.tono === 'ojo' ? 'ojo' : 'ok'}">+${kc(-resto)} kcal</span>`;
+          })() : ''}
         </button>`).join('')}
       </div>` : ''}
     <div id="resumen-persona" class="resumen-persona">${htmlResumen(visto, true, esHoy && visto === yo, visto === yo)}</div>

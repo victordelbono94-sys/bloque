@@ -37,10 +37,7 @@ export async function vistaSemana(app) {
         <h1 class="titulo">Entrenos</h1>
         <p class="subtitulo" id="sem-rango">${esc(rangoSemana(lunes0))}</p>
       </div>
-      <div class="fila" style="gap:8px">
-        <button type="button" class="boton boton--sec boton--chico" id="ir-hoy" hidden>↓ Hoy</button>
-        <button type="button" class="boton boton--ia boton--chico" id="rutinas-ia">✦ Rutinas con IA</button>
-      </div>
+      <button type="button" class="boton boton--sec boton--chico" id="ir-hoy" hidden>↓ Hoy</button>
     </header>
     <div class="linea-semanas" id="semanas">
       <div class="centinela" id="cent-arriba" aria-hidden="true"></div>
@@ -48,10 +45,20 @@ export async function vistaSemana(app) {
       <div class="centinela" id="cent-abajo" aria-hidden="true"></div>
     </div>`;
 
-  app.querySelector('#rutinas-ia').addEventListener('click', async () => {
+  // Rutinas con IA: botón flotante (fuera de la vista animada para que quede fijo sobre la barra de abajo).
+  document.querySelector('.fab-ia')?.remove();
+  const fab = document.createElement('button');
+  fab.type = 'button';
+  fab.className = 'fab-ia';
+  fab.setAttribute('aria-label', 'Rutinas con IA');
+  fab.innerHTML = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg><span>Rutinas con IA</span>';
+  fab.addEventListener('click', async () => {
     const { abrirEntrenador } = await import('../entrenador.js');
     abrirEntrenador({ alAplicar: () => {} });
   });
+  document.body.appendChild(fab);
+  const quitarFab = () => { if (!/^#\/semana/.test(location.hash)) { fab.remove(); window.removeEventListener('hashchange', quitarFab); } };
+  window.addEventListener('hashchange', quitarFab);
   const cont = app.querySelector('#semanas');
   const scroller = document.getElementById('app');
   let primera = sumarDias(lunes0, -7), ultima = sumarDias(lunes0, 7), cargando = false;

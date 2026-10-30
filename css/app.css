@@ -1672,3 +1672,20 @@ dialog.pantalla > .estirar .dialogo__pie { position: sticky; bottom: calc(-1 * (
 .semana .ver-persona { margin-top: -4px; }
 .semana > * { flex-shrink: 0; }
 .semana-dia__barra { width: 70%; }
+.ver-persona__kcal--ojo { color: var(--ambar); opacity: 1; }
+.ver-persona__kcal--ok { color: var(--volt); opacity: 1; }
+
+/* Entrenos: el rango de fechas no cambia el alto del encabezado; «Rutinas con IA» flota sobre la barra de abajo */
+.encabezado--fijo > div:first-child { min-width: 0; flex: 1; }
+.encabezado--fijo #sem-rango { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.encabezado--fijo #ir-hoy { flex: 0 0 auto; align-self: center; }
+.fab-ia {
+  position: fixed; right: max(16px, calc((100vw - 640px) / 2 + 16px)); bottom: calc(var(--nav-alto) + 16px + env(safe-area-inset-bottom)); z-index: 12;
+  display: inline-flex; align-items: center; gap: 8px; height: 52px; padding: 0 20px 0 16px; border: 0; border-radius: 999px;
+  background: linear-gradient(120deg, #C6F432, #5EE6C8); color: var(--asfalto); font: inherit; font-weight: 700; font-size: 15px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08) inset; cursor: pointer;
+  animation: fab-entra .35s var(--resorte) both;
+}
+.fab-ia .icono { width: 20px; height: 20px; fill: currentColor; stroke: none; }
+.fab-ia:active { transform: scale(0.95); }
+@keyframes fab-entra { from { opacity: 0; transform: translateY(16px) scale(.9); } to { opacity: 1; transform: none; } }
