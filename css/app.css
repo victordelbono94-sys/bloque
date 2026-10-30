@@ -1187,6 +1187,11 @@ dialog .selector-deporte { max-height: 46dvh; overflow: auto; padding-right: 4px
 
 /* Toques como app, no como página: sin el recuadro azul y sin seleccionar texto al tocar. */
 * { -webkit-tap-highlight-color: transparent; }
+/* Sin barras de desplazamiento en ningún lado: se desliza igual, pero se siente como app y no como página web. */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
+/* Sin zoom por doble toque en botones y controles (responden al instante). */
+a, button, input, select, textarea, label, .chip, summary { touch-action: manipulation; }
 a, button, .chip, .opcion, .nav__item { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 
 /* Hojas: nunca se desplazan de costado (lo ancho se desplaza adentro de su propia fila). */
