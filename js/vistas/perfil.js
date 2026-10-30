@@ -39,6 +39,8 @@ export async function vistaPerfil(app) {
       </div>
     </header>
 
+    <div id="mis-objetivos-cont"><section class="tarjeta mis-objetivos"><h2 class="seccion__titulo" style="margin:0">Mis objetivos</h2><p class="quieto" style="margin:8px 0 0">Cargando…</p></section></div>
+
     <form class="tarjeta pila" id="perfil" novalidate>
       <h2 class="seccion__titulo" style="margin:0">Mis datos</h2>
       <div class="foto-perfil">
@@ -170,6 +172,14 @@ export async function vistaPerfil(app) {
     }
   });
 
+  // Mis objetivos (deporte, gym, objetivo, experiencia) con la IA para cambiarlos.
+  const pintarObjetivos = () => import('../objetivos.js').then(async (O) => {
+    const cont = app.querySelector('#mis-objetivos-cont');
+    if (!cont) return;
+    cont.innerHTML = await O.htmlMisObjetivos();
+    O.conectarMisObjetivos(cont, pintarObjetivos);
+  }).catch(() => {});
+  pintarObjetivos();
   conectarEquipo(app);
   conectarFoto(app);
   conectarNativo(app);
