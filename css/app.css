@@ -1919,8 +1919,9 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .cuerpo-hero { margin-top: 14px; padding: 16px 16px 12px; overflow: hidden; }
 .cuerpo-hero__fila { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 16px; align-items: center; min-height: 190px; }
 .cuerpo-hero__visual { display: flex; justify-content: center; }
-.cuerpo-svg { width: 96px; height: 180px; overflow: visible; }
-.cuerpo-svg__base { fill: #4A4F5C; stroke: #4A4F5C; }
+.cuerpo-svg { width: 112px; height: 180px; overflow: visible; }
+.cuerpo-svg__base { fill: #2F333D; }
+.cuerpo-svg__trazo { fill: #9DA2AE; }
 .cuerpo-svg__nivel { animation: cuerpo-sube .9s var(--suave) both; transform-origin: bottom; transform-box: fill-box; }
 .cuerpo-svg__ola { animation: cuerpo-ola 3s ease-in-out infinite alternate; }
 .cuerpo-svg__visceral { animation: cuerpo-late 2.4s ease-in-out infinite; transform-origin: center; transform-box: fill-box; filter: blur(2px); }
@@ -2008,7 +2009,7 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .chatia__pdf { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; padding: 4px 0; }
 .chatia__adjunto--pdf img { display: none; }
 .chatia__adjunto--pdf::before { content: '📄'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 30px; background: var(--grafito-2); }
-.cuerpo-svg__linea { stroke-width: .6; stroke-dasharray: 1.5 1.5; opacity: .9; }
+.cuerpo-svg__linea { stroke-width: .35; stroke-dasharray: .9 .9; opacity: .9; }
 
 /* Semana v3: más clara */
 .sem2-titulo { margin: 0 0 10px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--tiza-2); }
@@ -2195,8 +2196,7 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .que-es-hoja__tu p + p { margin-top: 6px !important; }
 .rachas { justify-content: flex-start; }
 .racha-pill { flex: 0 0 auto; }
-.nav__item svg.nav__figura { fill: currentColor; stroke: none; }
-.nav__item svg.nav__figura .trazo { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.nav__item svg.nav__figura { fill: none; stroke: none; }
 .sin-red { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top) + 8px); z-index: 2000; max-width: calc(100% - 32px); padding: 8px 14px; border-radius: 999px; background: rgba(42, 45, 53, .95); box-shadow: 0 6px 20px rgba(0, 0, 0, .4), inset 0 0 0 1px rgba(232, 163, 23, .5); color: var(--tiza); font-size: 12px; text-align: center; animation: chip-entra .3s var(--suave) both; }
 
 /* ---------- Perfil ---------- */
