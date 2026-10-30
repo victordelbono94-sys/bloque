@@ -122,7 +122,7 @@ async function vistaDia(app, fecha) {
     abrirRegistro(ctx, texto ? { texto } : {});
   });
   app.querySelector('#rapido-manual').addEventListener('click', () => abrirRegistro(ctx, {}));
-  conectarAgua(app, () => vistaDia(app, fecha));
+  conectarAgua(app);
 
   app.querySelectorAll('[data-habitual]').forEach((b) => b.addEventListener('click', () => {
     const f = habituales[Number(b.dataset.habitual)];
@@ -553,7 +553,7 @@ function htmlAgua(x, esHoy) {
   const falta = meta - tomado;
   const entreno = esHoy && (x.eventos ?? []).find((e) => ['derby', 'gym', 'otro'].includes(e.tipo));
   return `
-    <div class="agua-dia" id="agua-dia" data-tomado="${tomado}" data-meta="${meta}">
+    <div class="agua-dia" id="agua-dia" data-tomado="${tomado}" data-meta="${meta}" data-bebidas="${deComidas}" data-entreno="${entreno ? (entreno.tipo === 'derby' ? 'derby' : 'otro') : ''}" data-entradas='${esc(JSON.stringify(entradas.map((e) => ({ id: e.id, ml: e.ml }))))}'>
       <div class="vaso" aria-hidden="true">
         <div class="vaso__agua" style="height:${pct}%">
           <svg class="vaso__ola" viewBox="0 0 120 12" preserveAspectRatio="none"><path d="M0 6 Q15 0 30 6 T60 6 T90 6 T120 6 V12 H0Z"/></svg>
@@ -569,7 +569,7 @@ function htmlAgua(x, esHoy) {
             <button type="button" class="chip chip--mini chip--agua" data-agua="250">+ Vaso</button>
             <button type="button" class="chip chip--mini chip--agua" data-agua="500">+ Botella</button>
             <button type="button" class="chip chip--mini chip--agua" data-agua="750">+ Termo</button>
-            ${entradas.length ? `<button type="button" class="chip chip--mini" data-agua-deshacer="${esc(entradas.at(-1).id)}" aria-label="Deshacer el último (${entradas.at(-1).ml} ml)">↶ ${entradas.at(-1).ml} ml</button>` : ''}
+            <button type="button" class="chip chip--mini agua-deshacer" id="agua-deshacer" ${entradas.length ? '' : 'hidden'}>↶ ${entradas.length ? `${entradas.at(-1).ml} ml` : ''}</button>
           </div>` : ''}
       </div>
     </div>`;
@@ -756,24 +756,41 @@ function dialogoObjetivo(actual, alGuardar) {
   });
 }
 
-// Sumar agua sin recargar: el vaso sube con olas y burbujas, y la cifra cuenta hacia arriba.
-function conectarAgua(app, recargar) {
+// Sumar o quitar agua sin recargar: el vaso sube (o baja) con olas, la cifra cuenta y los textos se funden.
+function conectarAgua(app) {
   const caja = app.querySelector('#agua-dia');
   if (!caja) return;
-  const pintar = (tomado, animar) => {
+  let pila = [];
+  try { pila = JSON.parse(caja.dataset.entradas || '[]'); } catch { /* nada */ }
+  const deshacer = caja.querySelector('#agua-deshacer');
+  const pintarDeshacer = () => {
+    if (!deshacer) return;
+    deshacer.hidden = !pila.length;
+    if (pila.length) deshacer.textContent = `↶ ${pila.at(-1).ml} ml`;
+  };
+  const fundir = (el, texto) => {
+    if (el.textContent === texto) return;
+    el.classList.remove('fundido'); void el.offsetWidth;
+    el.textContent = texto;
+    el.classList.add('fundido');
+  };
+  const pintar = (tomado, sube) => {
     const meta = Number(caja.dataset.meta);
+    const desde = Number(caja.dataset.tomado);
     caja.dataset.tomado = tomado;
     caja.querySelector('.vaso__agua').style.height = `${Math.min(100, Math.round((tomado / meta) * 100))}%`;
     const falta = meta - tomado;
     const estado = caja.querySelector('#agua-estado');
     estado.classList.toggle('hecho', falta <= 0);
-    estado.textContent = falta <= 0 ? 'Meta de agua cumplida ✓' : `Te falta ${litros(falta)}`;
-    if (!animar) { caja.querySelector('#agua-tomado').textContent = litros(tomado); return; }
-    caja.classList.remove('agua-dia--sube'); void caja.offsetWidth; caja.classList.add('agua-dia--sube');
-    const desde = Number(caja.dataset.antes ?? tomado), t0 = performance.now();
+    const bebidas = Number(caja.dataset.bebidas);
+    const extra = [bebidas ? `${litros(bebidas)} de bebidas` : '', caja.dataset.entreno ? (caja.dataset.entreno === 'derby' ? 'lleva ~1 L al derby' : 'lleva ~500 ml al entreno') : ''].filter(Boolean).join(' · ');
+    fundir(estado, `${falta <= 0 ? 'Meta de agua cumplida ✓' : `Te falta ${litros(falta)}`}${extra ? ` · ${extra}` : ''}`);
+    caja.classList.remove('agua-dia--sube', 'agua-dia--baja'); void caja.offsetWidth;
+    caja.classList.add(sube ? 'agua-dia--sube' : 'agua-dia--baja');
+    const num = caja.querySelector('#agua-tomado'), t0 = performance.now();
     const contar = (t) => {
       const k = Math.min(1, (t - t0) / 900);
-      caja.querySelector('#agua-tomado').textContent = litros(desde + (tomado - desde) * (1 - (1 - k) ** 3));
+      num.textContent = litros(desde + (tomado - desde) * (1 - (1 - k) ** 3));
       if (k < 1) requestAnimationFrame(contar);
     };
     requestAnimationFrame(contar);
@@ -781,16 +798,21 @@ function conectarAgua(app, recargar) {
   caja.querySelectorAll('[data-agua]').forEach((b) => b.addEventListener('click', async () => {
     const ml = Number(b.dataset.agua);
     const antes = Number(caja.dataset.tomado);
-    caja.dataset.antes = antes;
     pintar(antes + ml, true); // se ve al instante; si falla, se vuelve atrás
     try {
-      await sumarAgua(ml);
+      const fila = await sumarAgua(ml);
+      pila.push({ id: fila.id, ml });
+      pintarDeshacer();
       try { navigator.vibrate?.(20); } catch { /* nada */ }
-      setTimeout(recargar, 1400); // para que aparezca «deshacer» con el último
     } catch (err) { avisoError(err); pintar(antes, false); }
   }));
-  caja.querySelector('[data-agua-deshacer]')?.addEventListener('click', async (e) => {
-    try { await borrarAgua(e.currentTarget.dataset.aguaDeshacer); recargar(); } catch (err) { avisoError(err); }
+  deshacer?.addEventListener('click', async () => {
+    const ultima = pila.pop();
+    if (!ultima) return;
+    const antes = Number(caja.dataset.tomado);
+    pintar(Math.max(0, antes - ultima.ml), false);
+    pintarDeshacer();
+    try { await borrarAgua(ultima.id); } catch (err) { avisoError(err); pila.push(ultima); pintar(antes, true); pintarDeshacer(); }
   });
 }
 

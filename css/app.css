@@ -1425,3 +1425,13 @@ dialog.pantalla > .dialogo > h2:first-of-type { padding-right: 52px; }
 .ia-inicio__rapidos .chip { flex-shrink: 0; }
 /* El vaso de agua alineado con su texto */
 .agua-dia { align-items: flex-start; }
+
+/* Agua: vaso más alto (toda la altura del bloque), bajada animada y textos que se funden */
+.agua-dia { align-items: stretch; }
+.vaso { width: 52px; height: auto; min-height: 120px; align-self: stretch; border-radius: 8px 8px 18px 18px; }
+@keyframes fundido { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.fundido { animation: fundido 0.35s var(--suave); }
+.agua-dia--baja .vaso__ola { animation-duration: 1.6s; animation-direction: reverse; }
+.agua-dia--baja .vaso { animation: vaso-baja 0.45s ease; }
+@keyframes vaso-baja { 40% { transform: scale(0.95); } }
+.agua-dia--sube #agua-tomado, .agua-dia--baja #agua-tomado { display: inline-block; animation: fundido 0.35s var(--suave); }
