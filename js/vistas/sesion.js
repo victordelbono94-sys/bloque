@@ -6,6 +6,8 @@ import { esc, num, aviso, avisoError, abrirDialogo, grupoChips, valorChips } fro
 import { hoyISO } from '../fechas.js';
 import { cargarRutina, textoMeta, redondearPeso } from '../rutinas.js';
 import { abrirEntrenador } from '../entrenador.js';
+import { esRecord, rachaSemanas } from '../logros.js';
+import { cargarMolestias, molestiaDe, nombreZona, textoIntensidad } from '../molestias.js';
 import { textoSemaforo } from '../semaforo.js';
 import { abrirFicha, miniatura } from '../ficha.js';
 import { sincronizarAgenda, programarDescansoNativo, cancelarDescansoNativo } from '../nativo.js';
@@ -103,6 +105,7 @@ export async function vistaSesion(app) {
     sb.from('estado_diario').select('*').eq('persona_id', estado.yo.id).eq('fecha', hoyISO()).maybeSingle().then(datos),
   ]);
   // El objetivo cambia cómo se progresa: para ganar masa, primero más reps (volumen); para bajar grasa, sostener el peso.
+  const misMolestias = await cargarMolestias();
   const miFoco = (await sb.from('objetivos').select('foco').eq('persona_id', estado.yo.id).order('desde', { ascending: false }).limit(1).then(datos).catch(() => []))[0]?.foco ?? 'recomposicion';
 
   // Lo que grabó el reloj para este entreno (cuando ya sincronizó).
@@ -126,7 +129,13 @@ export async function vistaSesion(app) {
     .in('persona_id', participantes.map((p) => p.id)).in('ejercicio_id', ejIds).neq('sesion_id', id)
     .order('hecha_en', { ascending: false }).limit(800)) : [];
 
-  actual = { sesion, rutina, items, participantes, series, previas, sugerencias: {}, cambios: leerCambios(id), foco: miFoco };
+  actual = { sesion, rutina, items, participantes, series, previas, sugerencias: {}, cambios: leerCambios(id), foco: miFoco, molestias: misMolestias, records: new Set() };
+  // Récords ya hechos en esta sesión (si se vuelve a abrir, siguen marcados con 🏆).
+  for (const sr of [...series].filter((x) => x.persona_id === estado.yo.id).sort((a, b) => new Date(a.hecha_en) - new Date(b.hecha_en))) {
+    const antes = [...previas.filter((x) => x.persona_id === estado.yo.id && x.ejercicio_id === sr.ejercicio_id),
+      ...series.filter((x) => x.persona_id === estado.yo.id && x.ejercicio_id === sr.ejercicio_id && new Date(x.hecha_en) < new Date(sr.hecha_en))];
+    if (esRecord(sr, antes)) actual.records.add(sr.id);
+  }
   const yoParticipo = participantes.some((p) => p.id === estado.yo.id);
   const terminé = sesion.terminados.includes(estado.yo.id);
   const sem = miEstado?.semaforo;
@@ -167,6 +176,18 @@ export async function vistaSesion(app) {
         </div>
       </div>` : ''}
 
+    ${(() => {
+      const afectados = items.filter((it) => molestiaDe(ejercicioDe(it, estado.yo.id), misMolestias));
+      if (!afectados.length || terminé) return '';
+      const zonas = [...new Set(misMolestias.map((m) => nombreZona(m.zona).toLowerCase()))].join(' y ');
+      return `<div class="aviso-fijo aviso-molestia">
+        <span aria-hidden="true">🩹</span>
+        <div><strong>Cuida tu ${esc(zonas)}</strong>
+          <p style="margin:2px 0 8px">${afectados.length} ejercicio${afectados.length === 1 ? '' : 's'} de hoy la carga${afectados.length === 1 ? '' : 'n'}. Cámbialos o deja que la IA adapte el entreno y sume ejercicios suaves.</p>
+          <button type="button" class="boton boton--ia boton--chico" id="adaptar-molestia">✦ Adaptar el entreno</button>
+        </div>
+      </div>`;
+    })()}
     <div class="pila" id="ejercicios">
       ${items.map((it, i) => tarjetaEjercicio(it, i)).join('')}
     </div>
@@ -183,6 +204,10 @@ export async function vistaSesion(app) {
   conectar(app);
   ordenarEjercicios(app, { inicial: true });
   app.querySelector('#ajustar-ia')?.addEventListener('click', () => abrirEntrenador({ rutinaId: sesion.rutina_id, enCurso: true, alAplicar: () => vistaSesion(app) }));
+  app.querySelector('#adaptar-molestia')?.addEventListener('click', () => abrirEntrenador({
+    rutinaId: sesion.rutina_id, enCurso: true, alAplicar: () => vistaSesion(app),
+    mensaje: `Tengo una molestia en ${misMolestias.map((m) => `${nombreZona(m.zona).toLowerCase()} (${textoIntensidad(m.intensidad).toLowerCase()}${m.nota ? `: ${m.nota}` : ''})`).join(' y ')}. Adapta el entreno de hoy: cambia o saca lo que cargue esa zona y suma 1 o 2 ejercicios suaves de recuperación al final.`,
+  }));
   // Agua durante el entreno: un toque por vaso; se suma a la hidratación del día.
   let aguaSesion = 0;
   app.querySelector('#agua-entreno')?.addEventListener('click', async (e) => {
@@ -266,6 +291,7 @@ function tarjetaEjercicio(it, i) {
           <span class="ejercicio__como">Cómo se hace ›</span>
         </span>
       </button>
+      ${(() => { const m = molestiaDe(mio, actual.molestias); return m ? `<p class="ejercicio__molestia">🩹 Carga tu ${esc(nombreZona(m.zona).toLowerCase())}: hazlo liviano y sin dolor, o cámbialo.</p>` : ''; })()}
       ${it.alternativas.length && actual.participantes.some((p) => p.id === estado.yo.id) ? `
         <button type="button" class="boton boton--sec boton--chico boton--ocupada" style="margin-top:10px" data-cambiar="${esc(it.id)}">
           ¿Máquina ocupada? Cambiar ejercicio
@@ -293,7 +319,7 @@ function filaPersona(it, p) {
       ? `${s.reps}${unidad}${s.peso_kg != null ? `×${num(s.peso_kg, s.peso_kg % 1 ? 1 : 0)}` : ''}`
       : String(k + 1);
     const esf = s ? claveEsfuerzo(s.esfuerzo ?? 8) : null;
-    const clase = `serie ${s ? `serie--hecha serie--${esf}` : ''}`;
+    const clase = `serie ${s ? `serie--hecha serie--${esf}` : ''} ${s && actual.records?.has(s.id) ? 'serie--record' : ''}`;
     const nombreEsf = esf ? ESFUERZOS.find((e) => e.clave === esf).texto.toLowerCase() : '';
     const contenido = `${esf ? ICONO_ESFUERZO[esf] : ''}${esc(texto)}`;
     if (!soyYo) return `<span class="${clase}" aria-label="Serie ${k + 1}${s ? `: ${texto}, ${nombreEsf}` : ', pendiente'}">${contenido}</span>`;
@@ -571,6 +597,19 @@ function registrarSerie(app, it, numero) {
       }
       d.close();
       sugerir(it, { reps: r, peso: p, esfuerzo: esf, meta, segundos });
+      // ¿Récord? Contra todo lo anterior de este ejercicio (otras sesiones y lo de hoy).
+      const guardada = actual.series.find((x) => x.persona_id === estado.yo.id && x.numero === numero && (x.ejercicio_id === ej.id));
+      if (guardada) {
+        const antes = [...actual.previas.filter((x) => x.persona_id === estado.yo.id && x.ejercicio_id === ej.id),
+          ...actual.series.filter((x) => x.persona_id === estado.yo.id && x.ejercicio_id === ej.id && x.id !== guardada.id)];
+        const rec = esRecord(guardada, antes);
+        actual.records.delete(guardada.id);
+        if (rec) {
+          actual.records.add(guardada.id);
+          try { navigator.vibrate?.([80, 60, 80, 60, 200]); } catch { /* nada */ }
+          aviso(`🏆 ¡Récord en ${ej.nombre}! ${kg(Number(rec.ahora.peso_kg))} kg × ${rec.ahora.reps} (antes ${kg(Number(rec.antes.peso_kg))} × ${rec.antes.reps})`);
+        }
+      }
       repintarFila(app, it, estado.yo);
       ordenarEjercicios(app);
       if (!existente) {
@@ -833,6 +872,13 @@ function terminar(app) {
         <div><span class="dato-grande">${minutos}</span><span class="dato-unidad">min</span><p class="quieto" style="margin:4px 0 0">duración</p></div>
         <div><span class="dato-grande">${num(volumen / 1000, 1)}</span><span class="dato-unidad">t</span><p class="quieto" style="margin:4px 0 0">levantadas</p></div>
       </div>
+      ${(() => {
+        const recs = mias.filter((x) => actual.records.has(x.id));
+        if (!recs.length) return '';
+        const nombre = (x) => actual.items.find((it) => it.ejercicio.id === x.ejercicio_id || it.alternativas.some((a) => a.id === x.ejercicio_id))?.ejercicio.nombre ?? '';
+        return `<div class="records-hoy"><p class="seccion__titulo" style="margin:0 0 6px">🏆 Récords de hoy</p>${recs.map((x) => `<p style="margin:2px 0"><strong>${esc(nombre(x))}</strong> · ${kg(Number(x.peso_kg))} kg × ${x.reps}</p>`).join('')}</div>`;
+      })()}
+      <p class="racha" id="racha" hidden></p>
       ${ajustes.length ? `
         <div>
           <p class="seccion__titulo" style="margin:4px 0 8px">Próxima vez</p>
@@ -847,6 +893,13 @@ function terminar(app) {
       </div>
     </div>`, 'Terminar mi entreno');
 
+  // Racha: contando este entreno como hecho (si con él se completa la semana).
+  rachaSemanas().then((n) => {
+    const el = d.querySelector('#racha');
+    if (!el) return;
+    el.hidden = false;
+    el.textContent = n >= 1 ? `🔥 Racha: ${n} semana${n === 1 ? '' : 's'} seguida${n === 1 ? '' : 's'} cumpliendo tus gyms` : '🔥 Completa todos tus gyms de esta semana para empezar una racha';
+  }).catch(() => {});
   const confirmar = d.querySelector('#confirmar');
   confirmar.addEventListener('click', async () => {
     confirmar.disabled = true;

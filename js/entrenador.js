@@ -25,13 +25,14 @@ export function sobraCuadriceps(items) {
 async function contexto(rutinaId) {
   const hogar = estado.yo.hogar_id;
   const hoy = hoyISO();
-  const [catalogo, rutinas, items, objetivos, agenda] = await Promise.all([
+  const [catalogo, rutinas, items, objetivos, agenda, molestias] = await Promise.all([
     sb.from('ejercicios').select('id, nombre, grupo_muscular, unidad, por_lado').eq('hogar_id', hogar).order('grupo_muscular').then(datos),
     sb.from('rutinas').select('id, nombre, foco, notas').eq('hogar_id', hogar).order('creada_en').then(datos),
     sb.from('rutina_ejercicios').select('rutina_id, orden, series_base, reps_base, descanso_base, ejercicio:ejercicios(id, nombre, grupo_muscular)')
       .in('rutina_id', (await sb.from('rutinas').select('id').eq('hogar_id', hogar).then(datos)).map((r) => r.id)).order('orden').then(datos),
     sb.from('objetivos').select('persona_id, foco, desde').in('persona_id', estado.personas.map((p) => p.id)).order('desde', { ascending: false }).then(datos).catch(() => []),
     sb.from('calendario').select('fecha, tipo, hora_inicio, rutina_id, actividad').eq('hogar_id', hogar).gte('fecha', hoy).lte('fecha', sumarDias(hoy, 10)).order('fecha').then(datos),
+    sb.from('molestias').select('persona_id, zona, intensidad, nota, desde').in('persona_id', estado.personas.map((p) => p.id)).is('hasta', null).then(datos).catch(() => []),
   ]);
   const dep = deporte(estado.equipo?.deporte);
   const nombreRutina = (id) => rutinas.find((r) => r.id === id)?.nombre ?? null;
@@ -43,6 +44,7 @@ async function contexto(rutinaId) {
       personas: estado.personas.map((p) => ({
         nombre: p.nombre, objetivo: objetivos.find((o) => o.persona_id === p.id)?.foco ?? null,
         experiencia: p.experiencia ?? null, sexo: p.sexo ?? null,
+        molestias_activas: molestias.filter((m) => m.persona_id === p.id).map((m) => ({ zona: m.zona, intensidad: ['', 'leve', 'molesta', 'duele'][m.intensidad], nota: m.nota, desde: m.desde })),
       })),
       agenda_proximos_dias: agenda.map((e) => ({ fecha: e.fecha, dia: diaCorto(e.fecha), tipo: e.tipo, hora: e.hora_inicio?.slice(0, 5) ?? null, rutina: nombreRutina(e.rutina_id), actividad: e.actividad })),
       rutina_que_estamos_viendo: rutinaId ? nombreRutina(rutinaId) : null,

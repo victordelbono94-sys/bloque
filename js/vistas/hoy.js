@@ -177,6 +177,7 @@ export async function vistaHoy(app) {
         </div>` : ''}
       ${estado.personas.map((p) => `<div class="como-persona" data-persona-como="${esc(p.id)}" ${p.id === personaVista.id ? '' : 'hidden'}>
         ${tarjetaPersona(p, estados.find((e) => e.persona_id === p.id), mediciones.find((m) => m.persona_id === p.id), esDescanso(deHoy, p.id), banda(p.id), semaforoDe)}
+        <div class="como-molestias" data-molestias="${esc(p.id)}"></div>
       </div>`).join('')}
     </section>`;
   // Cambiar de persona: se muestra su semáforo y sus datos (se recuerda mientras la app esté abierta).
@@ -195,6 +196,14 @@ export async function vistaHoy(app) {
 
   conectarPorConfirmar(app.querySelector('#por-confirmar'), porConfirmarLista, () => vistaHoy(app));
   app.querySelector('#ver-semana')?.addEventListener('click', async () => (await import('../semanal.js')).abrirResumenSemanal());
+  // Molestias o lesiones de cada uno (las tuyas se marcan y se cierran desde acá).
+  import('../molestias.js').then(async (M) => {
+    for (const cont of app.querySelectorAll('[data-molestias]')) {
+      const id = cont.dataset.molestias, propio = id === estado.yo.id;
+      cont.innerHTML = M.htmlMolestias(await M.cargarMolestias(id), { propio });
+      if (propio) M.conectarMolestias(cont, () => vistaHoy(app));
+    }
+  });
   conectarCheckIn(app, contexto, estados.find((e) => e.persona_id === estado.yo.id));
   conectarRapido(app, hoy);
   if (falta.length) avisarPerfil(falta);

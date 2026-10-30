@@ -1689,3 +1689,28 @@ dialog.pantalla > .estirar .dialogo__pie { position: sticky; bottom: calc(-1 * (
 .fab-ia .icono { width: 20px; height: 20px; fill: currentColor; stroke: none; }
 .fab-ia:active { transform: scale(0.95); }
 @keyframes fab-entra { from { opacity: 0; transform: translateY(16px) scale(.9); } to { opacity: 1; transform: none; } }
+
+/* Molestias o lesiones */
+.como-molestias:empty { display: none; }
+.como-molestias { margin-top: 10px; }
+.molestia-agregar { display: block; margin: 4px auto 0; color: var(--gris); font-size: 14px; }
+.molestias { display: flex; flex-direction: column; gap: 10px; }
+.molestia { padding: 14px; border-radius: var(--radio); background: var(--grafito); border: 1px solid rgba(232, 163, 23, 0.35); display: flex; flex-direction: column; gap: 10px; }
+.molestia--1 { border-color: rgba(198, 244, 50, 0.3); }
+.molestia--3 { border-color: rgba(255, 138, 128, 0.55); }
+.molestia__cabeza { display: flex; gap: 10px; align-items: center; }
+.molestia__cabeza > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.molestia__cabeza .quieto { font-size: 13px; }
+.molestia__icono { font-size: 22px; }
+.molestia__suaves summary { cursor: pointer; color: var(--volt); font-weight: 600; font-size: 14px; }
+.molestia__suaves ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.4; }
+.molestia .boton { align-self: flex-start; }
+.molestia__fisio { margin: 0; color: var(--ambar); }
+.aviso-molestia { background: rgba(232, 163, 23, 0.12); border: 1px solid rgba(232, 163, 23, 0.35); display: flex; gap: 10px; }
+.ejercicio__molestia { margin: 10px 0 0; padding: 8px 12px; border-radius: 10px; background: rgba(232, 163, 23, 0.12); color: var(--tiza); font-size: 14px; }
+/* Récords */
+.serie--record { position: relative; }
+.serie--record::after { content: '🏆'; position: absolute; top: -8px; right: -6px; font-size: 14px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+.records-hoy { padding: 12px; border-radius: 14px; background: rgba(198, 244, 50, 0.08); border: 1px solid rgba(198, 244, 50, 0.3); }
+.racha { margin: 0; font-weight: 700; color: var(--volt); }
+.mejor-marca { display: block; margin-top: 4px; font-size: 13px; color: var(--volt); font-weight: 600; }

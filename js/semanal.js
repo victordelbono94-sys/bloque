@@ -7,6 +7,7 @@ import { calcularMetas, diagnosticoDia, tendenciaPeso, ajustePorPeso, OBJETIVOS 
 import { metaAgua, aguaDeComidas } from './hidratacion.js';
 import { esIndividual } from './actividades.js';
 import { cargarCumplimiento } from './hecho.js';
+import { rachaSemanas } from './logros.js';
 
 const fechaLocal = (iso) => {
   const f = new Date(iso);
@@ -111,8 +112,9 @@ export async function calcularSemana(persona) {
   if (!sugerencias.length) sugerencias.push({ p: 1, t: 'Semana muy pareja: sigue así. Si quieres progresar más, sube un poco el peso en los ejercicios que te salieron «fácil».' });
   sugerencias.sort((a, b) => b.p - a.p);
 
+  const racha = await rachaSemanas(persona.id).catch(() => 0);
   return {
-    persona, ini, fin, foco, porDia, registrados: registrados.length, enMeta, protOk, kcalComida, kcalMeta, protComida, protMeta,
+    racha, persona, ini, fin, foco, porDia, registrados: registrados.length, enMeta, protOk, kcalComida, kcalMeta, protComida, protMeta,
     agendados, hechos, suenoProm, aguaPct, pesoIni, pesoFin, tendencia, sugerencias: sugerencias.slice(0, 3).map((x) => x.t),
   };
 }
@@ -139,6 +141,7 @@ function htmlSemana(s) {
       ${kpi(s.suenoProm != null ? `${(s.suenoProm / 60).toFixed(1).replace('.', ',')} h` : '—', 'sueño promedio', s.suenoProm != null ? s.suenoProm >= 420 : null)}
       ${kpi(s.aguaPct != null ? `${Math.round(s.aguaPct * 100)} %` : '—', 'de tu agua', s.aguaPct != null ? s.aguaPct >= 0.8 : null)}
     </div>
+    ${s.racha ? `<p class="racha">🔥 Racha: ${s.racha} semana${s.racha === 1 ? '' : 's'} seguida${s.racha === 1 ? '' : 's'} cumpliendo los gyms</p>` : ''}
     <section class="semana-grafico" aria-label="Calorías por día frente a la meta">
       <p class="seccion__titulo" style="margin:0 0 8px">Calorías frente a tu meta</p>
       <div class="semana-dias">${barras}</div>

@@ -8,6 +8,7 @@ import { abrirFicha, miniatura } from '../ficha.js';
 import { vistaSemana } from './semana.js';
 import { abrirEntrenador, sobraCuadriceps } from '../entrenador.js';
 import { deporte } from '../deportes.js';
+import { mejorSerie } from '../logros.js';
 
 export async function vistaEntreno(app) {
   const id = location.hash.split('/')[2];
@@ -19,6 +20,11 @@ async function detalle(app, rutinaId) {
   const { rutina, items } = await cargarRutina(rutinaId);
   const personas = estado.personas;
   const zonas = zonasDe(items.map((it) => it.ejercicio.grupo_muscular));
+  // Tu mejor marca en cada ejercicio (la serie con más fuerza estimada).
+  const ejIds = items.map((it) => it.ejercicio.id);
+  const historial = ejIds.length ? datos(await sb.from('series').select('ejercicio_id, reps, peso_kg, hecha_en').eq('persona_id', estado.yo.id)
+    .in('ejercicio_id', ejIds).not('peso_kg', 'is', null).order('hecha_en', { ascending: false }).limit(600)) : [];
+  const mejor = Object.fromEntries(ejIds.map((id) => [id, mejorSerie(historial.filter((x) => x.ejercicio_id === id))]));
 
   app.innerHTML = `
     <header class="encabezado">
@@ -54,6 +60,7 @@ async function detalle(app, rutinaId) {
                 <span class="ejercicio__nombre">${esc(it.ejercicio.nombre)}</span>
               </span>
               <span class="quieto" style="display:block;margin:4px 0 0">${esc(it.ejercicio.grupo_muscular)}${it.ejercicio.maquina ? ` · ${esc(it.ejercicio.maquina.nombre)}` : ''}</span>
+              ${mejor[it.ejercicio.id] ? `<span class="mejor-marca">🏆 Tu mejor: ${Number(mejor[it.ejercicio.id].peso_kg).toLocaleString('es-EC')} kg × ${mejor[it.ejercicio.id].reps}</span>` : ''}
               <span class="ejercicio__como">Cómo se hace ›</span>
             </span>
           </button>
