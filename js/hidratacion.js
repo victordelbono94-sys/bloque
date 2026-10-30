@@ -5,7 +5,7 @@ import { sb, estado, datos } from './db.js';
 import { hoyISO } from './fechas.js';
 
 // Bebidas que cuentan como líquido (gramos ≈ ml).
-const LIQUIDO = /^(agua|caf[eé]|t[eé]\b|t[eé] |infusi|aromática|leche|jugo|zumo|batido|smoothie|bebida|gaseosa|cola|soda|limonada|kombucha|isot[oó]nic|gatorade|powerade|electrol|caldo|sopa|colada|chocolate caliente|yogur bebible|prote[ií]na.*(batido|shake))/i;
+const LIQUIDO = /(\b(caldo|sopa|consom[eé]|crema de)\b)|^(agua|caf[eé]|t[eé]\b|t[eé] |infusi|aromática|leche|jugo|zumo|batido|smoothie|bebida|gaseosa|cola|soda|limonada|kombucha|isot[oó]nic|gatorade|powerade|electrol|caldo|sopa|colada|chocolate caliente|yogur bebible|prote[ií]na.*(batido|shake))/i;
 export const esLiquido = (alimento) => LIQUIDO.test(alimento?.nombre ?? '');
 
 export function metaAgua({ peso, ejercicioKcal = 0 }) {

@@ -8,6 +8,7 @@ import { hoyISO } from '../fechas.js';
 import { macros, sumar } from '../alimentos.js';
 import { OBJETIVOS } from '../nutricion.js';
 import { panelBuscar } from './buscar.js';
+import { esLiquido } from '../hidratacion.js';
 import {
   MOMENTOS, PARTE_COMIDA, momentoPorHora, momentoSugerido, kc, g, cantidadTexto, gemini, fotoBase64, aAlimento,
   guardarComida, borrarComida,
@@ -220,6 +221,8 @@ export function abrirRegistro(ctx, op = {}) {
     cont.insertAdjacentHTML('beforeend', b);
     return cont.lastElementChild;
   };
+  // Lo que se toma (bebidas, caldos, sopas) cuenta para la hidratación: gramos ≈ ml.
+  const aguaDelPlato = () => items.filter((it) => esLiquido(it.alimento)).reduce((a, it) => a + Number(it.gramos || 0), 0);
   const contextoPlato = () => {
     const b = balance();
     const nombreDe = (id) => (id ? estado.personas.find((p) => p.id === id)?.nombre ?? null : null);
@@ -285,7 +288,10 @@ export function abrirRegistro(ctx, op = {}) {
     pensando?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
       const r = await preguntarPlato(texto);
+      const aguaAntes = aguaDelPlato();
       await aplicarCambios(r);
+      const aguaSumada = aguaDelPlato() - aguaAntes;
+      if (aguaSumada >= 50) r.respuesta = `${r.respuesta ?? ''} 💧 Suma ~${Math.round(aguaSumada / 10) * 10} ml a tu agua del día.`.trim();
       historial.push({ rol: 'ia', texto: [r.respuesta, r.duda].filter(Boolean).join(' ') });
       const html = `<span class="ia-logo ia-logo--mini" aria-hidden="true">${ICONO.chispa}</span><span>${esc(r.respuesta || 'Listo.')}</span>
         ${r.sugerencias?.length ? `<div class="chips">${r.sugerencias.map((x, k) =>
