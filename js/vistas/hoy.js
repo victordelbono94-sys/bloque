@@ -120,6 +120,7 @@ export async function vistaHoy(app) {
         <h1 class="titulo">Hoy</h1>
         <p class="subtitulo">${esc(diaLargo(hoy))}</p>
       </div>
+      <a class="boton boton--chico ver-semana-cab" href="#/semana">Ver semana${ICONO_CHEVRON}</a>
     </header>
 
     ${falta.length ? `
@@ -138,16 +139,12 @@ export async function vistaHoy(app) {
       </button>` : ''}
     ${htmlCuerpoPendiente(mediciones.filter((m) => m.persona_id === estado.yo.id))}
 
-    <section class="tarjeta" aria-labelledby="plan-hoy">
+    <section class="tarjeta" aria-label="Plan de hoy">
       ${pendientes.map((e) => `
         <div class="pendiente">
           <span class="pendiente__texto"><strong>${esc(rutinas.find((r) => r.id === e.rutina_id)?.nombre ?? 'Gym')}</strong> quedó pendiente del ${esc(diaCorto(e.fecha))} ${numeroDia(e.fecha)}</span>
           <button type="button" class="boton boton--chico" data-recuperar="${esc(e.id)}">Recuperar</button>
         </div>`).join('')}
-      <div class="fila fila--entre" style="margin-bottom:6px">
-        <h2 class="seccion__titulo" id="plan-hoy" style="margin:0">Plan de hoy</h2>
-        <a class="enlace-chico" href="#/semana">Ver semana ›</a>
-      </div>
       ${deHoy.length || mia.entrenosHoy.length
         ? `<ol class="plan">${lineaDeTiempo(deHoy, mia.entrenosHoy, rutinas, sesiones, resumen, quienesDe)}</ol>`
         : `<p class="vacio" style="padding-top:4px">No hay nada agendado. ¿Qué hacen hoy?</p>
@@ -205,9 +202,11 @@ export async function vistaHoy(app) {
   import('../molestias.js').then(async (M) => {
     for (const cont of app.querySelectorAll('[data-molestias]')) {
       const id = cont.dataset.molestias, propio = id === estado.yo.id;
-      cont.innerHTML = M.htmlMolestias(await M.cargarMolestias(id), { propio });
+      const lista = await M.cargarMolestias(id);
+      cont.innerHTML = M.htmlMolestias(lista, { propio, agregar: false }); // se agrega desde «Tus datos de hoy»
       if (propio) M.conectarMolestias(cont, () => vistaHoy(app));
     }
+    app.querySelector('#molestia-nueva-hoy')?.addEventListener('click', () => M.dialogoMolestia(() => vistaHoy(app)));
   });
   conectarCheckIn(app, contexto, estados.find((e) => e.persona_id === estado.yo.id));
   conectarDatos(app);
@@ -332,6 +331,7 @@ function conectarRapido(app, hoy) {
   }));
 }
 
+const ICONO_CHEVRON = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
 const tituloComo = (p) => (p.id === estado.yo.id ? 'Cómo estoy' : `Cómo está ${p.nombre}`);
 
 function tarjetaPersona(p, est, med, descanso, b, semaforoDe) {
@@ -344,7 +344,7 @@ function tarjetaPersona(p, est, med, descanso, b, semaforoDe) {
       ${heroSemaforo(mostrar, descanso, soyYo)}
       ${hecho ? resumenCheckIn(est, soyYo) : ''}
       ${soyYo ? formularioCheckIn(est, hecho) : ''}
-      ${htmlDatos(med, b)}
+      ${htmlDatos(med, b, soyYo)}
     </article>`;
 }
 
@@ -457,7 +457,7 @@ function conectarCheckIn(app, { hoy, deAyer, deHoy, extrasAyer, suenoMin, bandaA
 }
 
 // Cuerpo y banda en una grilla compacta: peso, grasa, músculo / sueño, pasos, activas.
-function htmlDatos(med, b) {
+function htmlDatos(med, b, soyYo = false) {
   const h = b.hoy ?? {};
   const fmt = (v, d = 1) => (v != null ? num(v, d) : null);
   const sueno = b.suenoMin != null && b.suenoMin > 0
@@ -471,7 +471,8 @@ function htmlDatos(med, b) {
     ['Pasos', h.pasos != null ? Number(h.pasos).toLocaleString('es-EC') : null, ''],
     ['Activas', h.calorias_activas != null ? Number(h.calorias_activas).toLocaleString('es-EC') : null, 'kcal'],
   ];
-  if (celdas.every((c) => c[1] == null)) return '';
+  const sinDatos = celdas.every((c) => c[1] == null);
+  if (sinDatos && !soyYo) return '';
   const pie = [med ? `Medición del ${fechaCorta(med.medido_en)}` : null].filter(Boolean);
   const resumen = [sueno && 'sueño', h.pasos != null && 'pasos', med && 'peso'].filter(Boolean);
   let abierto = false;
@@ -480,14 +481,15 @@ function htmlDatos(med, b) {
     <details class="datos-plegable" ${abierto ? 'open' : ''}>
       <summary><span>Tus datos de hoy${resumen.length ? ` <span class="quieto">· ${resumen.join(', ')}</span>` : ''}</span><span class="acordeon__flecha" aria-hidden="true"></span></summary>
       <div class="datos-plegable__cuerpo">
-    <div class="datos">
+    ${sinDatos ? '' : `<div class="datos">
       ${celdas.map(([nombre, valor, unidad, alerta]) => `
         <div class="dato ${alerta ? 'dato--alerta' : ''}">
           <span class="dato__nombre">${nombre}</span>
           <span class="dato__valor">${valor ?? '<span class="quieto">—</span>'}${valor != null && unidad ? `<span class="dato-unidad">${unidad}</span>` : ''}</span>
         </div>`).join('')}
-    </div>
+    </div>`}
     ${pie.length ? `<p class="datos__pie">${esc(pie.join(' · '))}</p>` : ''}
+    ${soyYo ? '<button type="button" class="boton boton--chico datos__molestia" id="molestia-nueva-hoy">+ Tengo una molestia o lesión</button>' : ''}
       </div>
     </details>`;
 }

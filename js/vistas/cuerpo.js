@@ -79,6 +79,26 @@ function sparkline(puntos, color) {
     <circle cx="${X(u.fecha.getTime())}" cy="${Y(u.valor)}" r="3" fill="${color}"/></svg>`;
 }
 
+const ICONO_TUERCA = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+
+// De quién ver el cuerpo: las caras del hogar arriba, en la cabecera. Con hasta 3 se ven todas;
+// con más, la elegida y la tuya, y un «+N» que abre la lista completa.
+function htmlCaras(persona) {
+  if (estado.personas.length < 2) return '';
+  const cara1 = (p) => `<a class="yo-caras__op" href="#/cuerpo/${esc(p.id)}" role="tab" aria-selected="${p.id === persona.id}" aria-label="${esc(p.id === estado.yo.id ? 'Yo' : p.nombre)}" title="${esc(p.nombre)}">${cara(p)}</a>`;
+  const todas = estado.personas;
+  if (todas.length <= 3) return `<div class="yo-caras" role="tablist" aria-label="De quién ver">${todas.map(cara1).join('')}</div>`;
+  const visibles = [estado.yo, ...(persona.id !== estado.yo.id ? [persona] : [])];
+  return `<div class="yo-caras" role="tablist" aria-label="De quién ver">${visibles.map(cara1).join('')}<button type="button" class="yo-caras__op yo-caras__mas" id="caras-mas" aria-label="Ver a otra persona">+${todas.length - visibles.length}</button></div>`;
+}
+function conectarCaras(app) {
+  app.querySelector('#caras-mas')?.addEventListener('click', () => {
+    const d = abrirDialogo(`<div class="dialogo"><h2 class="tarjeta__titulo">¿De quién quieres ver?</h2><div class="per-menu">${estado.personas.map((p) => `
+      <a class="per-fila" href="#/cuerpo/${esc(p.id)}" data-cerrar-ir><span class="avatar yo-caras__lista">${cara(p)}</span><span class="per-fila__txt"><strong>${esc(p.id === estado.yo.id ? `${p.nombre} (yo)` : p.nombre)}</strong></span></a>`).join('')}</div></div>`, 'Elegir persona');
+    d.querySelectorAll('[data-cerrar-ir]').forEach((a) => a.addEventListener('click', () => d.close()));
+  });
+}
+
 const ICONO_HISTORIAL = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4h4"/><path d="M12 7.5V12l3 2"/></svg>';
 
 // ---------- Historial: cómo estabas antes y cómo estás hoy ----------
@@ -306,16 +326,11 @@ export async function vistaCuerpo(app) {
         <p class="subtitulo">${soyYo ? 'Tu peso y composición esta semana' : `Peso y composición de ${esc(persona.nombre)}`}</p>
       </div>
       <div class="yo-acciones">
+        ${htmlCaras(persona)}
         <button type="button" class="boton boton--sec boton--chico nav-dia" id="ver-historial" aria-label="Historial y progreso">${ICONO_HISTORIAL}</button>
-        <a class="avatar" href="#/perfil" aria-label="Perfil y ajustes">${cara(estado.yo)}</a>
+        <a class="boton boton--sec boton--chico nav-dia" href="#/perfil" aria-label="Ajustes">${ICONO_TUERCA}</a>
       </div>
     </header>
-
-    ${estado.personas.length > 1 ? `
-      <div class="ver-persona" role="tablist" aria-label="Persona">
-        ${estado.personas.map((p) => `<a class="ver-persona__op" role="tab" href="#/cuerpo/${esc(p.id)}" aria-selected="${p.id === persona.id}" style="text-decoration:none;color:inherit">
-          <span class="ver-persona__cara">${cara(p)}</span><span>${esc(p.id === estado.yo.id ? 'Yo' : p.nombre)}</span></a>`).join('')}
-      </div>` : ''}
 
     ${htmlSugerencias(sugerencias)}
 
@@ -338,6 +353,7 @@ export async function vistaCuerpo(app) {
     </section>`;
 
   const recargar = () => vistaCuerpo(app);
+  conectarCaras(app);
   app.querySelector('.cuerpo-hero')?.addEventListener('click', (e) => {
     const b = e.target.closest('[data-que-es]');
     if (b) abrirQueEs(b.dataset.queEs, mediciones, persona, foco);

@@ -147,8 +147,8 @@ export async function terminarMolestia(id) {
 }
 
 /** Tarjeta con las molestias activas: días, ejercicios suaves y «Ya estoy bien». */
-export function htmlMolestias(lista, { propio = true } = {}) {
-  if (!lista.length) return propio ? '<button type="button" class="enlace-boton molestia-agregar" id="molestia-nueva">+ Tengo una molestia o lesión</button>' : '';
+export function htmlMolestias(lista, { propio = true, agregar = true } = {}) {
+  if (!lista.length) return propio && agregar ? '<button type="button" class="enlace-boton molestia-agregar" id="molestia-nueva">+ Tengo una molestia o lesión</button>' : '';
   return `<section class="molestias">${lista.map((m) => {
     const z = ZONAS[m.zona];
     const dias = Math.max(0, Math.round((new Date(`${hoyISO()}T12:00`) - new Date(`${m.desde}T12:00`)) / 864e5));
@@ -159,7 +159,7 @@ export function htmlMolestias(lista, { propio = true } = {}) {
       ${z?.suaves?.length ? `<details class="molestia__suaves"><summary>Ejercicios suaves para recuperar</summary><ul>${z.suaves.map(([n, t]) => `<li><strong>${esc(n)}</strong> ${esc(t)}</li>`).join('')}</ul><p class="ayuda" style="margin:6px 0 0">Siempre sin dolor. Si alguno duele, déjalo.</p></details>` : ''}
       ${propio ? `<button type="button" class="boton boton--sec boton--chico" data-molestia-fin="${esc(m.id)}">Ya estoy bien</button>` : ''}
     </article>`;
-  }).join('')}${propio ? '<button type="button" class="enlace-boton molestia-agregar" id="molestia-nueva">+ Otra molestia</button>' : ''}</section>`;
+  }).join('')}${propio && agregar ? '<button type="button" class="enlace-boton molestia-agregar" id="molestia-nueva">+ Otra molestia</button>' : ''}</section>`;
 }
 
 export function conectarMolestias(cont, alCambiar) {
