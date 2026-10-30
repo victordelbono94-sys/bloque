@@ -296,10 +296,10 @@ function filaPersona(it, p) {
 
   return `
     <div class="fila fila--entre" style="gap:8px">
-      <span class="meta-fila__nombre">${esc(soyYo ? 'Yo' : p.nombre)}</span>
+      <span class="meta-fila__nombre ${soyYo ? '' : 'meta-fila__nombre--otro'}">${esc(soyYo ? 'Yo' : p.nombre)}</span>
       <span class="quieto">${sube ? '<span class="sube" title="Subió desde la vez pasada">↑</span> ' : ''}${esc(textoMeta(meta, ej.unidad))}${ej.por_lado ? ' · por lado' : ''}${pesoDefinir ? ' · elige tu peso' : ''}</span>
     </div>
-    <div class="series" style="margin-top:6px">${huecos}${extra}</div>
+    <div class="series ${soyYo ? '' : 'series--otro'}" style="margin-top:6px">${huecos}${extra}</div>
     ${antes.length ? `<p class="ultima">La vez pasada: ${esc(textoUltima(antes, ej.unidad === 'segundos'))}</p>` : ''}
     ${sugerencia ? `<p class="sugerencia">${esc(sugerencia)}</p>` : ''}`;
 }
