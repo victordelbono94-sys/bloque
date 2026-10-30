@@ -81,6 +81,9 @@ export const configurarAvisos = (c) => puente?.configurarAvisos?.(JSON.stringify
 export const pedirNotificaciones = () => puente?.pedirNotificaciones?.();
 export const pedirUbicacion = () => puente?.pedirUbicacion?.();
 export const abrirAjustesApp = () => puente?.abrirAjustesApp?.();
+// Descanso entre series con la app en segundo plano (app 1.0.114+): avisos a los 10 s, 5 s y al terminar.
+export const programarDescansoNativo = (finMs, titulo) => { try { puente?.programarDescanso?.(finMs, titulo); } catch { /* app vieja */ } };
+export const cancelarDescansoNativo = () => { try { puente?.cancelarDescanso?.(); } catch { /* app vieja */ } };
 
 /** Ubicación actual: en la app la da Android; en el navegador, la web. */
 export function ubicacionActual() {

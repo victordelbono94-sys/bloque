@@ -8,7 +8,7 @@ import { cargarRutina, textoMeta, redondearPeso } from '../rutinas.js';
 import { abrirEntrenador } from '../entrenador.js';
 import { textoSemaforo } from '../semaforo.js';
 import { abrirFicha, miniatura } from '../ficha.js';
-import { sincronizarAgenda } from '../nativo.js';
+import { sincronizarAgenda, programarDescansoNativo, cancelarDescansoNativo } from '../nativo.js';
 import { emparejar, minutos } from '../actividades.js';
 import { sumarAgua } from '../hidratacion.js';
 import { ofrecerEstiramientos } from '../estiramientos.js';
@@ -526,7 +526,7 @@ function registrarSerie(app, it, numero) {
       if (!existente) {
         const quedan = (meta?.series ?? it.series_base) - seriesDe(it, estado.yo.id).length;
         const seg = meta?.descanso_seg ?? it.descanso_base;
-        if (quedan > 0 && seg) empezarDescanso(seg);
+        if (quedan > 0 && seg) empezarDescanso(seg, `${ejercicioDe(it, estado.yo.id).nombre} · serie ${seriesDe(it, estado.yo.id).length + 1}`);
         else if (quedan <= 0) aviso('Ejercicio completo.');
       }
     } catch (err) {
@@ -654,7 +654,7 @@ function cronometro(d, { segundos, porLado }) {
 
 // ---------- Temporizador de descanso ----------
 
-function empezarDescanso(segundos) {
+function empezarDescanso(segundos, titulo = '') {
   pararDescanso();
   const barra = document.createElement('div');
   barra.className = 'descanso';
@@ -666,30 +666,42 @@ function empezarDescanso(segundos) {
     <button type="button" class="boton boton--chico" data-saltar>Seguir</button>`;
   document.body.appendChild(barra);
   const total = segundos * 1000;
-  descanso = { fin: Date.now() + total, total, barra, intervalo: null };
+  descanso = { fin: Date.now() + total, total, barra, intervalo: null, vibrado: null };
+  const textoNativo = titulo ? `Siguiente: ${titulo}` : 'Descanso entre series';
+  programarDescansoNativo(descanso.fin, textoNativo);
   const pintar = () => {
     const resta = Math.max(0, descanso.fin - Date.now());
     const s = Math.ceil(resta / 1000);
     barra.querySelector('strong').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
     barra.querySelector('.descanso__barra span').style.transform = `scaleX(${resta / descanso.total})`;
+    // Últimos 10 s: se pone roja y late; los últimos 5, además vibra una vez por segundo.
+    barra.classList.toggle('descanso--final', resta > 0 && s <= 10);
+    if (resta > 0 && s <= 5 && descanso.vibrado !== s && document.visibilityState === 'visible') {
+      descanso.vibrado = s;
+      try { navigator.vibrate?.(120); } catch { /* sin vibración */ }
+    }
     if (resta <= 0) {
-      pararDescanso();
+      pararDescanso({ natural: true });
       try { navigator.vibrate?.([200, 100, 200]); } catch { /* sin vibración */ }
       aviso('¡A la siguiente serie!');
     }
   };
-  barra.querySelector('[data-saltar]').addEventListener('click', pararDescanso);
+  barra.querySelector('[data-saltar]').addEventListener('click', () => pararDescanso());
   barra.querySelector('[data-mas]').addEventListener('click', () => {
-    descanso.fin += 15000; descanso.total += 15000; pintar();
+    descanso.fin += 15000; descanso.total += 15000; descanso.vibrado = null;
+    programarDescansoNativo(descanso.fin, textoNativo);
+    pintar();
   });
   pintar();
   descanso.intervalo = setInterval(pintar, 250);
   requestAnimationFrame(() => barra.classList.add('descanso--visible'));
 }
 
-function pararDescanso() {
+// natural: terminó solo (el aviso del teléfono, si la app estaba cerrada, ya salió o sale ahora).
+function pararDescanso({ natural = false } = {}) {
   if (!descanso) return;
   clearInterval(descanso.intervalo);
+  if (!natural) cancelarDescansoNativo();
   const barra = descanso.barra;
   barra.classList.remove('descanso--visible');
   setTimeout(() => barra.remove(), 250);

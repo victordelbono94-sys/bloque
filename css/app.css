@@ -1541,3 +1541,18 @@ dialog.pantalla .entrenador { display: flex; flex-direction: column; height: 100
 .chip--facil[aria-pressed="true"] { background: var(--esf-facil); border-color: var(--esf-facil); color: var(--asfalto); }
 .chip--justo[aria-pressed="true"] { background: var(--esf-justo); border-color: var(--esf-justo); color: var(--asfalto); }
 .chip--limite[aria-pressed="true"] { background: var(--esf-limite); border-color: var(--esf-limite); color: var(--asfalto); }
+
+/* Descanso: últimos 10 s en rojo y latiendo */
+.descanso { transition: opacity 0.22s ease, transform 0.3s var(--resorte), background-color 0.35s ease, color 0.35s ease; }
+.descanso--final { background: #FF4D4D; color: #fff; animation: latido-descanso 1s ease-in-out infinite; }
+.descanso--final .descanso__texto strong { display: inline-block; animation: latido-numero 1s ease-in-out infinite; }
+.descanso--final .descanso__barra { background: rgba(255, 255, 255, 0.25); }
+.descanso--final .descanso__barra span { background: #fff; }
+.descanso--final .boton--sec { background: rgba(255, 255, 255, 0.2); color: #fff; }
+.descanso--final .boton:not(.boton--sec) { background: #fff; color: #C62828; }
+@keyframes latido-descanso {
+  0%, 100% { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(255, 77, 77, 0.55); }
+  50% { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 10px rgba(255, 77, 77, 0); }
+}
+@keyframes latido-numero { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.18); } 30% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .descanso--final, .descanso--final .descanso__texto strong { animation: none; } }

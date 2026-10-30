@@ -170,8 +170,14 @@ class MainActivity : ComponentActivity() {
         if (!recibirLogin(intent)) rutaDe(intent)?.let { web.loadUrl("$SITIO#/$it") }
     }
 
+    override fun onPause() {
+        super.onPause()
+        Descanso.enPrimerPlano = false
+    }
+
     override fun onResume() {
         super.onResume()
+        Descanso.alVolver(this)
         Avisos.aplicar(this) // por si cambió un permiso en Ajustes
         actualizador.alVolver()
         actualizador.revisar()
@@ -439,6 +445,17 @@ class MainActivity : ComponentActivity() {
     private inner class Puente {
         @JavascriptInterface
         fun estado(): String = estadoJson().toString()
+
+        /** Descanso entre series: avisos a los 10 s, 5 s (con vibración) y al terminar, si la app no está a la vista. */
+        @JavascriptInterface
+        fun programarDescanso(finMs: Double, titulo: String) {
+            runOnUiThread { Descanso.programar(this@MainActivity, finMs.toLong(), titulo.take(80)) }
+        }
+
+        @JavascriptInterface
+        fun cancelarDescanso() {
+            runOnUiThread { Descanso.cancelar(this@MainActivity) }
+        }
 
         @JavascriptInterface
         fun vincular(codigo: String, personaId: String) {
