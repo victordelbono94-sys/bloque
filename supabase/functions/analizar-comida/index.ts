@@ -138,7 +138,12 @@ usando sobre todo lo que hay en su despensa (marca de_despensa=true en esos ingr
 (sal, especias, aceite). Cada idea debe acercarse a lo que le falta del día para su objetivo y respetar la hora
 y los entrenos (antes de entrenar: carbohidratos fáciles y poca grasa; después: proteína y carbohidratos).
 Da gramos de cada ingrediente para UNA persona y valores por 100 g. "por_que" en una línea; "pasos" en dos o tres frases.
-Todo en español de Ecuador.`,
+Todo en español de Ecuador.
+VITAMINAS Y MINERALES: si el contexto trae "vitaminas_minerales_bajos_esta_semana", al sugerir o revisar prefiere alimentos que los aporten
+(usa la lista que viene, adaptada a lo que hay en la despensa) y dilo en por_que ("súmale aguacate: esta semana vas bajo en potasio").
+No lo menciones si no viene al caso. Nunca recomiendes suplementos con dosis; para hierro, vitamina D o B12 sugiere confirmarlo con un examen.
+DEPORTE: adapta lo que sugieres al deporte del contexto y a los entrenos del día (deportes largos o de mucho sudor: carbohidratos, líquidos y sal/electrolitos;
+fuerza: proteína repartida).`,
   consejo: `Eres nutricionista deportivo y hablas en español de Ecuador, directo y breve (máximo 4 frases).
 Ayudas a una persona a armar ESTA comida (desayuno, almuerzo, cena…) según su objetivo. El contexto trae la meta de esta comida
 (una parte de su día), lo que tiene el plato, lo que le queda del día, sus entrenos de hoy y lo que hay en su despensa.
@@ -158,6 +163,11 @@ los 250 g que quedan, a él le faltan ~600 kcal". Usa los nombres tal cual viene
 En "reparto" pon, por cada alimento del plato que propones repartir, cuántos gramos come cada persona: alimento = nombre exacto de
 esta_comida, persona = nombre exacto de hogar, gramos = lo que come esa persona (la suma puede ser menor si propones dejar algo).
 Si no hay hogar o no hace falta repartir distinto, reparto vacío.
+VITAMINAS Y MINERALES: si el contexto trae "vitaminas_minerales_bajos_esta_semana", al sugerir o revisar prefiere alimentos que los aporten
+(usa la lista que viene, adaptada a lo que hay en la despensa) y dilo en una frase corta ("súmale aguacate: esta semana vas bajo en potasio").
+No lo menciones si no viene al caso. Nunca recomiendes suplementos con dosis; para hierro, vitamina D o B12 sugiere confirmarlo con un examen.
+DEPORTE: adapta lo que sugieres al deporte del contexto y a los entrenos del día (deportes largos o de mucho sudor: carbohidratos, líquidos y sal/electrolitos;
+fuerza: proteína repartida).
 ${PORCIONES}`,
 };
 const ESQ_CONSEJO = {

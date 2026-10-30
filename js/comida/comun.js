@@ -223,5 +223,8 @@ export async function guardarComida(c) {
     const quedan = Math.max(0, Number(p.gramos_restantes) - it.gramos);
     await sb.from('despensa').update({ gramos_restantes: quedan, terminado_en: quedan < 1 ? new Date().toISOString() : null }).eq('id', it.paquete.id);
   }
+  // Vitaminas y minerales: se calculan en segundo plano los alimentos nuevos (para el resumen de la semana).
+  const sinMicros = c.items.filter((it) => !it.alimento.micros).map((it) => it.alimento.id);
+  import('../micros.js').then((M) => { M.olvidarMicros(); if (sinMicros.length) M.completarMicros(sinMicros).catch(() => {}); }).catch(() => {});
   return { id: comida.id, total };
 }

@@ -4,6 +4,7 @@
 //   Despensa → lo que hay en casa (cargado con Gemini) e ideas para cocinar con eso
 import { emparejar, esIndividual, asistenciaIndividual, porConfirmar } from '../actividades.js';
 import { cargarSyncs } from '../hecho.js';
+import { deporte } from '../deportes.js';
 import { metaAgua, aguaDeComidas, cargarAgua, sumarAgua, borrarAgua, litros } from '../hidratacion.js';
 import { sb, estado, datos } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
@@ -285,7 +286,10 @@ async function mostrarIdeas(ctx, cont, boton) {
       falta_hoy: falta,
       entrenos_hoy: yo.eventos.filter((e) => e.tipo !== 'descanso').map((e) => ({ tipo: e.tipo === 'otro' ? e.actividad : e.tipo, hora: e.hora_inicio?.slice(0, 5) ?? null })),
       despensa: ctx.despensa.map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(p.gramos_restantes) })),
+      deporte: deporte(estado.equipo?.deporte)?.nombre ?? null,
     };
+    const bajos = await import('../micros.js').then((M) => M.bajosParaIA()).catch(() => null);
+    if (bajos) contexto.vitaminas_minerales_bajos_esta_semana = bajos;
     try {
       ideas = (await gemini('ideas', { contexto })).ideas ?? [];
       try { sessionStorage.setItem(clave, JSON.stringify({ t: Date.now(), ideas })); } catch { /* sin caché */ }
@@ -368,6 +372,13 @@ async function vistaSemana(app) {
         : '<p class="quieto" style="margin:0">Cuando registres comidas, acá ves cómo vas contra tu meta cada día.</p>'}
       ${tendencia?.nota ? `<ul class="notas-comida">${`<li>${esc(tendencia.nota)}</li>`}</ul>` : ''}
     </section>
+    <section class="seccion" id="micros-semana">
+      ${estado.personas.length > 1 ? `<div class="ver-persona" role="tablist" aria-label="De quién ver vitaminas y minerales" style="margin-bottom:10px">
+        ${estado.personas.map((p) => `<button type="button" class="ver-persona__op" role="tab" data-micros="${esc(p.id)}" aria-selected="${p.id === yo.id}">
+          <span class="ver-persona__cara">${cara(p)}</span><span>${esc(p.id === yo.id ? 'Yo' : p.nombre)}</span></button>`).join('')}
+      </div>` : ''}
+      <div id="micros-cont"><section class="tarjeta micros"><h2 class="seccion__titulo" style="margin:0">Vitaminas y minerales</h2><p class="quieto" style="margin:8px 0 0">Calculando…</p></section></div>
+    </section>
     <section class="seccion">
       <div class="pila" style="gap:8px">
         ${filas.map((x, i) => [x, dias[i]]).reverse().map(([x, f]) => {
@@ -386,6 +397,24 @@ async function vistaSemana(app) {
         }).join('')}
       </div>
     </section>`;
+  conectarMicros(app);
+}
+
+// Vitaminas y minerales de la semana (de cada persona del hogar).
+async function conectarMicros(app) {
+  const cont = app.querySelector('#micros-cont');
+  if (!cont) return;
+  const M = await import('../micros.js');
+  const ver = async (id) => {
+    const p = estado.personas.find((x) => x.id === id) ?? estado.yo;
+    app.querySelectorAll('[data-micros]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.micros === p.id)));
+    try {
+      const a = await M.analisisSemana(p);
+      if (cont.isConnected && (app.querySelector('[data-micros][aria-selected=true]')?.dataset.micros ?? estado.yo.id) === p.id) cont.innerHTML = M.htmlMicros(a, p);
+    } catch (e) { cont.innerHTML = `<section class="tarjeta"><p class="quieto" style="margin:0">${esc(e.message ?? 'No se pudo calcular.')}</p></section>`; }
+  };
+  app.querySelectorAll('[data-micros]').forEach((b) => b.addEventListener('click', () => ver(b.dataset.micros)));
+  ver(estado.yo.id);
 }
 
 // ---------- Despensa ----------

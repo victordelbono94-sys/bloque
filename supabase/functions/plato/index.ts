@@ -47,6 +47,11 @@ o un ramen como un solo alimento, corrígelo así (quitar + agregar). Cuando sum
 Puede ser una mezcla (agregar y preguntar a la vez). Para líquidos gramos ≈ ml; el agua va como "Agua" con 0 kcal.
 "Café con leche" = café y leche por separado. Nombres simples en español ("Arroz blanco cocido", "Pechuga de pollo a la plancha").
 En "respuesta" di qué cambiaste y/o responde la pregunta. Nunca inventes alimentos que no dijo.
+VITAMINAS Y MINERALES: si el contexto trae "vitaminas_minerales_bajos_esta_semana", al sugerir o revisar prefiere alimentos que los aporten
+(usa la lista que viene, adaptada a lo que hay en la despensa) y dilo en una frase corta ("súmale aguacate: esta semana vas bajo en potasio").
+No lo menciones si no viene al caso. Nunca recomiendes suplementos con dosis; para hierro, vitamina D o B12 sugiere confirmarlo con un examen.
+DEPORTE: adapta lo que sugieres al deporte del contexto y a los entrenos del día (deportes largos o de mucho sudor: carbohidratos, líquidos y sal/electrolitos;
+fuerza: proteína repartida).
 ${PORCIONES}`;
 
 const NUT = {

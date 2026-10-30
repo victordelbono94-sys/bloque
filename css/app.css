@@ -1726,3 +1726,27 @@ dialog.pantalla > .estirar .dialogo__pie { position: sticky; bottom: calc(-1 * (
 .resp-campo span { font-size: 13px; color: var(--gris); white-space: nowrap; }
 .resp-fila .boton { flex: 0 0 auto; }
 .resp-chips { margin: 0; }
+
+/* Vitaminas y minerales de la semana */
+.micros__progreso { height: 8px; border-radius: 999px; background: var(--grafito-2); overflow: hidden; }
+.micros__progreso span { display: block; height: 100%; background: var(--volt); border-radius: inherit; }
+.micros__resumen { margin: 8px 0 6px; }
+.micros__sugerencias { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(200, 245, 50, 0.08); font-size: 14px; }
+.micros__sugerencias p { margin: 0; }
+.micros__lista { display: flex; flex-direction: column; gap: 2px; }
+.micro summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 8px 0; }
+.micro summary::-webkit-details-marker { display: none; }
+.micro__nombre { font-size: 14px; font-weight: 600; }
+.micro__valor { font-size: 13px; font-weight: 700; text-align: right; white-space: nowrap; }
+.micro__barra { grid-column: 1 / -1; position: relative; height: 6px; border-radius: 999px; background: var(--grafito-2); }
+.micro__barra > span { display: block; height: 100%; border-radius: inherit; background: var(--volt); transition: width .5s ease; }
+.micro__barra > i { position: absolute; top: -3px; width: 2px; height: 12px; background: var(--tiza-2); border-radius: 1px; }
+.micro--justo .micro__barra > span { background: #E8A317; }
+.micro--bajo .micro__barra > span { background: #E5533D; }
+.micro--alto .micro__barra > span { background: #E8A317; }
+.micro--sol .micro__barra > span { background: #F5C84B; }
+.micro--bajo .micro__nombre::after { content: ' · bajo'; color: #FF8B78; font-weight: 600; font-size: 12px; }
+.micro--alto .micro__nombre::after { content: ' · alto'; color: #F5C04B; font-weight: 600; font-size: 12px; }
+.micro--sol .micro__nombre::after { content: ' · sol'; color: #F5C84B; font-weight: 600; font-size: 12px; }
+.micro__detalle { padding: 2px 0 10px; font-size: 13px; color: var(--tiza-2); }
+.micro__detalle p { margin: 0 0 6px; }

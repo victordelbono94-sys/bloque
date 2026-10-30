@@ -9,6 +9,7 @@ import { macros, sumar } from '../alimentos.js';
 import { OBJETIVOS, diagnosticoDia } from '../nutricion.js';
 import { panelBuscar } from './buscar.js';
 import { esLiquido } from '../hidratacion.js';
+import { deporte } from '../deportes.js';
 import {
   MOMENTOS, PARTE_COMIDA, momentoPorHora, momentoSugerido, kc, g, cantidadTexto, gemini, fotoBase64, aAlimento,
   guardarComida, borrarComida,
@@ -271,6 +272,9 @@ export function abrirRegistro(ctx, op = {}) {
   };
   // Lo que se toma (bebidas, caldos, sopas) cuenta para la hidratación: gramos ≈ ml.
   const aguaDelPlato = () => items.filter((it) => esLiquido(it.alimento)).reduce((a, it) => a + Number(it.gramos || 0), 0);
+  // Vitaminas y minerales que vienen bajos en la semana: la IA los tiene en cuenta al sugerir.
+  let microsBajos = null;
+  import('../micros.js').then((M) => M.bajosParaIA()).then((v) => { microsBajos = v; }).catch(() => {});
   const contextoPlato = () => {
     const b = balance();
     const nombreDe = (id) => (id ? estado.personas.find((p) => p.id === id)?.nombre ?? null : null);
@@ -304,6 +308,8 @@ export function abrirRegistro(ctx, op = {}) {
         quemo_entrenando_hoy_kcal: b.quemado,
         entrenos_hoy: (b.info.eventos ?? []).filter((e) => e.tipo !== 'descanso').map((e) => e.tipo),
       } : {}),
+      deporte: deporte(estado.equipo?.deporte)?.nombre ?? null,
+      ...(microsBajos ? { vitaminas_minerales_bajos_esta_semana: microsBajos } : {}),
       hogar: hogarContexto() ?? [],
       personas_del_hogar: estado.personas.map((p) => p.nombre),
       despensa: (ctx.despensa ?? []).slice(0, 30).map((p) => p.alimento?.nombre).filter(Boolean),
