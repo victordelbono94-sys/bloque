@@ -6,6 +6,8 @@ import { FOCOS, cargarRutina, textoMeta, textoDescanso } from '../rutinas.js';
 import { mapaCuerpo, chipsZonas, zonasDe } from '../iconos.js';
 import { abrirFicha, miniatura } from '../ficha.js';
 import { vistaSemana } from './semana.js';
+import { abrirEntrenador, sobraCuadriceps } from '../entrenador.js';
+import { deporte } from '../deportes.js';
 
 export async function vistaEntreno(app) {
   const id = location.hash.split('/')[2];
@@ -25,7 +27,13 @@ async function detalle(app, rutinaId) {
         <h1 class="titulo">${esc(rutina.nombre)}</h1>
         <p class="subtitulo">${esc(FOCOS[rutina.foco] ?? '')}${rutina.notas ? ` · ${esc(rutina.notas)}` : ''}</p>
       </div>
+      <button type="button" class="boton boton--ia boton--chico" id="ajustar-ia">✦ Ajustar con IA</button>
     </header>
+    ${sobraCuadriceps(items) ? `
+      <section class="tarjeta aviso-deporte">
+        <p style="margin:0"><strong>El ${esc(deporte(estado.equipo?.deporte)?.nombre.toLowerCase() ?? 'deporte')} ya carga mucho los cuádriceps.</strong> Esta rutina suma más. ¿La enfoco en glúteos y femorales para no llegar fundidos?</p>
+        <button type="button" class="boton boton--ia boton--chico" id="ajustar-deporte" style="margin-top:10px">✦ Ajustarla para mi deporte</button>
+      </section>` : ''}
     ${zonas.length ? `
       <section class="tarjeta rutina-mapa">
         ${mapaCuerpo(zonas, { alto: 110 })}
@@ -65,6 +73,12 @@ async function detalle(app, rutinaId) {
     </div>
     <p class="ayuda" style="margin-top:16px">Las metas sin peso se completan solas con lo que registren en el primer entreno. Después se ajustan según cómo les vaya.</p>`;
 
+  const recargar = () => detalle(app, rutinaId);
+  app.querySelector('#ajustar-ia').addEventListener('click', () => abrirEntrenador({ rutinaId, alAplicar: recargar }));
+  app.querySelector('#ajustar-deporte')?.addEventListener('click', () => abrirEntrenador({
+    rutinaId, alAplicar: recargar,
+    mensaje: `Ajusta esta rutina para ${deporte(estado.equipo?.deporte)?.nombre.toLowerCase() ?? 'mi deporte'}: menos cuádriceps, más glúteos y femorales.`,
+  }));
   app.querySelectorAll('[data-ficha]').forEach((b) => b.addEventListener('click', () => {
     const it = items.find((x) => x.id === b.dataset.ficha);
     abrirFicha(it.ejercicio, { alternativas: it.alternativas });

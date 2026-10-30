@@ -37,7 +37,10 @@ export async function vistaSemana(app) {
         <h1 class="titulo">Entrenos</h1>
         <p class="subtitulo" id="sem-rango">${esc(rangoSemana(lunes0))}</p>
       </div>
-      <button type="button" class="boton boton--sec boton--chico" id="ir-hoy" hidden>↓ Hoy</button>
+      <div class="fila" style="gap:8px">
+        <button type="button" class="boton boton--sec boton--chico" id="ir-hoy" hidden>↓ Hoy</button>
+        <button type="button" class="boton boton--ia boton--chico" id="rutinas-ia">✦ Rutinas con IA</button>
+      </div>
     </header>
     <div class="linea-semanas" id="semanas">
       <div class="centinela" id="cent-arriba" aria-hidden="true"></div>
@@ -45,6 +48,10 @@ export async function vistaSemana(app) {
       <div class="centinela" id="cent-abajo" aria-hidden="true"></div>
     </div>`;
 
+  app.querySelector('#rutinas-ia').addEventListener('click', async () => {
+    const { abrirEntrenador } = await import('../entrenador.js');
+    abrirEntrenador({ alAplicar: () => {} });
+  });
   const cont = app.querySelector('#semanas');
   const scroller = document.getElementById('app');
   let primera = sumarDias(lunes0, -7), ultima = sumarDias(lunes0, 7), cargando = false;

@@ -1470,3 +1470,31 @@ dialog.pantalla > .dialogo > h2:first-of-type { padding-right: 52px; }
 .reparto-ia__persona .persona-op__cara--mini { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; overflow: hidden; font-size: 11px; font-weight: 700; background: var(--linea); }
 .reparto-ia__persona img { width: 100%; height: 100%; object-fit: cover; }
 .reparto-ia .boton { align-self: flex-start; }
+
+/* Entrenador IA (chat de rutinas) */
+dialog.pantalla .entrenador { display: flex; flex-direction: column; height: 100%; min-height: calc(100dvh - 40px); gap: 10px; }
+.entrenador__cab { display: flex; align-items: center; gap: 12px; padding-right: 48px; }
+.entrenador__cab h2 { margin: 0; font-family: var(--titulo); font-size: 20px; }
+.entrenador__cab .quieto { font-size: 13px; }
+.entrenador__chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 6px 0; }
+.burbuja { max-width: 88%; padding: 10px 14px; border-radius: 18px; line-height: 1.45; font-size: 15px; }
+.burbuja--yo { align-self: flex-end; background: var(--volt); color: var(--asfalto); border-bottom-right-radius: 6px; }
+.burbuja--ia { align-self: flex-start; background: var(--grafito-2); border-bottom-left-radius: 6px; }
+.burbuja--propuesta { align-self: stretch; max-width: none; padding: 0; }
+.propuesta { border: 1px solid rgba(198,244,50,.35); background: rgba(198,244,50,.05); border-radius: var(--radio); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.propuesta__titulo { margin: 0; font-weight: 700; }
+.propuesta__lista { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.propuesta__lista li > span { display: block; }
+.propuesta__lista .ayuda { margin-top: 2px; }
+.propuesta__salen { margin: 0; color: var(--error); font-size: 14px; }
+.propuesta__hecho { margin: 0; color: var(--volt); font-weight: 700; }
+.propuesta .boton { align-self: flex-start; }
+.etiqueta--nuevo { background: rgba(94,230,200,.18); color: #5EE6C8; }
+.etiqueta--entra { background: rgba(198,244,50,.16); color: var(--volt); }
+.entrenador__rapidos { flex: 0 0 auto; }
+.entrenador__barra { display: flex; gap: 8px; align-items: flex-end; padding-top: 6px; border-top: 1px solid var(--linea); }
+.entrenador__barra textarea { flex: 1; resize: none; min-height: 44px; max-height: 120px; border-radius: 22px; padding: 11px 16px; background: var(--grafito-2); border: 1px solid var(--linea); color: var(--tiza); font: inherit; }
+.entrenador__barra .boton { width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 50%; flex: 0 0 44px; }
+.aviso-deporte { border: 1px solid rgba(232,163,23,.4); background: rgba(232,163,23,.07); }
+.encabezado > .boton--ia, .encabezado .fila > .boton--ia { white-space: nowrap; flex: 0 0 auto; align-self: flex-start; margin-top: 30px; }
+.encabezado--fijo .fila > .boton--ia { margin-top: 0; }

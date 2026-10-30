@@ -5,6 +5,7 @@ import { sb, estado, datos } from '../db.js';
 import { esc, num, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from '../ui.js';
 import { hoyISO } from '../fechas.js';
 import { cargarRutina, textoMeta, redondearPeso } from '../rutinas.js';
+import { abrirEntrenador } from '../entrenador.js';
 import { textoSemaforo } from '../semaforo.js';
 import { abrirFicha, miniatura } from '../ficha.js';
 import { sincronizarAgenda } from '../nativo.js';
@@ -128,6 +129,7 @@ export async function vistaSesion(app) {
         <h1 class="titulo">${esc(rutina.nombre)}</h1>
         <p class="subtitulo">${esc(participantes.length > 1 ? `${participantes.filter((p) => p.id !== estado.yo.id).map((p) => p.nombre).join(', ')} y yo` : (participantes[0]?.id === estado.yo.id ? 'Solo yo' : `Solo ${participantes[0]?.nombre ?? ''}`))}</p>
       </div>
+      ${terminé ? '' : '<button type="button" class="boton boton--ia boton--chico" id="ajustar-ia">✦ Ajustar con IA</button>'}
     </header>
 
     <div class="sesion-barra">
@@ -166,6 +168,7 @@ export async function vistaSesion(app) {
       </button>` : ''}`;
 
   conectar(app);
+  app.querySelector('#ajustar-ia')?.addEventListener('click', () => abrirEntrenador({ rutinaId: sesion.rutina_id, enCurso: true, alAplicar: () => vistaSesion(app) }));
   // Agua durante el entreno: un toque por vaso; se suma a la hidratación del día.
   let aguaSesion = 0;
   app.querySelector('#agua-entreno')?.addEventListener('click', async (e) => {
