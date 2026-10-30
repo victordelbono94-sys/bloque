@@ -46,7 +46,7 @@ export async function vistaPerfil(app) {
       <div class="per-hero__txt">
         <h2 class="per-hero__nombre">${esc(yo.nombre)}</h2>
         <p class="quieto per-hero__mail">${esc(estado.usuario?.email ?? '')}</p>
-        ${eq ? `<span class="per-hero__hogar">${ICONO_HOGAR}${eq.personal ? 'Espacio personal' : esc(eq.nombre)}${otros.length ? ` · con ${esc(otros.map((p) => p.nombre).join(', '))}` : ''}</span>` : ''}
+        ${otros.length ? `<span class="per-hero__equipo" role="img" aria-label="Tu hogar: ${esc(otros.map((p) => p.nombre).join(', '))}">${otros.map((p) => `<span class="avatar per-hero__miembro" title="${esc(p.nombre)}">${cara(p)}</span>`).join('')}</span>` : ''}
       </div>
     </section>
 
@@ -74,7 +74,7 @@ export async function vistaPerfil(app) {
       <section class="seccion" aria-labelledby="t-notif">
         <h2 class="seccion__titulo" id="t-notif">Notificaciones</h2>
         <div class="tarjeta pila" id="avisos-tarjeta">
-          <p class="seccion__titulo" style="margin:0">Gym</p>
+          <p class="aviso-grupo">Gym</p>
           ${htmlAvisos(estadoNativo(), gimnasio)}
         </div>
       </section>` : ''}
@@ -539,9 +539,9 @@ function htmlAvisos(e, gimnasio) {
   const sinNotif = !a.notificaciones;
   const fila = (id, titulo, texto, activo, extra = '') => `
     <div class="aviso-opcion">
-      <label class="campo--check" for="${id}">
-        <input type="checkbox" id="${id}" ${activo ? 'checked' : ''}>
-        <span><strong>${titulo}</strong><span class="quieto aviso-opcion__texto">${texto}</span></span>
+      <label class="aviso-fila" for="${id}">
+        <span class="aviso-fila__txt"><strong>${titulo}</strong><span class="quieto aviso-opcion__texto">${texto}</span></span>
+        <input type="checkbox" role="switch" class="interruptor" id="${id}" ${activo ? 'checked' : ''}>
       </label>
       ${extra}
     </div>`;
@@ -566,12 +566,12 @@ function htmlAvisos(e, gimnasio) {
       </div>` : ''}
     ${fila('aviso-llegada', 'Al llegar al gimnasio', 'Si hoy toca gym, te avisa con el botón Comenzar.', a.llegada, faltaLlegada)}
     ${fila('aviso-hora', 'A la hora del gym', 'Por si la ubicación tarda o vas a otro lado.', a.hora, a.hora ? `
-      <div class="chips" id="aviso-minutos" style="margin-left:34px">
+      <div class="chips" id="aviso-minutos">
         ${[0, 10, 30].map((m) => `<button type="button" class="chip" data-valor="${m}" aria-pressed="${(a.minutosAntes ?? 10) === m}">${m ? `${m} min antes` : 'A la hora'}</button>`).join('')}
       </div>` : '')}
     ${fila('aviso-reloj', 'Cuando el reloj registre un entreno', 'Si grabaste fuerza en la banda y no abriste el entreno en Bloq, te ofrece anotar las series.', a.reloj)}
     ${a.confirmable ? fila('aviso-confirmar', '¿Qué fue este entreno?', 'Si el reloj guarda un «otro entreno» (patinaje, eSports…), te pregunta qué fue en vez de adivinar. Respondes desde la notificación.', a.confirmar !== false) : ''}
-    <p class="seccion__titulo" style="margin:10px 0 0">Bienestar</p>
+    <p class="aviso-grupo">Bienestar</p>
     ${a.bienestar ? `
       ${fila('aviso-despertar', 'Al despertar: ¿cómo amaneciste?', 'Una hora después de que la pulsera registra que te despertaste: cuánto dormiste y marcas tu cansancio desde la notificación.', a.despertar !== false)}
       ${fila('aviso-agua', 'Recordatorios de agua', 'A media mañana, al almuerzo, a media tarde y en la noche, si todavía no llegas a tu meta.', a.agua)}
@@ -622,7 +622,7 @@ function conectarAvisos(app) {
   // Se repinta cuando la app avisa que cambió un permiso o un ajuste.
   const quitar = alEventoNativo('estado', (e) => {
     if (!document.body.contains(tarjeta)) return quitar();
-    tarjeta.innerHTML = `<p class="seccion__titulo" style="margin:0">Gym</p>${htmlAvisos(e, gimnasioActual)}`;
+    tarjeta.innerHTML = `<p class="aviso-grupo">Gym</p>${htmlAvisos(e, gimnasioActual)}`;
     conectar();
   });
 }

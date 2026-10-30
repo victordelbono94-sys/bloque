@@ -823,7 +823,7 @@ span.serie--hecha { opacity: 0.85; }
 .aviso-opcion .campo--check input { margin-top: 2px; flex-shrink: 0; }
 .aviso-opcion .campo--check > span { display: flex; flex-direction: column; gap: 2px; }
 .aviso-opcion__texto { font-size: 13px; }
-.aviso-opcion > .boton { align-self: flex-start; margin-left: 34px; }
+.aviso-opcion > .boton { align-self: flex-start; }
 .aviso-falta { margin: 0 0 0 34px; font-size: 13px; color: var(--ambar); }
 .aviso-falta--bloque { margin: 0; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: rgba(232, 163, 23, 0.12); color: var(--tiza); font-size: 14px; }
 .sesion-reloj { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; padding: 12px 14px; border-radius: var(--radio); background: rgba(198, 244, 50, 0.1); font-size: 14px; color: var(--tiza-2); }
@@ -2234,3 +2234,17 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 .editor-foto__zoom input { flex: 1; accent-color: var(--volt); }
 .editor-foto__zoom .icono-ui { width: 20px; height: 20px; flex: none; }
 #mis-objetivos-cont { display: block; margin-top: 20px; }
+
+.per-hero__equipo { display: flex; margin-top: 8px; padding-left: 6px; }
+.per-hero__miembro { width: 30px; height: 30px; border-radius: 10px; font-size: 14px; margin-left: -6px; box-shadow: 0 0 0 2.5px var(--grafito); }
+
+/* Avisos: fila con el interruptor a la derecha */
+.aviso-grupo { margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--gris); }
+.aviso-grupo:not(:first-child) { margin-top: 14px; }
+.aviso-fila { display: flex; align-items: center; gap: 14px; cursor: pointer; min-height: 48px; }
+.aviso-fila__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.interruptor { appearance: none; -webkit-appearance: none; flex: none; position: relative; width: 48px; height: 28px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 999px; background: var(--linea); cursor: pointer; transition: background .2s var(--suave); }
+.interruptor::before { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--tiza); box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transition: transform .25s var(--resorte); }
+.interruptor:checked { background: var(--volt); }
+.interruptor:checked::before { transform: translateX(20px); background: var(--asfalto); }
+.interruptor:focus-visible { outline: 2px solid var(--volt); outline-offset: 2px; }

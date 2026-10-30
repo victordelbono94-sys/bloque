@@ -52,7 +52,7 @@ export async function htmlMisObjetivos() {
         <div class="obj-item"><span class="obj-item__icono" aria-hidden="true">${IC.grafico}</span><span><small>Experiencia en el gym</small><strong>${esc(EXPERIENCIA[estado.yo.experiencia] ?? 'Sin definir')}</strong></span></div>
       </div>
       ${d.cambios.length ? `<div class="obj-cambios"><small>Cambios activos</small>${d.cambios.slice(0, 4).map((c) => `<span class="obj-cambio">${esc(c.descripcion ?? '')}</span>`).join('')}</div>` : ''}
-      <button type="button" class="boton boton--ia boton--bloque" id="obj-ia">${'<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>'} Cambiar mis objetivos con IA</button>
+      <button type="button" class="boton boton--ia boton--bloque" id="obj-ia">${'<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>'} Cambiar mis objetivos</button>
       <p class="ayuda" style="margin:0">Ej.: «esta semana no hago derby», «voy a ir 2 veces al gym», «ahora quiero ganar músculo». Tu dieta y tus entrenos se readaptan solos.</p>
     </section>`;
 }
