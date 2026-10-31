@@ -3,7 +3,8 @@
 // y preguntas («¿me falta proteína?»). Devuelve los cambios a aplicar, la respuesta y sugerencias opcionales.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-const MODELOS = (Deno.env.get("GEMINI_MODELO") ?? "gemini-3.1-flash-lite,gemini-3-flash-preview,gemini-flash-latest")
+// Si un modelo está saturado (503), se reintenta una vez y se pasa al siguiente; los 2.5 son de respaldo (otra capacidad).
+const MODELOS = (Deno.env.get("GEMINI_MODELO") ?? "gemini-3.1-flash-lite,gemini-3-flash-preview,gemini-flash-latest,gemini-2.5-flash,gemini-2.5-flash-lite")
   .split(",").map((m) => m.trim()).filter(Boolean);
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -217,6 +218,10 @@ Deno.serve(async (req) => {
     }).catch((e) => new Response(String(e), { status: 599 }));
     let r = await llamar({ ...pedido, generationConfig: { ...pedido.generationConfig, thinkingConfig: { thinkingLevel: "low" } } });
     if (r.status === 400 && (await r.clone().text()).toLowerCase().includes("thinking")) r = await llamar(pedido);
+    if ((r.status === 503 || r.status === 500) && Date.now() < limite - 8000) {
+      await new Promise((ok) => setTimeout(ok, 1200));
+      r = await llamar(pedido);
+    }
     if (r.status === 429) return json({ error: "limite" }, 429);
     if (!r.ok) { ultimoError = `${modelo}: ${r.status} ${(await r.text()).slice(0, 160)}`; console.log("gemini", ultimoError); continue; }
     const j = await r.json();
