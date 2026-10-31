@@ -2,7 +2,7 @@
 //   1. Qué comiste: la IA al centro (foto, texto o ambos) o a mano (buscar, escanear, habituales).
 //      Debajo, la lista para revisar y si alcanza para esa comida (desayuno, almuerzo…) con sugerencias.
 //   2. Quién comió (solo si en el hogar hay más personas): uno, varios, y si fue un plato cada uno o compartido.
-import { sb, estado } from '../db.js';
+import { sb, estado, datos } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
 import { hoyISO } from '../fechas.js';
 import { macros, sumar } from '../alimentos.js';
@@ -167,6 +167,14 @@ export function abrirRegistro(ctx, op = {}) {
       ?? hay.find((p) => sinTilde(p.alimento?.nombre).includes(n) || n.includes(sinTilde(p.alimento?.nombre))) ?? null;
   };
 
+  // Guardar en la despensa (lo que no se come ahora): queda disponible para descontar después.
+  const guardarEnDespensa = async (lista) => {
+    const filas = lista.map((x) => ({ hogar_id: estado.yo.hogar_id, alimento_id: x.alimento.id, gramos_total: Math.round(x.gramos_total), gramos_restantes: Math.round(x.gramos_total) }));
+    const nuevos = datos(await sb.from('despensa').insert(filas).select('*, alimento:alimentos(*)'));
+    ctx.despensa = [...(ctx.despensa ?? []), ...nuevos];
+    return nuevos;
+  };
+
   let vistos = new Set();
   const pintarItems = () => {
     const cont = $('#r-items');
@@ -184,6 +192,7 @@ export function abrirRegistro(ctx, op = {}) {
             <span class="quieto">${esc(cantidadTexto(it.alimento, it.gramos))}${cantidadTexto(it.alimento, it.gramos).endsWith(' g') ? '' : ` · ${g(it.gramos)}`} · ${kc(m.kcal)} kcal · P ${Math.round(m.proteina)}</span>
             ${paquete ? `<button type="button" class="chip chip--mini chip--activo" data-despensa="${i}">De la despensa ✓${it.gramosDespensa && Math.round(it.gramosDespensa) !== Math.round(it.gramos) ? ` · usa ${g(it.gramosDespensa)}${paquete.alimento?.nombre && sinTilde(paquete.alimento.nombre) !== sinTilde(it.alimento.nombre) ? ` de ${esc(paquete.alimento.nombre.toLowerCase())}` : ''}` : ''}</button>`
               : enDespensa ? `<button type="button" class="chip chip--mini" data-despensa="${i}">Descontar de la despensa</button>` : ''}
+            ${paquete ? '' : `<button type="button" class="item-comida__guardar" data-guardar="${i}">${IC.frasco}Es para guardar en la despensa</button>`}
           </div>
           <div class="paso-mini">
             <button type="button" data-menos="${i}" aria-label="Menos">${ICONO.menos}</button>
@@ -209,6 +218,17 @@ export function abrirRegistro(ctx, op = {}) {
     cont.querySelectorAll('[data-mas]').forEach((b) => b.addEventListener('click', () => { const it = items[Number(b.dataset.mas)]; it.gramos += pasoDe(it); pintarItems(); }));
     cont.querySelectorAll('[data-menos]').forEach((b) => b.addEventListener('click', () => { const it = items[Number(b.dataset.menos)]; it.gramos = Math.max(1, it.gramos - pasoDe(it)); pintarItems(); }));
     cont.querySelectorAll('[data-quitar]').forEach((b) => b.addEventListener('click', () => { items.splice(Number(b.dataset.quitar), 1); pintarItems(); }));
+    // No se come ahora: va a la despensa (sale del plato).
+    cont.querySelectorAll('[data-guardar]').forEach((b) => b.addEventListener('click', async () => {
+      const it = items[Number(b.dataset.guardar)];
+      b.disabled = true;
+      try {
+        await guardarEnDespensa([{ alimento: it.alimento, gramos_total: it.gramos }]);
+        items.splice(items.indexOf(it), 1);
+        pintarItems();
+        aviso(`${it.alimento.nombre} quedó en la despensa (no cuenta como comido).`);
+      } catch (err) { avisoError(err); b.disabled = false; }
+    }));
     cont.querySelectorAll('[data-despensa]').forEach((b) => b.addEventListener('click', () => { const it = items[Number(b.dataset.despensa)]; it.paquete = it.paquete ? null : paqueteDe(it.alimento); it.gramosDespensa = null; pintarItems(); }));
   };
 
@@ -380,6 +400,36 @@ export function abrirRegistro(ctx, op = {}) {
     if (r.momento && MOMENTOS[r.momento]) { momento = r.momento; pintarMomento(); }
     pintarItems();
   };
+  // «Esta docena de huevos es para la despensa»: se muestra lo que va a guardar y se confirma.
+  const mostrarParaDespensa = (lista) => {
+    setTimeout(() => {
+      const chat = $('#r-chat');
+      if (!chat) return;
+      chat.insertAdjacentHTML('beforeend', `<div class="chatia__msg chatia__msg--propuesta"><div class="medicion-ia">
+        <p class="medicion-ia__titulo">Para la despensa (no cuenta como comido)</p>
+        <ul class="obj-acciones">${lista.map((x) => `<li>${esc(x.nombre)} · ${x.envases > 1 ? `${x.envases} × ${g(x.gramos_envase)}` : g(x.gramos_envase * x.envases)}</li>`).join('')}</ul>
+        <div class="medicion-ia__acciones"><button type="button" class="chatia__seguir" data-a-despensa>Guardar en la despensa</button></div></div></div>`);
+      const caja = chat.lastElementChild;
+      bajar(caja);
+      caja.querySelector('[data-a-despensa]').addEventListener('click', async (e) => {
+        const b = e.currentTarget;
+        b.disabled = true; b.textContent = 'Guardando…';
+        try {
+          const filas = [];
+          for (const x of lista) {
+            const alimento = await aAlimento(x);
+            // Paquetes grandes van uno por uno; lo chico (huevos) va junto.
+            const separados = x.envases > 1 && x.envases <= 6 && x.gramos_envase >= 150;
+            for (let k = 0; k < (separados ? x.envases : 1); k++) filas.push({ alimento, gramos_total: separados ? x.gramos_envase : x.gramos_envase * x.envases });
+          }
+          await guardarEnDespensa(filas);
+          b.parentElement.innerHTML = `<p class="propuesta__hecho">✓ En la despensa</p>`;
+          pintarItems();
+        } catch (err) { avisoError(err); b.disabled = false; b.textContent = 'Reintentar'; }
+      });
+    }, 60);
+  };
+
   const hablar = async (texto, { auto = false } = {}) => {
     if (!auto) {
       burbuja('yo', esc(texto));
@@ -402,6 +452,7 @@ export function abrirRegistro(ctx, op = {}) {
         const nombreSopa = /fideos instant/i.test(sopa[1]) ? 'ramen' : sopa[1].toLowerCase();
         r.sugerencias = [...(r.sugerencias ?? []), { nombre: /^(sopa|caldo)$/i.test(nombreSopa) ? `Caldo de ${nombreSopa === 'sopa' ? 'sopa' : 'carne'}` : `Caldo de ${nombreSopa}`, gramos: 400, cantidad: '💧 400 ml de', kcal: 15, proteina_g: 1, carbohidratos_g: 1, grasas_g: 0.5 }];
       }
+      if (r.a_despensa?.length) mostrarParaDespensa(r.a_despensa);
       if (aguaSumada >= 50) r.respuesta = `${r.respuesta ?? ''} 💧 Suma ~${Math.round(aguaSumada / 10) * 10} ml a tu agua del día.`.trim();
       historial.push({ rol: 'ia', texto: [r.respuesta, r.duda].filter(Boolean).join(' ') });
       const html = `<span>${esc(r.respuesta || 'Listo.')}</span>

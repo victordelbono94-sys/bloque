@@ -150,6 +150,8 @@ export const IC = {
   pausa: ic('<rect x="6.5" y="5" width="3.5" height="14" rx="1"/><rect x="14" y="5" width="3.5" height="14" rx="1"/>'),
   cambio: ic('<path d="M4 9h13l-3.5-3.5M20 15H7l3.5 3.5"/>'),
   curita: ic('<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M10.5 10.5h.01M13.5 13.5h.01M13.5 10.5h.01M10.5 13.5h.01"/>'),
+  // Frasco con tapa: la despensa (lo que hay guardado en casa).
+  frasco: ic('<path d="M8 3.5h8M7.5 6.5h9"/><path d="M8 6.5c-1.7 1.2-2.5 2.6-2.5 4.5v7.5a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V11c0-1.9-.8-3.3-2.5-4.5"/><path d="M8.5 13h7"/>'),
   pregunta: ic('<circle cx="12" cy="12" r="9"/><path d="M9.6 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.7M12 17h.01"/>'),
   pesa: ic('<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>'),
   sueno: ic('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),

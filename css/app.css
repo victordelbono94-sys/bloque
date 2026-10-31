@@ -2287,3 +2287,6 @@ dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }
 /* Alimentación: las caras del hogar dentro de la tarjeta de arriba */
 .dia-comida.con-caras { position: relative; }
 .resumen-caras { position: absolute; top: 14px; right: 14px; z-index: 1; margin: 0; }
+.item-comida__guardar { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; margin-top: 4px; padding: 2px 0; border: 0; background: none; color: var(--gris); font: inherit; font-size: 12px; cursor: pointer; }
+.item-comida__guardar .icono-ui { width: 14px; height: 14px; }
+.item-comida__guardar:active { color: var(--volt); }
