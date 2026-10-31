@@ -93,11 +93,11 @@ async function vistaDia(app, fecha) {
   const visto = info.find((x) => x.p.id === verId) ?? yo;
   // Snacks para los entrenos: primero lo que se arma con lo que hay en casa y con lo que sueles comer.
   const snacks = esHoy ? snacksDelDia(yo.eventos, yo.metas.ok ? yo.metas.peso : null, new Date(), (t) => encaja(t), {
-    enCasa: (d.despensa ?? []).filter((x) => Number(x.gramos_restantes) > 0).map((x) => x.alimento?.nombre).filter(Boolean),
+    enCasa: (d.despensa ?? []).filter((x) => Number(x.gramos_restantes) > 0 && (!x.persona_id || x.persona_id === estado.yo.id)).map((x) => x.alimento?.nombre).filter(Boolean),
     habitual: [...frec, ...habituales].map((x) => x.alimento?.nombre).filter(Boolean),
   }) : [];
   const ctx = {
-    fecha, esHoy, info, despensa: d.despensa, frecuentes: frec, habituales,
+    fecha, esHoy, info, despensa: d.despensa, frecuentes: frec, habituales, comidas: d.comidas,
     recargar: (f) => { if (f && f !== fecha) location.hash = f === hoyISO() ? '#/comida' : `#/comida/${f}`; else vistaDia(app, fecha); },
   };
 
@@ -167,7 +167,7 @@ async function vistaDia(app, fecha) {
       const items = [];
       for (const x of o.items) {
         const alimento = await aAlimento(x);
-        const hay = (d.despensa ?? []).filter((p) => Number(p.gramos_restantes) > 0);
+        const hay = (d.despensa ?? []).filter((p) => Number(p.gramos_restantes) > 0 && (!p.persona_id || p.persona_id === estado.yo.id));
         // Mismo alimento, o el mismo producto con otro nombre («Huevos» ↔ «Huevo entero»); lo cocido no se descuenta solo (crudo ≠ cocido).
         const palabra = normalizar(x.nombre).split(' ')[0];
         const paquete = hay.find((p) => p.alimento_id === alimento.id)
@@ -260,7 +260,8 @@ function htmlComidasDia(comidas) {
     // Renglones por «dueño»: compartido entre varios, cada uno lo mismo (c/u) o de una persona.
     const filas = new Map();
     const sumarFila = (ids, texto, comidaId, cu = false) => {
-      const clave = `${cu ? 'cu' : ''}${[...ids].sort().join(',')}`;
+      // Cada comida registrada tiene su renglón (y se edita la que tocas): si se anotaron dos desayunos, se ven los dos.
+      const clave = `${comidaId}|${cu ? 'cu' : ''}${[...ids].sort().join(',')}`;
       const f = filas.get(clave) ?? { ids, lineas: [], comidaId, cu };
       f.lineas.push(texto);
       filas.set(clave, f);
@@ -291,7 +292,7 @@ function htmlComidasDia(comidas) {
             <button type="button" class="comida-renglon" data-comida="${esc(f.comidaId)}" aria-label="Editar ${esc(MOMENTOS[g.momento] ?? '')}">
               ${caras(f.ids)}
               <span class="comida-renglon__texto">
-                <span class="comida-renglon__quien">${esc(f.cu ? 'Cada uno' : f.ids.length > 1 ? 'Compartido' : (f.ids[0] === estado.yo.id ? 'Yo' : persona(f.ids[0])?.nombre ?? ''))}</span>
+                <span class="comida-renglon__quien">${esc(f.cu ? 'Cada uno' : f.ids.length > 1 ? 'Compartido' : (f.ids[0] === estado.yo.id ? 'Yo' : persona(f.ids[0])?.nombre ?? ''))}${g.comidas.length > 1 ? ` <span class="quieto">· ${esc(g.comidas.find((c) => c.id === f.comidaId)?.hora?.slice(0, 5) ?? '')}</span>` : ''}</span>
                 ${esc(f.lineas.join(' · '))}${f.cu ? ' <span class="quieto">(c/u)</span>' : ''}
               </span>
               <span class="plan__flecha" aria-hidden="true">›</span>
@@ -324,14 +325,16 @@ async function mostrarIdeas(ctx, cont, boton) {
       hora: `${ahora.getHours()}:${String(ahora.getMinutes()).padStart(2, '0')}`, proxima_comida: MOMENTOS[momentoPorHora(ahora)],
       falta_hoy: falta,
       entrenos_hoy: yo.eventos.filter((e) => e.tipo !== 'descanso').map((e) => ({ tipo: e.tipo === 'otro' ? e.actividad : e.tipo, hora: e.hora_inicio?.slice(0, 5) ?? null })),
-      despensa: ctx.despensa.map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(p.gramos_restantes) })),
+      despensa: ctx.despensa.filter((p) => !p.es_sobra).map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(p.gramos_restantes), de: p.persona_id ? (estado.personas.find((x) => x.id === p.persona_id)?.nombre ?? 'otra persona') : 'todos' })),
+      para_quien: estado.yo.nombre,
       sobras: ctx.despensa.filter((p) => p.es_sobra && Number(p.gramos_restantes) > 0).map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(p.gramos_restantes) })),
       comida_a_sugerir: MOMENTOS[momento],
       lo_que_suele_comer_en_esta_comida: (await platoHabitual(momento, 6).catch(() => [])).map((x) => `${x.alimento.nombre} (${Math.round(x.gramos)} g)`),
       reglas_de_estas_ideas: `Las 3 ideas son SOLO para ${MOMENTOS[momento].toLowerCase()}: comidas típicas de esa hora, nada de otra comida del día. `
         + 'Al menos una se parece a lo que suele comer en esa comida (lo_que_suele_comer_en_esta_comida), ajustada a lo que le falta hoy. '
         + 'Usa primero lo que hay en la despensa y marca de_despensa en esos ingredientes. '
-        + 'Si hay sobras (comida ya hecha que guardó), la primera idea es comerlas, completándolas con lo que falte para su meta.',
+        + 'Si hay sobras (comida ya hecha que guardó), la primera idea es comerlas, completándolas con lo que falte para su meta. '
+        + 'Hay productos personales en la despensa (campo de): para esta persona usa solo los de «todos» o los suyos, nunca los de otra persona.',
       deporte: deporte(estado.equipo?.deporte)?.nombre ?? null,
       dieta: dietaParaIA(),
     };
@@ -564,9 +567,10 @@ async function vistaDespensa(app, { enHoja = false } = {}) {
 function agrupar(despensa) {
   const grupos = new Map();
   for (const x of despensa) {
-    const gr = grupos.get(x.alimento_id) ?? { alimento: x.alimento, paquetes: [] };
+    const clave = `${x.alimento_id}|${x.persona_id ?? ''}`;
+    const gr = grupos.get(clave) ?? { alimento: x.alimento, persona_id: x.persona_id ?? null, paquetes: [] };
     gr.paquetes.push(x);
-    grupos.set(x.alimento_id, gr);
+    grupos.set(clave, gr);
   }
   return [...grupos.values()].map((gr) => ({
     ...gr,
@@ -581,7 +585,7 @@ function htmlGrupo(gr) {
   const n = gr.paquetes.length;
   return `
     <button type="button" class="paquete" data-paquete="${esc(gr.paquetes[0].id)}">
-      <div class="fila fila--entre"><strong>${esc(gr.alimento.nombre)}</strong><span class="quieto">${cantidadTexto(gr.alimento, quedan)}${n > 1 ? ` · ${n} paquetes` : ''}</span></div>
+      <div class="fila fila--entre"><strong>${esc(gr.alimento.nombre)}${nombreDe(gr.persona_id) ? ` <span class="de-quien">${esc(nombreDe(gr.persona_id))}</span>` : ''}</strong><span class="quieto">${cantidadTexto(gr.alimento, quedan)}${n > 1 ? ` · ${n} paquetes` : ''}</span></div>
       ${gr.alimento.marca ? `<span class="quieto" style="font-size:13px">${esc(gr.alimento.marca)}</span>` : ''}
       <div class="paquete__barra"><span style="width:${pct}%"></span></div>
     </button>`;
@@ -595,6 +599,8 @@ function leerRevision(cont, productos) {
     p.elegido = sel.checked;
     p.envases = Math.max(1, Number(cont.querySelector(`[data-env="${i}"]`)?.value) || p.envases);
     p.gramos_envase = Math.max(1, Number(cont.querySelector(`[data-gr="${i}"]`)?.value) || p.gramos_envase);
+    const de = cont.querySelector(`[data-de-fila="${i}"]`);
+    if (de) p.persona_id = de.value || null;
   });
 }
 
@@ -608,6 +614,8 @@ function revisarProductos(cont, productos, alGuardar) {
         <label class="revision__fila">
           <input type="checkbox" data-sel="${i}" ${p.elegido === false ? '' : 'checked'}>
           <span class="revision__nombre"><strong>${esc(p.nombre)}</strong>${p.marca ? ` <span class="quieto">· ${esc(p.marca)}</span>` : ''}</span>
+          ${estado.personas.length > 1 ? `<select class="revision__de" data-de-fila="${i}" aria-label="De quién es">
+            <option value="">De todos</option>${estado.personas.map((x) => `<option value="${esc(x.id)}" ${p.persona_id === x.id ? 'selected' : ''}>${esc(x.id === estado.yo.id ? 'Mío' : x.nombre)}</option>`).join('')}</select>` : ''}
           <span class="revision__cant">
             <input type="number" inputmode="numeric" min="1" max="60" value="${p.envases}" data-env="${i}" aria-label="Cuántos">
             ×
@@ -630,7 +638,7 @@ function revisarProductos(cont, productos, alGuardar) {
         const separados = envases <= 6 && gramos >= 150;
         for (let k = 0; k < (separados ? envases : 1); k++) {
           const total = separados ? gramos : gramos * envases;
-          filas.push({ hogar_id: estado.yo.hogar_id, alimento_id: alimento.id, gramos_total: total, gramos_restantes: total });
+          filas.push({ hogar_id: estado.yo.hogar_id, alimento_id: alimento.id, gramos_total: total, gramos_restantes: total, persona_id: cont.querySelector(`[data-de-fila="${i}"]`)?.value || null });
         }
       }
       if (filas.length) datos(await sb.from('despensa').insert(filas));
@@ -836,6 +844,22 @@ function htmlPaquete(x) {
 
 
 
+// De quién es un producto de la despensa: de todos (null) o de una persona (la leche deslactosada de uno, la semidescremada del otro).
+function htmlDeQuien(actual) {
+  if (estado.personas.length < 2) return '';
+  const op = (id, texto) => `<button type="button" class="chip chip--mini" data-de="${id ?? ''}" aria-pressed="${(actual ?? '') === (id ?? '')}">${esc(texto)}</button>`;
+  return `<fieldset class="campo"><legend>¿De quién es?</legend><div class="chips" data-de-quien>${op(null, 'De todos')}${estado.personas.map((p) => op(p.id, p.id === estado.yo.id ? `Mío (${p.nombre})` : p.nombre)).join('')}</div></fieldset>`;
+}
+function conectarDeQuien(cont) {
+  let valor = cont.querySelector('[data-de][aria-pressed="true"]')?.dataset.de || null;
+  cont.querySelectorAll('[data-de]').forEach((b) => b.addEventListener('click', () => {
+    valor = b.dataset.de || null;
+    cont.querySelectorAll('[data-de]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+  return () => valor;
+}
+const nombreDe = (id) => (id ? (id === estado.yo.id ? 'Tuyo' : estado.personas.find((p) => p.id === id)?.nombre ?? null) : null);
+
 function dialogoPaquete(ctx) {
   let elegido = null;
   const d = abrirDialogo(`
@@ -848,12 +872,14 @@ function dialogoPaquete(ctx) {
           <label for="p-gramos">¿Cuántos gramos trae el paquete?</label>
           <input id="p-gramos" type="number" inputmode="decimal" min="1" step="1">
         </div>
+        ${htmlDeQuien(null)}
       </div>
       <div class="dialogo__pie">
         <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
         <button type="submit" class="boton" id="guardar" disabled>Agregar</button>
       </div>
     </form>`, 'Agregar a la despensa', { pantalla: true });
+  const deQuien = conectarDeQuien(d);
   panelBuscar(d.querySelector('#buscar'), {
     alElegir: (a) => {
       elegido = a;
@@ -870,7 +896,7 @@ function dialogoPaquete(ctx) {
     const gramos = Number(d.querySelector('#p-gramos').value);
     if (!elegido || !(gramos > 0)) return aviso('Escribe cuántos gramos trae.', 'error');
     try {
-      datos(await sb.from('despensa').insert({ hogar_id: estado.yo.hogar_id, alimento_id: elegido.id, gramos_total: gramos, gramos_restantes: gramos }));
+      datos(await sb.from('despensa').insert({ hogar_id: estado.yo.hogar_id, alimento_id: elegido.id, gramos_total: gramos, gramos_restantes: gramos, persona_id: deQuien() }));
       if (!elegido.paquete_g && elegido.hogar_id) await sb.from('alimentos').update({ paquete_g: gramos }).eq('id', elegido.id);
       d.close();
       aviso(`${elegido.nombre} en la despensa.`);
@@ -887,15 +913,24 @@ function dialogoEditarPaquete(x, ctx) {
         <label for="restan">Quedan (g)</label>
         <input id="restan" type="number" inputmode="decimal" min="0" max="${x.gramos_total}" value="${Math.round(x.gramos_restantes)}">
       </div>
+      ${x.es_sobra ? '' : htmlDeQuien(x.persona_id)}
       <div class="dialogo__pie">
         <button type="button" class="boton boton--peligro" id="terminar" style="margin-right:auto">Se terminó</button>
         <button type="button" class="boton boton--sec" data-cerrar>Cancelar</button>
         <button type="submit" class="boton">Guardar</button>
       </div>
     </form>`, 'Editar paquete');
+  const deQuien = conectarDeQuien(d);
   const guardar = async (restan) => {
     try {
       datos(await sb.from('despensa').update({ gramos_restantes: restan, terminado_en: restan < 1 ? new Date().toISOString() : null }).eq('id', x.id));
+      // El dueño se cambia en todos los paquetes iguales de ese grupo.
+      const de = deQuien();
+      if (!x.es_sobra && (de ?? null) !== (x.persona_id ?? null)) {
+        let q = sb.from('despensa').update({ persona_id: de }).eq('hogar_id', estado.yo.hogar_id).eq('alimento_id', x.alimento_id).is('terminado_en', null);
+        q = x.persona_id ? q.eq('persona_id', x.persona_id) : q.is('persona_id', null);
+        datos(await q);
+      }
       d.close();
       ctx.recargar();
     } catch (err) { avisoError(err); }

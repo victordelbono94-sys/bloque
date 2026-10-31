@@ -199,13 +199,16 @@ export function abrirRegistro(ctx, op = {}) {
   };
 
   const agregar = (alimento, gramos, paquete = null, persona = null) => { items.push({ alimento, gramos: Number(gramos) || 100, paquete, persona }); pintarItems(); };
-  const paqueteDe = (alimento) => ctx.despensa.find((p) => p.alimento_id === alimento.id && Number(p.gramos_restantes) > 0);
+  // De la despensa: primero lo de esa persona, después lo de todos; lo personal de otra persona solo si no hay otra cosa.
+  const ordenDueno = (persona) => (p) => (p.persona_id && p.persona_id === persona ? 0 : !p.persona_id ? 1 : 2);
+  const paqueteDe = (alimento, persona = estado.yo.id) => ctx.despensa.filter((p) => p.alimento_id === alimento.id && Number(p.gramos_restantes) > 0)
+    .sort((a, b) => ordenDueno(persona)(a) - ordenDueno(persona)(b)).find((p) => !p.persona_id || p.persona_id === persona) ?? null;
   // El producto de la despensa que nombró la IA («Arroz blanco», «Huevos»): por nombre, el que tenga más usado primero.
   const sinTilde = (t) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-  const paquetePorNombre = (nombre) => {
+  const paquetePorNombre = (nombre, persona = null) => {
     const n = sinTilde(nombre);
     if (!n) return null;
-    const hay = ctx.despensa.filter((p) => Number(p.gramos_restantes) > 0);
+    const hay = ctx.despensa.filter((p) => Number(p.gramos_restantes) > 0).sort((a, b) => ordenDueno(persona ?? estado.yo.id)(a) - ordenDueno(persona ?? estado.yo.id)(b));
     return hay.find((p) => sinTilde(p.alimento?.nombre) === n)
       ?? hay.find((p) => sinTilde(p.alimento?.nombre).includes(n) || n.includes(sinTilde(p.alimento?.nombre))) ?? null;
   };
@@ -227,7 +230,7 @@ export function abrirRegistro(ctx, op = {}) {
     vistos = new Set(items);
     cont.innerHTML = items.length ? items.map((it, i) => {
       const m = macros(it.alimento, it.gramos);
-      const paquete = it.paquete, enDespensa = !paquete && paqueteDe(it.alimento);
+      const paquete = it.paquete, enDespensa = !paquete && paqueteDe(it.alimento, it.persona ?? estado.yo.id);
       const dueno = it.persona ? estado.personas.find((p) => p.id === it.persona) : null;
       return `
         <div class="item-comida ${antes.has(it) ? 'item-comida--quieto' : ''}">
@@ -273,7 +276,7 @@ export function abrirRegistro(ctx, op = {}) {
         aviso(`${it.alimento.nombre} quedó en la despensa (no cuenta como comido).`);
       } catch (err) { avisoError(err); b.disabled = false; }
     }));
-    cont.querySelectorAll('[data-despensa]').forEach((b) => b.addEventListener('click', () => { const it = items[Number(b.dataset.despensa)]; it.paquete = it.paquete ? null : paqueteDe(it.alimento); it.gramosDespensa = null; pintarItems(); }));
+    cont.querySelectorAll('[data-despensa]').forEach((b) => b.addEventListener('click', () => { const it = items[Number(b.dataset.despensa)]; it.paquete = it.paquete ? null : paqueteDe(it.alimento, it.persona ?? estado.yo.id); it.gramosDespensa = null; pintarItems(); }));
   };
 
   // ¿Alcanza para esta comida? Se mira la parte del día que le toca (desayuno ~25 %, almuerzo ~33 %…).
@@ -402,7 +405,7 @@ export function abrirRegistro(ctx, op = {}) {
       hogar: hogarContexto() ?? [],
       personas_del_hogar: estado.personas.map((p) => p.nombre),
       despensa: (ctx.despensa ?? []).filter((p) => !p.es_sobra && p.alimento?.nombre && Number(p.gramos_restantes) > 0).slice(0, 40)
-        .map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(Number(p.gramos_restantes)) })),
+        .map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(Number(p.gramos_restantes)), de: p.persona_id ? (estado.personas.find((x) => x.id === p.persona_id)?.nombre ?? 'otra persona') : 'todos' })),
       sobras: sobrasDisponibles().map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(Number(p.gramos_restantes)), guardada: String(p.agregado_en ?? '').slice(0, 10) })),
     };
   };
@@ -428,9 +431,11 @@ export function abrirRegistro(ctx, op = {}) {
     }
     for (const x of r.agregar ?? []) {
       const persona = x.persona ? idDe(x.persona) : null;
-      const paquete = x.despensa ? paquetePorNombre(x.despensa) : null;
-      items.push({ alimento: await aAlimento(x), gramos: Number(x.gramos) || 100, paquete, gramosDespensa: paquete && x.gramos_despensa ? Number(x.gramos_despensa) : null, persona });
-      if (persona && !quien.includes(persona)) quien = [...quien, persona];
+      const paquete = x.despensa ? paquetePorNombre(x.despensa, persona) : null;
+      // Un producto personal de la despensa (la leche deslactosada de uno) es de esa persona, aunque el plato sea de varios.
+      const dueno = persona ?? (paquete?.persona_id && quien.length > 1 && quien.includes(paquete.persona_id) ? paquete.persona_id : null);
+      items.push({ alimento: await aAlimento(x), gramos: Number(x.gramos) || 100, paquete, gramosDespensa: paquete && x.gramos_despensa ? Number(x.gramos_despensa) : null, persona: dueno });
+      if (dueno && !quien.includes(dueno)) quien = [...quien, dueno];
     }
     // «Guarda una pizza para mañana»: esa parte sale del plato y queda como sobra (en la despensa).
     const guardadas = [];
@@ -851,8 +856,23 @@ export function abrirRegistro(ctx, op = {}) {
       <span class="opcion__texto"><strong>${titulo}</strong><span>${texto}</span></span>
     </button>`;
 
-  const guardar = async () => {
+  // ¿Esta misma comida ya está anotada hoy? (mismos alimentos y gramos): se pregunta antes de duplicarla.
+  const firma = (lista) => lista.map((x) => `${x.alimento_id ?? x.alimento?.id}:${Math.round(Number(x.gramos))}`).sort().join('|');
+  const yaAnotada = () => {
+    if (editar) return null;
+    const f = firma(items);
+    return (ctx.comidas ?? []).find((c) => c.momento === momento && firma(c.comida_items ?? []) === f) ?? null;
+  };
+  const guardar = async (_e, { aunAsi = false } = {}) => {
     if (!items.length) return;
+    const igual = !aunAsi && yaAnotada();
+    if (igual) {
+      const dd = abrirDialogo(`<div class="dialogo"><h2 class="tarjeta__titulo">¿Otra vez el mismo ${esc((MOMENTOS[momento] ?? 'plato').toLowerCase())}?</h2>
+        <p style="margin:0">Ya lo anotaste${igual.hora ? ` a las ${esc(igual.hora.slice(0, 5))}` : ''} con los mismos alimentos. Si lo guardas otra vez, cuenta doble.</p>
+        <div class="dialogo__pie"><button type="button" class="boton boton--sec" data-cerrar>No guardar</button><button type="button" class="boton" id="dup-si">Guardar igual</button></div></div>`, 'Comida repetida');
+      dd.querySelector('#dup-si').addEventListener('click', () => { dd.close(); guardar(null, { aunAsi: true }); });
+      return;
+    }
     const boton = $('#r-guardar') ?? $('#r-seguir');
     boton.disabled = true;
     guardarQuien(momento, quien);

@@ -77,6 +77,10 @@ gramos_despensa = cuánto se gasta de ese producto tal como está guardado (si e
 200 g de arroz cocido ≈ 70 g de arroz crudo, 150 g de fideos cocidos ≈ 60 g secos, 1 taza de lenteja cocida ≈ 70 g secas).
 Si eso aplica a lo que YA está en el plato, ponlo en cambios.de_despensa (nombre del plato, producto de la despensa y gramos_despensa).
 Si no lo dice, no asumas que salió de la despensa.
+PRODUCTOS PERSONALES: en la despensa cada producto trae "de" ("todos" o el nombre de una persona: la leche deslactosada puede ser de
+uno y la semidescremada del otro). Para cada persona usa solo lo de "todos" o lo suyo, nunca lo personal de otro. Si cocinan para
+varios y un ingrediente es personal (ej. el café con leche de cada uno), pon cada versión con persona = su dueño (la deslactosada para
+quien es, la semidescremada para el otro) y reparto "distinto". Al sugerir, igual: a cada uno con lo suyo.
 GUARDAR EN LA DESPENSA: si dice que algo NO lo come ahora sino que es para guardar en casa ("esta docena de huevos es para la despensa",
 "compré 1 kg de arroz", "guarda esto en la despensa", "lo demás es para la casa"), NO lo pongas en agregar: ponlo en a_despensa con
 envases (cuántos) y gramos_envase (cuánto pesa cada uno: 1 huevo 50 g, una docena = 12 × 50 g, 1 funda de arroz 1000 g, 1 litro de leche 1000 g)
