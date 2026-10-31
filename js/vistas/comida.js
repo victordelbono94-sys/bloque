@@ -352,7 +352,7 @@ async function mostrarIdeas(ctx, cont, boton) {
         <ul class="idea__ingredientes">${idea.ingredientes.map((a) => `<li>${esc(a.nombre)} · ${g(a.gramos)}${a.de_despensa ? ' <span class="etiqueta etiqueta--mini">en casa</span>' : ''}</li>`).join('')}</ul>
         <p class="quieto idea__macros">P ${Math.round(t.proteina)} · C ${Math.round(t.carbos)} · G ${Math.round(t.grasas)}</p>
         ${idea.pasos ? `<details><summary>Cómo hacerlo</summary><p class="idea__pasos">${esc(idea.pasos)}</p></details>` : ''}
-        <button type="button" class="boton boton--chico" data-idea="${i}">Comí esto</button>
+        <button type="button" class="boton boton--chico boton--suave" data-idea="${i}">Comeré esto</button>
       </article>`;
   }).join('');
   cont.querySelectorAll('[data-idea]').forEach((b) => b.addEventListener('click', async () => {
