@@ -18,7 +18,7 @@ import { macros, sumar, cargarCatalogo } from '../alimentos.js';
 import { panelBuscar } from '../comida/buscar.js';
 import { abrirRegistro } from '../comida/registro.js';
 import {
-  MOMENTOS, ORDEN_MOMENTO, kc, g, cantidadTexto, momentoPorHora, gemini, fotoBase64, aAlimento, frecuentes, habitualesAhora, normalizar,
+  MOMENTOS, ORDEN_MOMENTO, kc, g, cantidadTexto, momentoPorHora, gemini, fotoBase64, aAlimento, frecuentes, habitualesAhora, normalizar, platoHabitual,
 } from '../comida/comun.js';
 
 const ICONO_FOTO = '<svg class="icono" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
@@ -91,7 +91,11 @@ async function vistaDia(app, fecha) {
   let verId = null;
   try { verId = sessionStorage.getItem('bloque-comida-ver'); } catch { /* nada */ }
   const visto = info.find((x) => x.p.id === verId) ?? yo;
-  const snacks = esHoy ? snacksDelDia(yo.eventos, yo.metas.ok ? yo.metas.peso : null, new Date(), (t) => encaja(t)) : [];
+  // Snacks para los entrenos: primero lo que se arma con lo que hay en casa y con lo que sueles comer.
+  const snacks = esHoy ? snacksDelDia(yo.eventos, yo.metas.ok ? yo.metas.peso : null, new Date(), (t) => encaja(t), {
+    enCasa: (d.despensa ?? []).filter((x) => Number(x.gramos_restantes) > 0).map((x) => x.alimento?.nombre).filter(Boolean),
+    habitual: [...frec, ...habituales].map((x) => x.alimento?.nombre).filter(Boolean),
+  }) : [];
   const ctx = {
     fecha, esHoy, info, despensa: d.despensa, frecuentes: frec, habituales,
     recargar: (f) => { if (f && f !== fecha) location.hash = f === hoyISO() ? '#/comida' : `#/comida/${f}`; else vistaDia(app, fecha); },
@@ -131,8 +135,8 @@ async function vistaDia(app, fecha) {
         <summary class="acordeon__cab"><h2 class="seccion__titulo" id="t-ahora" style="margin:0">¿Qué como ahora?</h2><span class="acordeon__flecha" aria-hidden="true"></span></summary>
         <div class="acordeon__cuerpo"><div class="acordeon__interior">
           <div class="tarjeta pila" style="gap:12px">
-            ${snacks.map(htmlSnack).join('')}
-            <div class="fila fila--entre ideas__cab"><p class="seccion__titulo ideas__titulo" style="margin:0">${ICONO_CHISPA} Ideas con lo que hay en casa</p><button type="button" class="enlace-chico enlace-boton" id="ver-despensa">Ver despensa ›</button></div>
+            ${snacks.map((x, k) => htmlSnack(x, k)).join('')}
+            <div class="fila fila--entre ideas__cab"><p class="seccion__titulo ideas__titulo" style="margin:0">${ICONO_CHISPA} Ideas para ${PARA_MOMENTO[momentoPorHora(new Date())] ?? 'ahora'}</p><button type="button" class="enlace-chico enlace-boton" id="ver-despensa">Ver despensa ›</button></div>
             <div id="ideas" class="pila" style="gap:12px"></div>
             <button type="button" class="boton boton--sec" id="ideas-btn" hidden>${ICONO_CHISPA} Otras ideas</button>
           </div>
@@ -148,6 +152,26 @@ async function vistaDia(app, fecha) {
   conectarPedirDespensa(app, despensaYRecargar);
   conectarPedirDieta(app, () => vistaDia(app, fecha));
   conectarAcordeon(app.querySelector('#acordeon-ahora'));
+  // «Comeré esto»: abre el registro con esos alimentos ya puestos (se descuentan de la despensa si los tienes).
+  app.querySelectorAll('[data-comer]').forEach((b) => b.addEventListener('click', async () => {
+    const [k, j] = b.dataset.comer.split(':').map(Number);
+    const s0 = snacks[k], o = s0?.opciones[j];
+    if (!o) return;
+    b.disabled = true;
+    try {
+      const items = [];
+      for (const x of o.items) {
+        const alimento = await aAlimento(x);
+        const hay = (d.despensa ?? []).filter((p) => Number(p.gramos_restantes) > 0);
+        // Mismo alimento, o el mismo producto con otro nombre («Huevos» ↔ «Huevo entero»); lo cocido no se descuenta solo (crudo ≠ cocido).
+        const palabra = normalizar(x.nombre).split(' ')[0];
+        const paquete = hay.find((p) => p.alimento_id === alimento.id)
+          ?? (/cocid/i.test(x.nombre) ? null : hay.find((p) => normalizar(p.alimento?.nombre ?? '').split(' ')[0].replace(/s$/, '') === palabra.replace(/s$/, ''))) ?? null;
+        items.push({ alimento, gramos: x.gramos, paquete, persona: null });
+      }
+      abrirRegistro(ctx, { items, momento: s0.cuando === 'antes' ? 'pre_entreno' : s0.cuando === 'despues' ? 'post_entreno' : 'snack' });
+    } catch (err) { avisoError(err); } finally { b.disabled = false; }
+  }));
   app.querySelector('#ver-semana-comida').addEventListener('click', abrirSemana);
   tarjetaSemana(app.querySelector('#semana-comida-datos'), yo);
   conectarAgua(app);
@@ -190,6 +214,7 @@ async function vistaDia(app, fecha) {
   });
 }
 
+const PARA_MOMENTO = { desayuno: 'el desayuno', almuerzo: 'el almuerzo', merienda: 'la merienda', cena: 'la cena', snack: 'un snack' };
 const ICONO_MOMENTO = { desayuno: IC.taza, almuerzo: IC.comida, merienda: IC.taza, cena: IC.luna, snack: IC.manzana, pre_entreno: IC.rayo, post_entreno: IC.pesa };
 const persona = (id) => estado.personas.find((p) => p.id === id);
 const caras = (ids) => `<span class="caras">${ids.map((id) => `<span class="caras__una">${cara(persona(id))}</span>`).join('')}</span>`;
@@ -275,7 +300,9 @@ function htmlComidasDia(comidas) {
 
 async function mostrarIdeas(ctx, cont, boton) {
   const yo = ctx.info[0];
-  const clave = `bloque-ideas-${ctx.fecha}-${ctx.despensa.length}`;
+  // Ideas para la comida que toca a esta hora (desayuno, almuerzo, cena…), con la despensa y lo que sueles comer ahí.
+  const momento = momentoPorHora(new Date());
+  const clave = `bloque-ideas-${ctx.fecha}-${momento}-${ctx.despensa.length}`;
   let ideas = null;
   try { const c = JSON.parse(sessionStorage.getItem(clave) ?? 'null'); if (c && Date.now() - c.t < 30 * 60e3 && !boton.dataset.otra) ideas = c.ideas; } catch { /* sin caché */ }
   if (!ideas) {
@@ -293,6 +320,11 @@ async function mostrarIdeas(ctx, cont, boton) {
       falta_hoy: falta,
       entrenos_hoy: yo.eventos.filter((e) => e.tipo !== 'descanso').map((e) => ({ tipo: e.tipo === 'otro' ? e.actividad : e.tipo, hora: e.hora_inicio?.slice(0, 5) ?? null })),
       despensa: ctx.despensa.map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(p.gramos_restantes) })),
+      comida_a_sugerir: MOMENTOS[momento],
+      lo_que_suele_comer_en_esta_comida: (await platoHabitual(momento, 6).catch(() => [])).map((x) => `${x.alimento.nombre} (${Math.round(x.gramos)} g)`),
+      reglas_de_estas_ideas: `Las 3 ideas son SOLO para ${MOMENTOS[momento].toLowerCase()}: comidas típicas de esa hora, nada de otra comida del día. `
+        + 'Al menos una se parece a lo que suele comer en esa comida (lo_que_suele_comer_en_esta_comida), ajustada a lo que le falta hoy. '
+        + 'Usa primero lo que hay en la despensa y marca de_despensa en esos ingredientes.',
       deporte: deporte(estado.equipo?.deporte)?.nombre ?? null,
       dieta: dietaParaIA(),
     };
@@ -751,12 +783,17 @@ function htmlResumen(x, esYo, esHoy = true, mio = esYo) {
     </section>`;
 }
 
-function htmlSnack(s) {
+function htmlSnack(s, k) {
+  const etiqueta = (o) => (o.enCasa ? '<span class="snack__tag snack__tag--casa">Lo tienes en casa</span>'
+    : o.algoEnCasa ? '<span class="snack__tag">Algo hay en casa</span>' : o.habitual ? '<span class="snack__tag">Lo sueles comer</span>' : '');
   return `
     <div class="snack">
       <div class="snack__cabeza"><span class="snack__hora">${esc(s.hora)}</span><strong>${esc(s.titulo)}</strong></div>
       <p class="quieto" style="margin:4px 0 8px">${esc(s.detalle)}</p>
-      <ul class="snack__opciones">${s.opciones.map((o) => `<li>${esc(o.texto)} <span class="quieto">· ${o.carbos} g carb · ${o.proteina} g prot</span></li>`).join('')}</ul>
+      <ul class="snack__opciones">${s.opciones.map((o, j) => `<li class="snack__op">
+        <span class="snack__op-txt">${esc(o.texto)} <span class="quieto">· ${o.carbos} g carb · ${o.proteina} g prot</span>${etiqueta(o)}</span>
+        <button type="button" class="boton boton--chico snack__comer boton--suave" data-comer="${k}:${j}">Comeré esto</button>
+      </li>`).join('')}</ul>
     </div>`;
 }
 

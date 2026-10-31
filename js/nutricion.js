@@ -278,6 +278,17 @@ const A = {
   proteVeg: ['1 scoop de proteína vegetal', 30, 380, 75, 10, 6],
   tostado: ['1 puñado de tostado', 30, 400, 8, 75, 6],
 };
+// Nombre del alimento (para registrarlo) y cómo reconocerlo en la despensa o en lo que sueles comer.
+const NOMBRE = {
+  banana: ['Banana (guineo)', /banana|guineo|platano de seda/], yogurGriego: ['Yogur griego natural', /yogur/], pan: ['Pan blanco', /\bpan\b(?! integral)/],
+  miel: ['Miel', /miel/], quesoFresco: ['Queso fresco', /queso/], avena: ['Avena en hojuelas', /avena/], leche: ['Leche descremada', /\bleche\b(?! de soya)/],
+  galletasArroz: ['Galletas de arroz', /galleta.*arroz/], mani: ['Mantequilla de maní', /man[ií]/], whey: ['Proteína whey (polvo)', /whey|prote[ií]na en polvo|prote[ií]na whey/],
+  pollo: ['Pechuga de pollo a la plancha', /pollo/], arroz: ['Arroz blanco cocido', /arroz(?! integral)/], huevos: ['Huevo entero', /huevo/],
+  claras: ['Clara de huevo', /clara/], panIntegral: ['Pan integral', /pan integral/], naranja: ['Naranja', /naranja/], atun: ['Atún en agua', /at[uú]n/],
+  papa: ['Papa cocida', /\bpapas?\b/], bebida: ['Bebida deportiva', /gatorade|powerade|bebida deportiva|hidratante/], tofu: ['Tofu', /tofu/],
+  lentejas: ['Lenteja cocida', /lenteja/], chochos: ['Chochos', /chocho/], lecheSoya: ['Bebida de soya', /soya|soja/],
+  proteVeg: ['Proteína vegetal (polvo)', /prote[ií]na vegetal/], tostado: ['Tostado', /tostado|canguil/],
+};
 const ANTES = [['banana', 'yogurGriego'], ['pan', 'miel', 'quesoFresco'], ['avena', 'leche', 'banana'], ['galletasArroz', 'mani', 'banana']];
 const DESPUES = [['whey', 'banana', 'leche'], ['pollo', 'arroz'], ['huevos', 'claras', 'panIntegral', 'naranja'], ['atun', 'papa'],
   ['proteVeg', 'banana', 'lecheSoya'], ['lentejas', 'arroz'], ['tofu', 'papa'], ['chochos', 'tostado', 'naranja']];
@@ -289,7 +300,11 @@ function combo(claves) {
     const [, g, kc, pr, ca] = A[clave];
     k += (kc * g) / 100; p += (pr * g) / 100; c += (ca * g) / 100;
   }
-  return { texto: claves.map((x) => A[x][0]).join(' + '), kcal: Math.round(k), proteina: Math.round(p), carbos: Math.round(c) };
+  return {
+    texto: claves.map((x) => A[x][0]).join(' + '), kcal: Math.round(k), proteina: Math.round(p), carbos: Math.round(c),
+    // Para registrarlo con un toque («Comeré esto»).
+    items: claves.map((x) => { const [, g, kc, pr, ca, gr] = A[x]; return { nombre: NOMBRE[x]?.[0] ?? A[x][0], gramos: g, kcal: kc, proteina_g: pr, carbohidratos_g: ca, grasas_g: gr }; }),
+  };
 }
 
 const aMinutos = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
@@ -301,12 +316,17 @@ const DURACION = { derby: 120, gym: 60, otro: 60, clase: 60 };
  * Snacks para los entrenos de hoy que todavía no pasaron (o terminaron hace poco).
  * @returns {Array<{ cuando, hora, titulo, detalle, opciones }>}
  */
-export function snacksDelDia(eventos, pesoKg, ahora = new Date(), encaja = () => true) {
+export function snacksDelDia(eventos, pesoKg, ahora = new Date(), encaja = () => true, { enCasa = [], habitual = [] } = {}) {
   if (!pesoKg) return [];
-  // Solo combinaciones que encajan con su dieta (vegetariana, sin lácteos…); siempre quedan 2 a 4.
+  // Cuánto encaja cada ingrediente con lo que hay en la despensa (vale más) y con lo que sueles comer.
+  const tiene = (lista, clave) => { const re = NOMBRE[clave]?.[1]; return !!re && lista.some((n) => re.test(String(n).toLowerCase())); };
+  const puntaje = (cl) => cl.reduce((a, x) => a + (tiene(enCasa, x) ? 2 : tiene(habitual, x) ? 1 : 0), 0) / cl.length;
+  // Solo combinaciones que encajan con su dieta (vegetariana, sin lácteos…); primero las que se arman con lo que hay en casa.
   const elegir = (lista, extra = []) => {
-    const ok = [...lista, ...extra].filter((cl) => cl.every((x) => encaja(A[x][0]))).slice(0, 4);
-    return (ok.length ? ok : extra.length ? extra : lista).map(combo);
+    const todas = [...lista, ...extra].filter((cl) => cl.every((x) => encaja(A[x][0])));
+    const base = todas.length ? todas : (extra.length ? extra : lista);
+    return base.map((cl, i) => ({ cl, i, p: puntaje(cl) })).sort((a, b) => b.p - a.p || a.i - b.i).slice(0, 3)
+      .map(({ cl }) => ({ ...combo(cl), enCasa: cl.every((x) => tiene(enCasa, x)), algoEnCasa: cl.some((x) => tiene(enCasa, x)), habitual: cl.some((x) => tiene(habitual, x)) }));
   };
   const minAhora = ahora.getHours() * 60 + ahora.getMinutes();
   const lista = [];
@@ -329,7 +349,7 @@ export function snacksDelDia(eventos, pesoKg, ahora = new Date(), encaja = () =>
       lista.push({
         cuando: 'durante', hora: aHora(inicio), titulo: 'Durante el derby',
         detalle: 'Agua en cada pausa. Si es intenso y pasa de una hora, 30 a 40 g de carbohidratos por hora.',
-        opciones: [combo(['bebida']), combo(['banana'])],
+        opciones: elegir([['bebida'], ['banana']]),
       });
     }
     if (minAhora < fin + 180 && intenso) {
