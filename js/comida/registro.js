@@ -47,6 +47,7 @@ export function abrirRegistro(ctx, op = {}) {
   const items = (op.items ?? op.comida?.comida_items?.map((i) => ({
     alimento: i.alimento, gramos: Number(i.gramos), persona: i.persona_id ?? null,
     paquete: i.despensa_id ? ctx.despensa.find((p) => p.id === i.despensa_id) ?? { id: i.despensa_id, gramos_restantes: 0 } : null,
+    gramosDespensa: i.gramos_despensa != null ? Number(i.gramos_despensa) : null,
   })) ?? []).map((x) => ({ ...x }));
 
   const sugerido = fecha === hoyISO() ? momentoSugerido(ctx.info?.[0]?.eventos ?? []) : null;
@@ -127,6 +128,7 @@ export function abrirRegistro(ctx, op = {}) {
         ],
       })}</div>
       <div id="r-items" class="pila" style="gap:8px"></div>
+      <button type="button" class="chip chip--mini chip--sugerencia reg__de-despensa" id="r-de-despensa" hidden>+ Lo cociné con lo de la despensa</button>
       <div class="consejo" id="r-consejo" hidden>
         <div class="consejo__meta" id="r-meta"></div>
       </div>
@@ -155,6 +157,15 @@ export function abrirRegistro(ctx, op = {}) {
 
   const agregar = (alimento, gramos, paquete = null, persona = null) => { items.push({ alimento, gramos: Number(gramos) || 100, paquete, persona }); pintarItems(); };
   const paqueteDe = (alimento) => ctx.despensa.find((p) => p.alimento_id === alimento.id && Number(p.gramos_restantes) > 0);
+  // El producto de la despensa que nombró la IA («Arroz blanco», «Huevos»): por nombre, el que tenga más usado primero.
+  const sinTilde = (t) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const paquetePorNombre = (nombre) => {
+    const n = sinTilde(nombre);
+    if (!n) return null;
+    const hay = ctx.despensa.filter((p) => Number(p.gramos_restantes) > 0);
+    return hay.find((p) => sinTilde(p.alimento?.nombre) === n)
+      ?? hay.find((p) => sinTilde(p.alimento?.nombre).includes(n) || n.includes(sinTilde(p.alimento?.nombre))) ?? null;
+  };
 
   let vistos = new Set();
   const pintarItems = () => {
@@ -171,7 +182,7 @@ export function abrirRegistro(ctx, op = {}) {
           <div class="item-comida__texto">
             <span class="item-comida__titulo"><strong>${esc(it.alimento.nombre)}</strong>${dueno ? `<span class="dueno dueno--${dueno.id === estado.yo.id ? 'yo' : 'otro'}">${esc(dueno.id === estado.yo.id ? 'Yo' : dueno.nombre)}</span>` : ''}</span>
             <span class="quieto">${esc(cantidadTexto(it.alimento, it.gramos))}${cantidadTexto(it.alimento, it.gramos).endsWith(' g') ? '' : ` · ${g(it.gramos)}`} · ${kc(m.kcal)} kcal · P ${Math.round(m.proteina)}</span>
-            ${paquete ? `<button type="button" class="chip chip--mini chip--activo" data-despensa="${i}">De la despensa ✓</button>`
+            ${paquete ? `<button type="button" class="chip chip--mini chip--activo" data-despensa="${i}">De la despensa ✓${it.gramosDespensa && Math.round(it.gramosDespensa) !== Math.round(it.gramos) ? ` · usa ${g(it.gramosDespensa)}${paquete.alimento?.nombre && sinTilde(paquete.alimento.nombre) !== sinTilde(it.alimento.nombre) ? ` de ${esc(paquete.alimento.nombre.toLowerCase())}` : ''}` : ''}</button>`
               : enDespensa ? `<button type="button" class="chip chip--mini" data-despensa="${i}">Descontar de la despensa</button>` : ''}
           </div>
           <div class="paso-mini">
@@ -186,6 +197,7 @@ export function abrirRegistro(ctx, op = {}) {
     $('#r-total').innerHTML = items.length ? `<strong>${kc(total.kcal)}</strong> kcal · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}` : '';
     $('#r-seguir').disabled = !items.length;
     $('#r-resumen').hidden = !items.length;
+    if ($('#r-de-despensa')) $('#r-de-despensa').hidden = !(ctx.despensa?.some((p) => Number(p.gramos_restantes) > 0) && items.length && items.some((it) => !it.paquete));
     if ($('#r-vacio')) $('#r-vacio').hidden = !!items.length || chatLog.length > 0;
     if ($('#r-rapidos')) $('#r-rapidos').hidden = items.length > 2;
     $('#r-ia') && conectado?.actualizar();
@@ -197,7 +209,7 @@ export function abrirRegistro(ctx, op = {}) {
     cont.querySelectorAll('[data-mas]').forEach((b) => b.addEventListener('click', () => { const it = items[Number(b.dataset.mas)]; it.gramos += pasoDe(it); pintarItems(); }));
     cont.querySelectorAll('[data-menos]').forEach((b) => b.addEventListener('click', () => { const it = items[Number(b.dataset.menos)]; it.gramos = Math.max(1, it.gramos - pasoDe(it)); pintarItems(); }));
     cont.querySelectorAll('[data-quitar]').forEach((b) => b.addEventListener('click', () => { items.splice(Number(b.dataset.quitar), 1); pintarItems(); }));
-    cont.querySelectorAll('[data-despensa]').forEach((b) => b.addEventListener('click', () => { const it = items[Number(b.dataset.despensa)]; it.paquete = it.paquete ? null : paqueteDe(it.alimento); pintarItems(); }));
+    cont.querySelectorAll('[data-despensa]').forEach((b) => b.addEventListener('click', () => { const it = items[Number(b.dataset.despensa)]; it.paquete = it.paquete ? null : paqueteDe(it.alimento); it.gramosDespensa = null; pintarItems(); }));
   };
 
   // ¿Alcanza para esta comida? Se mira la parte del día que le toca (desayuno ~25 %, almuerzo ~33 %…).
@@ -324,7 +336,8 @@ export function abrirRegistro(ctx, op = {}) {
       ...(microsBajos ? { vitaminas_minerales_bajos_esta_semana: microsBajos } : {}),
       hogar: hogarContexto() ?? [],
       personas_del_hogar: estado.personas.map((p) => p.nombre),
-      despensa: (ctx.despensa ?? []).slice(0, 30).map((p) => p.alimento?.nombre).filter(Boolean),
+      despensa: (ctx.despensa ?? []).filter((p) => p.alimento?.nombre && Number(p.gramos_restantes) > 0).slice(0, 40)
+        .map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(Number(p.gramos_restantes)) })),
     };
   };
   const preguntarPlato = async (mensaje) => {
@@ -349,8 +362,15 @@ export function abrirRegistro(ctx, op = {}) {
     }
     for (const x of r.agregar ?? []) {
       const persona = x.persona ? idDe(x.persona) : null;
-      items.push({ alimento: await aAlimento(x), gramos: Number(x.gramos) || 100, paquete: null, persona });
+      const paquete = x.despensa ? paquetePorNombre(x.despensa) : null;
+      items.push({ alimento: await aAlimento(x), gramos: Number(x.gramos) || 100, paquete, gramosDespensa: paquete && x.gramos_despensa ? Number(x.gramos_despensa) : null, persona });
       if (persona && !quien.includes(persona)) quien = [...quien, persona];
+    }
+    // «Lo hice con lo de la despensa»: lo que ya estaba en el plato se descuenta de esos productos.
+    for (const x of r.de_despensa ?? []) {
+      const it = itemPorNombre(x.nombre);
+      const paquete = paquetePorNombre(x.despensa);
+      if (it && paquete) { it.paquete = paquete; it.gramosDespensa = x.gramos_despensa ? Number(x.gramos_despensa) : null; }
     }
     const nuevos = (r.quien ?? []).map(idDe).filter(Boolean);
     if (nuevos.length) quien = [...new Set(nuevos)];
@@ -678,6 +698,14 @@ export function abrirRegistro(ctx, op = {}) {
       boton.disabled = false;
     }
   };
+
+  // Atajo: descontar de la despensa lo que se usó (la IA ve qué producto es cada cosa y cuánto se gastó en crudo).
+  d.addEventListener('click', (e) => {
+    const b = e.target.closest('#r-de-despensa');
+    if (!b) return;
+    b.hidden = true;
+    hablar('Lo cociné con lo de la despensa: descuenta lo que usé.');
+  });
 
   pintarPaso1();
   // La primera vez: Bloq pregunta cómo comes (no asume que comes carne) y lo guarda.

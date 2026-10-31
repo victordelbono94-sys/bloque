@@ -56,6 +56,13 @@ no asumas que come carne: sugiere opciones variadas (huevos, legumbres, lácteos
 VITAMINAS Y MINERALES: si el contexto trae "vitaminas_minerales_bajos_esta_semana", al sugerir o revisar prefiere alimentos que los aporten
 (usa la lista que viene, adaptada a lo que hay en la despensa) y dilo en una frase corta ("súmale aguacate: esta semana vas bajo en potasio").
 No lo menciones si no viene al caso. Nunca recomiendes suplementos con dosis; para hierro, vitamina D o B12 sugiere confirmarlo con un examen.
+DESPENSA: el contexto trae "despensa" (lo que hay en casa, con su nombre exacto y cuánto queda). Si la persona dice que lo cocinó o lo sacó
+de la despensa ("lo hice con lo de la despensa", "usé el arroz de la casa", "todo de la despensa", "los huevos son de la despensa"),
+en cada alimento de agregar que salga de un producto de la despensa pon despensa = el nombre EXACTO de ese producto y
+gramos_despensa = cuánto se gasta de ese producto tal como está guardado (si está crudo y el plato va cocido, conviértelo:
+200 g de arroz cocido ≈ 70 g de arroz crudo, 150 g de fideos cocidos ≈ 60 g secos, 1 taza de lenteja cocida ≈ 70 g secas).
+Si eso aplica a lo que YA está en el plato, ponlo en cambios.de_despensa (nombre del plato, producto de la despensa y gramos_despensa).
+Si no lo dice, no asumas que salió de la despensa.
 DEPORTE: adapta lo que sugieres al deporte del contexto y a los entrenos del día (deportes largos o de mucho sudor: carbohidratos, líquidos y sal/electrolitos;
 fuerza: proteína repartida).
 ${PORCIONES}`;
@@ -68,7 +75,8 @@ const ESQUEMA = {
   type: "OBJECT",
   properties: {
     respuesta: { type: "STRING" },
-    agregar: { type: "ARRAY", items: { type: "OBJECT", properties: { nombre: { type: "STRING" }, gramos: { type: "NUMBER" }, persona: { type: "STRING" }, cantidad: { type: "STRING" }, ...NUT }, required: ["nombre", "gramos", ...REQ_NUT] } },
+    agregar: { type: "ARRAY", items: { type: "OBJECT", properties: { nombre: { type: "STRING" }, gramos: { type: "NUMBER" }, persona: { type: "STRING" }, cantidad: { type: "STRING" }, despensa: { type: "STRING" }, gramos_despensa: { type: "NUMBER" }, ...NUT }, required: ["nombre", "gramos", ...REQ_NUT] } },
+    de_despensa: { type: "ARRAY", items: { type: "OBJECT", properties: { nombre: { type: "STRING" }, despensa: { type: "STRING" }, gramos_despensa: { type: "NUMBER" } }, required: ["nombre", "despensa"] } },
     quitar: { type: "ARRAY", items: { type: "OBJECT", properties: { nombre: { type: "STRING" }, persona: { type: "STRING" } }, required: ["nombre"] } },
     ajustar: { type: "ARRAY", items: { type: "OBJECT", properties: { nombre: { type: "STRING" }, gramos: { type: "NUMBER" }, persona: { type: "STRING" } }, required: ["nombre", "gramos"] } },
     asignar: { type: "ARRAY", items: { type: "OBJECT", properties: { alimento: { type: "STRING" }, persona: { type: "STRING" }, gramos: { type: "NUMBER" } }, required: ["alimento", "persona", "gramos"] } },
@@ -124,6 +132,7 @@ const nut = (a: Record<string, unknown>) => ({
 });
 const alimento = (a: Record<string, unknown>) => ({
   nombre: texto(a.nombre, 120), gramos: num(a.gramos, 1, 3000, 100), persona: texto(a.persona, 60) || null, cantidad: texto(a.cantidad, 40) || null, ...nut(a),
+  despensa: texto(a.despensa, 120) || null, gramos_despensa: a.gramos_despensa != null ? num(a.gramos_despensa, 1, 5000, 0) || null : null,
 });
 const par = (a: Record<string, unknown>) => ({ alimento: texto(a.alimento, 120), persona: texto(a.persona, 60), gramos: num(a.gramos, 0, 3000, 0) });
 
@@ -138,6 +147,8 @@ function limpiar(d: Record<string, unknown>) {
     quitar: lista(d.quitar, 16).map((a) => ({ nombre: texto(a.nombre, 120), persona: texto(a.persona, 60) || null })).filter((a) => a.nombre),
     ajustar: lista(d.ajustar, 16).map((a) => ({ nombre: texto(a.nombre, 120), gramos: num(a.gramos, 1, 3000, 100), persona: texto(a.persona, 60) || null })).filter((a) => a.nombre),
     asignar: lista(d.asignar, 24).map(par).filter((a) => a.alimento && a.persona),
+    de_despensa: lista(d.de_despensa, 16).map((a) => ({ nombre: texto(a.nombre, 120), despensa: texto(a.despensa, 120),
+      gramos_despensa: a.gramos_despensa != null ? num(a.gramos_despensa, 1, 5000, 0) || null : null })).filter((a) => a.nombre && a.despensa),
     quien: (Array.isArray(d.quien) ? d.quien : []).map((x) => texto(x, 60)).filter(Boolean).slice(0, 8),
     reparto: ["compartido", "cada_uno", "distinto"].includes(String(d.reparto)) ? d.reparto : null,
     momento: ["desayuno", "almuerzo", "merienda", "cena", "snack", "pre_entreno", "post_entreno"].includes(String(d.momento)) ? d.momento : null,

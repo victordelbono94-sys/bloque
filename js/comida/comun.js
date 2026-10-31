@@ -179,7 +179,7 @@ export async function borrarComida(c) {
     const p = datos(await sb.from('despensa').select('gramos_restantes, gramos_total').eq('id', i.despensa_id).maybeSingle());
     if (p) {
       await sb.from('despensa').update({
-        gramos_restantes: Math.min(Number(p.gramos_total), Number(p.gramos_restantes) + Number(i.gramos)), terminado_en: null,
+        gramos_restantes: Math.min(Number(p.gramos_total), Number(p.gramos_restantes) + Number(i.gramos_despensa ?? i.gramos)), terminado_en: null,
       }).eq('id', i.despensa_id);
     }
   }
@@ -203,6 +203,8 @@ export async function guardarComida(c) {
     datos(await sb.from('comida_items').insert(c.items.map((it) => ({
       comida_id: comida.id, alimento_id: it.alimento.id, gramos: Math.round(it.gramos * 10) / 10, despensa_id: it.paquete?.id ?? null,
       persona_id: it.persona ?? null,
+      // Lo que se gastó del producto guardado (ej. 70 g de arroz crudo para 200 g cocido); si no, los mismos gramos.
+      ...(it.paquete && it.gramosDespensa ? { gramos_despensa: Math.round(it.gramosDespensa * 10) / 10 } : {}),
     }))));
   } catch (err) { await deshacer(err); }
   const total = sumar(c.items.map((it) => macros(it.alimento, it.gramos)));
@@ -223,7 +225,7 @@ export async function guardarComida(c) {
   for (const it of c.items.filter((x) => x.paquete)) {
     const p = datos(await sb.from('despensa').select('gramos_restantes').eq('id', it.paquete.id).maybeSingle());
     if (!p) continue;
-    const quedan = Math.max(0, Number(p.gramos_restantes) - it.gramos);
+    const quedan = Math.max(0, Number(p.gramos_restantes) - (it.gramosDespensa || it.gramos));
     await sb.from('despensa').update({ gramos_restantes: quedan, terminado_en: quedan < 1 ? new Date().toISOString() : null }).eq('id', it.paquete.id);
   }
   // Vitaminas y minerales: se calculan en segundo plano los alimentos nuevos (para el resumen de la semana).

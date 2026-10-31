@@ -109,12 +109,6 @@ async function vistaDia(app, fecha) {
     </header>
 
 
-    ${info.length > 1 ? `
-      <div class="ver-persona" role="tablist" aria-label="De quién ver el día">
-        ${info.map((x) => `<button type="button" class="ver-persona__op" role="tab" data-ver="${esc(x.p.id)}" aria-selected="${x === visto}">
-          <span class="ver-persona__cara">${cara(x.p)}</span><span>${esc(x === yo ? 'Yo' : x.p.nombre)}</span>
-        </button>`).join('')}
-      </div>` : ''}
     <div id="resumen-persona" class="resumen-persona">${htmlResumen(visto, true, esHoy && visto === yo, visto === yo)}</div>
 
     <button type="button" class="tarjeta semana-comida" id="ver-semana-comida" aria-label="Ver tu semana">
@@ -173,16 +167,27 @@ async function vistaDia(app, fecha) {
     }, { root: document.getElementById('app'), rootMargin: '200px 0px' });
     obs.observe(contIdeas);
   }
-  app.querySelectorAll('[data-ver]').forEach((b) => b.addEventListener('click', () => {
+  // De quién ver: las caras del hogar van dentro de la tarjeta de arriba (la tuya y la de cada uno).
+  const resumenCont = app.querySelector('#resumen-persona');
+  const ponerCaras = (x) => {
+    if (info.length < 2) return;
+    const tarjeta = resumenCont.querySelector('section');
+    tarjeta?.classList.add('con-caras');
+    tarjeta?.insertAdjacentHTML('afterbegin', `<div class="yo-caras resumen-caras" role="tablist" aria-label="De quién ver el día">${info.map((y) =>
+      `<button type="button" class="yo-caras__op" role="tab" data-ver="${esc(y.p.id)}" aria-selected="${y === x}" aria-label="${esc(y === yo ? 'Yo' : y.p.nombre)}" title="${esc(y.p.nombre)}">${cara(y.p)}</button>`).join('')}</div>`);
+  };
+  ponerCaras(visto);
+  resumenCont.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ver]');
+    if (!b || b.getAttribute('aria-selected') === 'true') return;
     try { sessionStorage.setItem('bloque-comida-ver', b.dataset.ver); } catch { /* nada */ }
     const x = info.find((y) => y.p.id === b.dataset.ver);
-    app.querySelectorAll('[data-ver]').forEach((o) => o.setAttribute('aria-selected', String(o === b)));
-    const cont = app.querySelector('#resumen-persona');
-    cont.classList.remove('fundido'); void cont.offsetWidth;
-    cont.innerHTML = htmlResumen(x, true, esHoy && x === yo, x === yo);
-    cont.classList.add('fundido');
+    resumenCont.classList.remove('fundido'); void resumenCont.offsetWidth;
+    resumenCont.innerHTML = htmlResumen(x, true, esHoy && x === yo, x === yo);
+    ponerCaras(x);
+    resumenCont.classList.add('fundido');
     if (x === yo) conectarAgua(app);
-  }));
+  });
 }
 
 const ICONO_MOMENTO = { desayuno: IC.taza, almuerzo: IC.comida, merienda: IC.taza, cena: IC.luna, snack: IC.manzana, pre_entreno: IC.rayo, post_entreno: IC.pesa };
@@ -452,16 +457,30 @@ async function vistaDespensa(app, { enHoja = false } = {}) {
     </section>`;
 
   const revision = app.querySelector('#dp-revision');
+  // Lo que todavía no se agregó: cada mensaje o foto nuevo SUMA a la lista (no la reemplaza), hasta tocar «Agregar».
+  const pendientes = [];
   const procesar = async (cuerpo, boton) => {
     boton.disabled = true;
-    revision.innerHTML = '';
-    burbujaPensando(revision, cuerpo.imagen ? ['Mirando la foto…', 'Reconociendo productos…', 'Calculando envases…'] : ['Leyendo tu lista…', 'Buscando cada producto…'], 'chatia__msg chatia__msg--ia chatia__msg--solo');
+    leerRevision(revision, pendientes);
+    revision.querySelector('.dp-nota')?.remove();
+    const espera = document.createElement('div');
+    revision.prepend(espera);
+    burbujaPensando(espera, cuerpo.imagen ? ['Mirando la foto…', 'Reconociendo productos…', 'Calculando envases…'] : ['Leyendo tu lista…', 'Buscando cada producto…'], 'chatia__msg chatia__msg--ia chatia__msg--solo');
     try {
       const { productos = [] } = await gemini('despensa', cuerpo);
-      if (!productos.length) { revision.innerHTML = '<p class="quieto" style="margin:0">No encontré comida ahí. Prueba de nuevo.</p>'; return; }
-      revisarProductos(revision, productos, recargar);
+      espera.remove();
+      if (!productos.length) {
+        revision.insertAdjacentHTML('afterbegin', '<p class="quieto dp-nota" style="margin:0 0 8px">No encontré comida ahí. Prueba de nuevo.</p>');
+        return;
+      }
+      for (const p of productos) {
+        const igual = pendientes.find((x) => x.nombre.toLowerCase() === p.nombre.toLowerCase() && Math.round(x.gramos_envase) === Math.round(p.gramos_envase));
+        if (igual) igual.envases += p.envases; else pendientes.push({ ...p, elegido: true });
+      }
+      revisarProductos(revision, pendientes, recargar);
     } catch (err) {
-      revision.innerHTML = `<p class="quieto" style="margin:0">${esc(err.message)}</p>`;
+      espera.remove();
+      revision.insertAdjacentHTML('afterbegin', `<p class="quieto dp-nota" style="margin:0 0 8px">${esc(err.message)}</p>`);
     } finally { boton.disabled = false; }
   };
   const dpCompositor = conectarCompositor(app, {
@@ -525,14 +544,26 @@ function htmlGrupo(gr) {
     </button>`;
 }
 
+// Lo que la persona ya cambió en la lista (cantidades, tildes) se guarda antes de volver a dibujarla.
+function leerRevision(cont, productos) {
+  productos.forEach((p, i) => {
+    const sel = cont.querySelector(`[data-sel="${i}"]`);
+    if (!sel) return;
+    p.elegido = sel.checked;
+    p.envases = Math.max(1, Number(cont.querySelector(`[data-env="${i}"]`)?.value) || p.envases);
+    p.gramos_envase = Math.max(1, Number(cont.querySelector(`[data-gr="${i}"]`)?.value) || p.gramos_envase);
+  });
+}
+
 // Revisar lo que leyó Gemini antes de guardarlo en la despensa.
 function revisarProductos(cont, productos, alGuardar) {
   cont.innerHTML = `
     <div class="revision">
-      <p class="seccion__titulo" style="margin:4px 0 8px">Revisa y agrega</p>
+      <p class="seccion__titulo" style="margin:4px 0 2px">Por agregar · ${productos.length}</p>
+      <p class="ayuda" style="margin:0 0 8px">Todavía no está en la despensa. Puedes seguir escribiendo o mandando fotos: se suma a esta lista.</p>
       ${productos.map((p, i) => `
         <label class="revision__fila">
-          <input type="checkbox" data-sel="${i}" checked>
+          <input type="checkbox" data-sel="${i}" ${p.elegido === false ? '' : 'checked'}>
           <span class="revision__nombre"><strong>${esc(p.nombre)}</strong>${p.marca ? ` <span class="quieto">· ${esc(p.marca)}</span>` : ''}</span>
           <span class="revision__cant">
             <input type="number" inputmode="numeric" min="1" max="60" value="${p.envases}" data-env="${i}" aria-label="Cuántos">
@@ -540,7 +571,7 @@ function revisarProductos(cont, productos, alGuardar) {
             <input type="number" inputmode="decimal" min="1" value="${Math.round(p.gramos_envase)}" data-gr="${i}" aria-label="Gramos de cada uno"> g
           </span>
         </label>`).join('')}
-      <button type="button" class="boton boton--chico" id="dp-agregar" style="margin-top:10px">Agregar a la despensa</button>
+      <button type="button" class="boton boton--bloque" id="dp-agregar" style="margin-top:12px">Agregar ${productos.length === 1 ? 'a la despensa' : `los ${productos.length} a la despensa`}</button>
     </div>`;
   cont.querySelector('#dp-agregar').addEventListener('click', async (e) => {
     const boton = e.currentTarget;
@@ -582,7 +613,7 @@ async function cargarDia(fecha) {
     sb.from('objetivos').select('*').in('persona_id', ids).order('desde', { ascending: false }).then(datos),
     sb.from('sesiones_banda').select('persona_id, calorias, calorias_estimadas, inicio, fin, tipo, fc_promedio, confirmado').or('confirmado.is.null,confirmado.neq.nada').in('persona_id', ids)
       .gte('inicio', desde.toISOString()).lte('inicio', hasta.toISOString()).then(datos),
-    sb.from('comidas').select('*, comida_items(id, gramos, despensa_id, persona_id, alimento:alimentos(*)), porciones(*)')
+    sb.from('comidas').select('*, comida_items(id, gramos, gramos_despensa, despensa_id, persona_id, alimento:alimentos(*)), porciones(*)')
       .eq('hogar_id', hogar).eq('fecha', fecha).order('hora', { nullsFirst: true }).then(datos),
     sb.from('despensa').select('*, alimento:alimentos(*)').eq('hogar_id', hogar).is('terminado_en', null)
       .order('agregado_en', { ascending: false }).then(datos),

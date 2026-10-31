@@ -2284,3 +2284,6 @@ body:has(.fab-ia) #app { padding-bottom: calc(var(--nav-alto) + 104px + env(safe
 /* Al bajar para mostrar algo que se abrió: que no quede tapado por la cabecera ni por el menú de abajo. */
 details, .checkin { scroll-margin-top: 96px; scroll-margin-bottom: calc(var(--nav-alto) + env(safe-area-inset-bottom) + 24px); }
 dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }
+/* Alimentación: las caras del hogar dentro de la tarjeta de arriba */
+.dia-comida.con-caras { position: relative; }
+.resumen-caras { position: absolute; top: 14px; right: 14px; z-index: 1; margin: 0; }
