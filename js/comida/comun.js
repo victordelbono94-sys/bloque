@@ -145,6 +145,26 @@ export async function habitualesAhora(hasta = 6, ahora = new Date()) {
   });
 }
 
+/** Lo que sueles comer en este momento del día (desayuno, almuerzo, cena…): los alimentos que más se repiten,
+ *  con su cantidad de siempre. Solo lo tuyo o lo compartido de los últimos 45 días; necesita al menos 2 comidas. */
+export async function platoHabitual(momento, hasta = 4) {
+  const desde = new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
+  const filas = datos(await sb.from('comida_items').select('gramos, persona_id, comida_id, alimento:alimentos(*), comida:comidas!inner(fecha, momento, hogar_id)')
+    .eq('comida.hogar_id', estado.yo.hogar_id).eq('comida.momento', momento).gte('comida.fecha', desde).limit(500));
+  const mias = filas.filter((f) => f.alimento && (!f.persona_id || f.persona_id === estado.yo.id));
+  const comidas = new Set(mias.map((f) => f.comida_id)).size;
+  if (comidas < 2) return [];
+  const por = new Map();
+  for (const f of mias) {
+    const x = por.get(f.alimento.id) ?? { alimento: f.alimento, comidas: new Set(), gramos: [] };
+    x.comidas.add(f.comida_id); x.gramos.push(Number(f.gramos));
+    por.set(f.alimento.id, x);
+  }
+  // Lo que aparece en al menos un tercio de esas comidas (y como mínimo 2 veces).
+  return [...por.values()].filter((x) => x.comidas.size >= Math.max(2, comidas / 3)).sort((a, b) => b.comidas.size - a.comidas.size)
+    .slice(0, hasta).map((x) => { const gs = x.gramos.sort((a, b) => a - b); return { alimento: x.alimento, gramos: gs[Math.floor(gs.length / 2)] }; });
+}
+
 export async function frecuentes(hasta = 10) {
   const desde = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   const filas = datos(await sb.from('comida_items').select('gramos, alimento:alimentos(*), comida:comidas!inner(fecha, hogar_id)')

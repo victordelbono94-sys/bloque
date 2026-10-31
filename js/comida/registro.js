@@ -14,7 +14,7 @@ import { deporte } from '../deportes.js';
 import { IC } from '../iconos.js';
 import { tieneDieta, dietaParaIA, guardarDieta, dialogoDieta, TIPOS } from '../dieta.js';
 import {
-  MOMENTOS, PARTE_COMIDA, momentoPorHora, momentoSugerido, kc, g, cantidadTexto, gemini, fotoBase64, aAlimento,
+  MOMENTOS, PARTE_COMIDA, momentoPorHora, momentoSugerido, kc, g, cantidadTexto, gemini, fotoBase64, aAlimento, platoHabitual,
   guardarComida, borrarComida,
 } from './comun.js';
 
@@ -33,6 +33,7 @@ const guardarQuien = (momento, v) => { try { localStorage.setItem(`bloque-quien2
 // ¿Es una pregunta sobre el plato (y no comida para agregar)? «me falta proteína», «está bien así», «¿le agrego arroz?»…
 const esPregunta = (t) => /[?¿]/.test(t)
   || /^(qu[eé]|c[oó]mo|cu[aá]nt|est[aá]|estoy|me (falta|sobra|conviene|alcanza)|falta|sobra|deber|puedo|podr|sugi|recomi|alcanza|conviene|le (agrego|pongo|falta|sumo)|es (suficiente|mucho|poco)|tengo|hay|revis|dime|ayud|opina|vale)/i.test(t.trim());
+const PREGUNTAS = ['¿Qué comiste?', '¿Qué vas a comer ahora?', '¿Qué compraste en el súper?', '¿Qué cocinaste hoy?', '¿Qué hay en tu plato?'];
 const REVISION = 'Revisa este plato para mi objetivo: ¿cómo voy de proteína, carbohidratos y verduras? Si falta algo, dime qué agregar y cuánto; si sobra, qué quitar.';
 const nombreCorto = (a) => a.nombre.replace(/\s*\(.*\)\s*/g, '').replace(/ entero$/i, '').slice(0, 24);
 
@@ -64,6 +65,41 @@ export function abrirRegistro(ctx, op = {}) {
   let sopaOfrecida = false; // ya se ofreció sumar el caldo de una sopa
   const chatLog = [];      // la conversación con la IA sobre este plato (se mantiene al volver del paso 2)
   const historial = [];    // lo mismo en texto, para que la IA recuerde lo hablado
+  let paraDespensa = false; // la próxima foto es de lo que compraste (va a la despensa, no al plato)
+  // Lo que sueles comer en este momento del día (se carga en segundo plano y actualiza la sugerencia).
+  let habitual = [];
+  const EJEMPLOS = {
+    desayuno: '2 huevos revueltos, pan y café con leche', almuerzo: 'Arroz, pollo a la plancha y ensalada', merienda: 'Yogur con granola y una fruta',
+    cena: 'Tortilla de verduras y una tostada', snack: 'Una manzana y un puñado de maní', pre_entreno: 'Una banana con mantequilla de maní',
+    post_entreno: 'Batido de proteína con banana',
+  };
+  const ejemploHabitual = () => (habitual.length
+    ? `Lo de siempre: ${habitual.map((x, i) => (i ? x.alimento.nombre.toLowerCase() : x.alimento.nombre)).join(', ').replace(/, ([^,]*)$/, ' y $1')}`
+    : EJEMPLOS[momento] ?? EJEMPLOS.almuerzo);
+  const cargarHabitual = () => platoHabitual(momento).then((h) => {
+    habitual = h;
+    const b = d.querySelector('[data-sugerencia="1"]');
+    if (b) b.lastChild.textContent = ejemploHabitual();
+  }).catch(() => {});
+  // El título va cambiando: qué comiste, qué vas a comer, qué compraste…
+  let giro = null;
+  const animarPreguntas = () => {
+    clearInterval(giro);
+    const h = d.querySelector('#r-vacio h3');
+    if (!h || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let k = 0;
+    giro = setInterval(() => {
+      if (!h.isConnected || h.closest('[hidden]')) return clearInterval(giro);
+      h.classList.add('pregunta--sale');
+      setTimeout(() => {
+        k = (k + 1) % PREGUNTAS.length;
+        h.textContent = PREGUNTAS[k];
+        h.classList.remove('pregunta--sale');
+        h.classList.add('pregunta--entra');
+        setTimeout(() => h.classList.remove('pregunta--entra'), 420);
+      }, 260);
+    }, 2800);
+  };
 
   const d = abrirDialogo(`
     <div class="reg chatia">
@@ -92,6 +128,7 @@ export function abrirRegistro(ctx, op = {}) {
     d.querySelectorAll('#r-momento [data-valor]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.valor === momento)));
   };
   pintarMomento();
+  if (!editar) cargarHabitual();
   $('#r-momento-btn').addEventListener('click', () => {
     const fila = $('#r-momento');
     fila.hidden = !fila.hidden;
@@ -102,6 +139,7 @@ export function abrirRegistro(ctx, op = {}) {
     pintarMomento();
     $('#r-momento').hidden = true;
     pintarMeta();
+    if (!editar) cargarHabitual();
   }));
 
   // ---------- Paso 1: qué comiste ----------
@@ -119,11 +157,13 @@ export function abrirRegistro(ctx, op = {}) {
       <div class="chatia__resumen" id="r-resumen" hidden><span>Tu plato</span><span class="comida-total" id="r-total"></span></div>
       <div id="r-buscar" hidden></div>
       <div id="r-vacio">${htmlBienvenida({
-        titulo: '¿Qué comiste?',
-        texto: 'Mándale una foto del plato o escríbelo como se lo contarías a alguien. La IA arma el plato y te dice cómo vas.',
+        titulo: PREGUNTAS[0],
+        texto: 'Mándale una foto del plato o escríbelo como se lo contarías a alguien. Bloq arma el plato, te dice cómo vas y guarda en la despensa lo que compraste.',
         sugerencias: [
           { icono: IC.camara, texto: 'Sacar una foto del plato' },
-          { icono: IC.nota, texto: '2 huevos revueltos, pan y café con leche' },
+          { icono: IC.nota, texto: ejemploHabitual() },
+          { icono: IC.camara, texto: 'Foto de lo que compraste en el súper' },
+          { icono: IC.frasco, texto: 'Hacer una lista para la despensa' },
           { icono: IC.pregunta, texto: '¿Qué me conviene comer ahora?' },
         ],
       })}</div>
@@ -210,7 +250,7 @@ export function abrirRegistro(ctx, op = {}) {
     if ($('#r-vacio')) $('#r-vacio').hidden = !!items.length || chatLog.length > 0;
     if ($('#r-rapidos')) $('#r-rapidos').hidden = items.length > 2;
     $('#r-ia') && conectado?.actualizar();
-    if ($('#r-texto') && !fotoPendiente) $('#r-texto').placeholder = items.length ? 'Agrega, corrige o pregunta…' : '¿Qué comiste?';
+    if ($('#r-texto') && !fotoPendiente) $('#r-texto').placeholder = items.length ? 'Agrega, corrige o pregunta…' : 'Qué comiste o compraste…';
     pintarMeta();
 
     const pasoDe = (it) => (Number(it.alimento.porcion_g) > 0 && Number(it.alimento.porcion_g) <= 250 ? Number(it.alimento.porcion_g) : 10);
@@ -568,7 +608,7 @@ export function abrirRegistro(ctx, op = {}) {
   const quitarFoto = () => {
     fotoPendiente = null;
     $('#r-foto').hidden = true;
-    $('#r-texto').placeholder = items.length ? 'Agrega, corrige o pregunta…' : '¿Qué comiste?';
+    $('#r-texto').placeholder = items.length ? 'Agrega, corrige o pregunta…' : 'Qué comiste o compraste…';
     mensaje(null);
     conectado?.actualizar();
   };
@@ -579,7 +619,23 @@ export function abrirRegistro(ctx, op = {}) {
     boton.disabled = true;
     conectado?.limpiar();
     try {
-      if (fotoPendiente) {
+      if (fotoPendiente && (paraDespensa || /despensa|compr[eé]|supermercado|\bs[uú]per\b|mercado|para la casa|para guardar/i.test(texto))) {
+        // Foto de lo que compraste: no es un plato, va a la despensa (se confirma antes de guardar).
+        const foto = fotoPendiente;
+        paraDespensa = false;
+        mensaje(null);
+        if ($('#r-vacio')) $('#r-vacio').hidden = true;
+        burbuja('yo', `<img class="chatia__foto" src="${URL.createObjectURL(foto)}" alt="Foto de lo que compraste">${texto ? `<span>${esc(texto)}</span>` : ''}`);
+        quitarFoto();
+        const viendo = burbujaPensando($('#r-chat'), ['Mirando lo que compraste…', 'Reconociendo productos…', 'Calculando envases…']);
+        let r;
+        try { r = await gemini('despensa', { imagen: await fotoBase64(foto), tipo: 'image/jpeg', texto: texto || undefined }); }
+        catch (err) { viendo.terminar(`<span class="quieto">${esc(err.message)}</span>`); return; }
+        if (!r.productos?.length) { viendo.terminar('<span>No reconocí productos en la foto. Prueba más cerca o escríbelos.</span>'); return; }
+        viendo.terminar(`<span>${esc(`Veo ${r.productos.length} ${r.productos.length === 1 ? 'producto' : 'productos'}. Revisa y guárdalos en la despensa.`)}</span>`);
+        historial.push({ rol: 'yo', texto: 'Te mando una foto de lo que compré para la despensa.' }, { rol: 'ia', texto: `Para la despensa: ${r.productos.map((x) => x.nombre).join(', ')}.` });
+        mostrarParaDespensa(r.productos.map((x) => ({ ...x, envases: Number(x.envases) || 1, gramos_envase: Number(x.gramos_envase) || 100 })));
+      } else if (fotoPendiente) {
         // Con foto: primero se lee el plato. Lo que escribiste va como aclaración del plato, salvo que sea una pregunta.
         const pregunta = esPregunta(texto) ? texto : '';
         mensaje(null);
@@ -618,8 +674,23 @@ export function abrirRegistro(ctx, op = {}) {
     d.querySelectorAll('[data-sugerencia]').forEach((b) => b.addEventListener('click', () => {
       const k = Number(b.dataset.sugerencia);
       if (k === 0) return $('#r-camara').click();
-      hablar(['', '2 huevos revueltos, pan y café con leche', '¿Qué me conviene comer ahora?'][k]);
+      if (k === 1) {
+        // Lo de siempre: entra directo al plato (sin esperar a la IA); si no hay historial, se lo cuenta a la IA.
+        if (habitual.length) { habitual.forEach((x) => agregar(x.alimento, x.gramos)); return; }
+        return hablar(ejemploHabitual());
+      }
+      if (k === 2) { paraDespensa = true; return $('#r-camara').click(); }
+      if (k === 3) {
+        const t = $('#r-texto');
+        t.value = 'Para la despensa: ';
+        t.focus();
+        t.setSelectionRange(t.value.length, t.value.length);
+        t.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+      hablar('¿Qué me conviene comer ahora?');
     }));
+    animarPreguntas();
     for (const id of ['#r-camara', '#r-galeria']) {
       $(id).addEventListener('change', (e) => {
         const f = e.target.files?.[0];
@@ -627,10 +698,10 @@ export function abrirRegistro(ctx, op = {}) {
         if (!f) return;
         fotoPendiente = f;
         mostrarFoto(f);
-        mensaje('Si le pusiste algo que no se ve, escríbelo. Después toca enviar.');
+        mensaje(paraDespensa ? 'Foto de lo que compraste: toca enviar y te muestro qué guardo en la despensa.' : 'Si le pusiste algo que no se ve, escríbelo. Después toca enviar.');
       });
     }
-    $('#r-foto-quitar').addEventListener('click', quitarFoto);
+    $('#r-foto-quitar').addEventListener('click', () => { paraDespensa = false; quitarFoto(); });
     let buscadorListo = false;
     $('#r-buscar-abrir').addEventListener('click', () => {
       const cont = $('#r-buscar');

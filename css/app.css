@@ -2290,3 +2290,8 @@ dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }
 .item-comida__guardar { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; margin-top: 4px; padding: 2px 0; border: 0; background: none; color: var(--gris); font: inherit; font-size: 12px; cursor: pointer; }
 .item-comida__guardar .icono-ui { width: 14px; height: 14px; }
 .item-comida__guardar:active { color: var(--volt); }
+/* Agregar comida: la pregunta de la bienvenida va cambiando */
+.chatia__bienvenida h3 { transition: opacity .26s ease, transform .26s var(--suave), filter .26s ease; }
+.chatia__bienvenida h3.pregunta--sale { opacity: 0; transform: translateY(-10px); filter: blur(4px); }
+.chatia__bienvenida h3.pregunta--entra { animation: pregunta-entra .42s var(--suave) both; }
+@keyframes pregunta-entra { from { opacity: 0; transform: translateY(12px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
