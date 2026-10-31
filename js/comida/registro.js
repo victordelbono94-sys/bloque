@@ -165,6 +165,9 @@ export function abrirRegistro(ctx, op = {}) {
           { icono: IC.camara, texto: 'Foto de lo que compraste en el súper' },
           { icono: IC.frasco, texto: 'Hacer una lista para la despensa' },
           { icono: IC.pregunta, texto: '¿Qué me conviene comer ahora?' },
+          ...(sobrasDisponibles().length ? [{ icono: IC.frasco, texto: sobrasDisponibles().length === 1
+            ? `Comer la sobra: ${sobrasDisponibles()[0].alimento.nombre.toLowerCase()} (${g(sobrasDisponibles()[0].gramos_restantes)})`
+            : `Comer sobras (${sobrasDisponibles().length})` }] : []),
         ],
       })}</div>
       <div id="r-items" class="pila" style="gap:8px"></div>
@@ -207,9 +210,10 @@ export function abrirRegistro(ctx, op = {}) {
       ?? hay.find((p) => sinTilde(p.alimento?.nombre).includes(n) || n.includes(sinTilde(p.alimento?.nombre))) ?? null;
   };
 
-  // Guardar en la despensa (lo que no se come ahora): queda disponible para descontar después.
-  const guardarEnDespensa = async (lista) => {
-    const filas = lista.map((x) => ({ hogar_id: estado.yo.hogar_id, alimento_id: x.alimento.id, gramos_total: Math.round(x.gramos_total), gramos_restantes: Math.round(x.gramos_total) }));
+  const sobrasDisponibles = () => (ctx.despensa ?? []).filter((p) => p.es_sobra && Number(p.gramos_restantes) > 0);
+  // Guardar en la despensa (lo que no se come ahora): queda disponible para descontar después. Con sobra = comida ya hecha.
+  const guardarEnDespensa = async (lista, { sobra = false } = {}) => {
+    const filas = lista.map((x) => ({ hogar_id: estado.yo.hogar_id, alimento_id: x.alimento.id, gramos_total: Math.round(x.gramos_total), gramos_restantes: Math.round(x.gramos_total), es_sobra: sobra }));
     const nuevos = datos(await sb.from('despensa').insert(filas).select('*, alimento:alimentos(*)'));
     ctx.despensa = [...(ctx.despensa ?? []), ...nuevos];
     return nuevos;
@@ -385,7 +389,8 @@ export function abrirRegistro(ctx, op = {}) {
         proteina_ideal_por_comida_g: b.info.metas.proteinaPorComida,
         meta_de_esta_comida: { kcal: b.meta, proteina_g: b.protMeta, carbos_g: Math.round((b.info.metas.carbos ?? 0) * (PARTE_COMIDA[momento] ?? 0.25)) },
         diagnostico_de_la_app: [b.diag.kcal, ...b.diag.notas.filter((n) => n !== b.diag.kcal)].filter(Boolean),
-        regla: 'Lo que respondas tiene que coincidir con diagnostico_de_la_app (es lo que la persona ve en pantalla): si dice que está bien por su objetivo, no lo retes; usa esos mismos números.',
+        regla: 'diagnostico_de_la_app es lo que la persona ve en pantalla AHORA, con el plato y el reparto de antes de este mensaje y solo para quien escribe. '
+          + 'Si no cambias nada, coincide con él. Si en este mensaje cambias el plato, quién come o el reparto, recalcula con lo nuevo para CADA persona (hogar) y di la verdad aunque el diagnóstico de antes dijera otra cosa.',
         le_quedaban_kcal_antes_de_esta_comida: Math.round(b.disponible),
         le_quedan_kcal_en_el_dia_despues: Math.round(b.restoDia),
         quemo_entrenando_hoy_kcal: b.quemado,
@@ -396,8 +401,9 @@ export function abrirRegistro(ctx, op = {}) {
       ...(microsBajos ? { vitaminas_minerales_bajos_esta_semana: microsBajos } : {}),
       hogar: hogarContexto() ?? [],
       personas_del_hogar: estado.personas.map((p) => p.nombre),
-      despensa: (ctx.despensa ?? []).filter((p) => p.alimento?.nombre && Number(p.gramos_restantes) > 0).slice(0, 40)
+      despensa: (ctx.despensa ?? []).filter((p) => !p.es_sobra && p.alimento?.nombre && Number(p.gramos_restantes) > 0).slice(0, 40)
         .map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(Number(p.gramos_restantes)) })),
+      sobras: sobrasDisponibles().map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(Number(p.gramos_restantes)), guardada: String(p.agregado_en ?? '').slice(0, 10) })),
     };
   };
   const preguntarPlato = async (mensaje) => {
@@ -426,6 +432,21 @@ export function abrirRegistro(ctx, op = {}) {
       items.push({ alimento: await aAlimento(x), gramos: Number(x.gramos) || 100, paquete, gramosDespensa: paquete && x.gramos_despensa ? Number(x.gramos_despensa) : null, persona });
       if (persona && !quien.includes(persona)) quien = [...quien, persona];
     }
+    // «Guarda una pizza para mañana»: esa parte sale del plato y queda como sobra (en la despensa).
+    const guardadas = [];
+    for (const x of r.guardar_sobras ?? []) {
+      const it = itemPorNombre(x.nombre);
+      if (!it) continue;
+      const gramos = Math.min(it.gramos, Number(x.gramos) || it.gramos / 2);
+      if (gramos < 1) continue;
+      it.gramos -= gramos;
+      if (it.gramos < 1) items.splice(items.indexOf(it), 1);
+      guardadas.push({ alimento: it.alimento, gramos_total: gramos });
+    }
+    if (guardadas.length) {
+      await guardarEnDespensa(guardadas, { sobra: true });
+      r.respuesta = `${r.respuesta ?? ''} Guardé en sobras: ${guardadas.map((x) => `${x.alimento.nombre.toLowerCase()} (${g(x.gramos_total)})`).join(', ')}. Te la sugiero en la próxima comida.`.trim();
+    }
     // «Lo hice con lo de la despensa»: lo que ya estaba en el plato se descuenta de esos productos.
     for (const x of r.de_despensa ?? []) {
       const it = itemPorNombre(x.nombre);
@@ -440,6 +461,29 @@ export function abrirRegistro(ctx, op = {}) {
     if (r.momento && MOMENTOS[r.momento]) { momento = r.momento; pintarMomento(); }
     pintarItems();
   };
+  // Los números de verdad después de los cambios: cuánto le toca a cada uno frente a lo que le quedaba del día.
+  // Así la respuesta de la IA nunca queda sola si el plato es demasiado (y se ofrece guardar lo que sobra).
+  const TOLERANCIA = { perder_grasa: 100, recomposicion: 200, mantenimiento: 250, cardio: 250, masa_muscular: 400 };
+  const revisarReparto = (yaGuardo) => {
+    if (!items.length) return { html: '' };
+    const partes = porPersona();
+    const filas = partes.map(([id, m]) => {
+      const x = ctx.info?.find((y) => y.p.id === id);
+      if (!x?.metas?.ok) return null;
+      const antes = op.comida?.porciones?.find((y) => y.persona_id === id);
+      const quedaba = Math.round(x.metas.kcal - x.comido.kcal + Number(antes?.kcal ?? 0));
+      const exceso = Math.round(m.kcal - quedaba);
+      return { id, nombre: id === estado.yo.id ? 'Tú' : x.p.nombre, kcal: Math.round(m.kcal), quedaba, exceso, pasado: exceso > (TOLERANCIA[x.foco] ?? 250) };
+    }).filter(Boolean);
+    if (!filas.length || (filas.length === 1 && !filas[0].pasado)) return { html: '' };
+    const linea = filas.map((f) => `<strong>${esc(f.nombre)}</strong> ${kc(f.kcal)} kcal <span class="quieto">(${f.id === estado.yo.id ? 'te' : 'le'} quedaban ${kc(Math.max(0, f.quedaba))})</span>${f.pasado ? ` <span class="ia-msg__pasado">+${kc(f.exceso)}</span>` : ' ✓'}`).join(' · ');
+    const pasado = filas.some((f) => f.pasado);
+    return {
+      pasado,
+      html: `<p class="ia-msg__nota">Así queda: ${linea}</p>${pasado && !yaGuardo ? '<div class="chips"><button type="button" class="chip chip--mini chip--sugerencia" data-sobras>Ajustar y guardar lo que sobra para mañana</button></div>' : ''}`,
+    };
+  };
+
   // «Esta docena de huevos es para la despensa»: se muestra lo que va a guardar y se confirma.
   const mostrarParaDespensa = (lista) => {
     setTimeout(() => {
@@ -495,7 +539,9 @@ export function abrirRegistro(ctx, op = {}) {
       if (r.a_despensa?.length) mostrarParaDespensa(r.a_despensa);
       if (aguaSumada >= 50) r.respuesta = `${r.respuesta ?? ''} 💧 Suma ~${Math.round(aguaSumada / 10) * 10} ml a tu agua del día.`.trim();
       historial.push({ rol: 'ia', texto: [r.respuesta, r.duda].filter(Boolean).join(' ') });
+      const chequeo = revisarReparto(!!(r.guardar_sobras?.length));
       const html = `<span>${esc(r.respuesta || 'Listo.')}</span>
+        ${chequeo.html}
         ${r.sugerencias?.length ? `<div class="chips">${r.sugerencias.map((x, k) =>
           `<button type="button" class="chip chip--mini chip--sugerencia" data-sug="${k}">+ ${esc(x.cantidad || `${Math.round(x.gramos)} g`)} ${esc(x.nombre.toLowerCase())} · ${kc(x.kcal * x.gramos / 100)} kcal</button>`).join('')}</div>` : ''}
         ${htmlReparto(r.reparto_sugerido)}
@@ -510,6 +556,10 @@ export function abrirRegistro(ctx, op = {}) {
           pensando.querySelector('.ia-msg__opciones')?.remove();
           hablar(r.opciones[Number(btn.dataset.opcion)]);
         }));
+        pensando.querySelector('[data-sobras]')?.addEventListener('click', (e) => {
+          e.currentTarget.remove();
+          hablar('Ajusta las porciones para que cada uno cumpla su meta del día y guarda lo que sobra para mañana como sobras.');
+        });
         pensando.querySelector('#r-aplicar-reparto')?.addEventListener('click', (e) => { aplicarReparto(r.reparto_sugerido); e.currentTarget.closest('.reparto-ia').remove(); });
         pensando.querySelectorAll('[data-sug]').forEach((btn) => btn.addEventListener('click', async () => {
           btn.disabled = true;
@@ -537,6 +587,7 @@ export function abrirRegistro(ctx, op = {}) {
         peso_kg: x.med?.peso_kg != null ? Number(x.med.peso_kg) : null,
         grasa_pct: x.med?.grasa_pct != null ? Number(x.med.grasa_pct) : null,
         meta_de_esta_comida: { kcal: Math.round(x.metas.kcal * parte), proteina_g: Math.round(x.metas.proteina * parte), carbos_g: Math.round((x.metas.carbos ?? 0) * parte) },
+        le_toca_de_este_plato_ahora: (() => { const m = porPersona().find(([id]) => id === x.p.id)?.[1]; return m ? { kcal: Math.round(m.kcal), proteina_g: Math.round(m.proteina) } : null; })(),
         le_quedan_en_el_dia_sin_este_plato: {
           kcal: Math.round(x.metas.kcal - x.comido.kcal + Number(antes?.kcal ?? 0)),
           proteina_g: Math.round(x.metas.proteina - x.comido.proteina),
@@ -688,8 +739,17 @@ export function abrirRegistro(ctx, op = {}) {
         t.dispatchEvent(new Event('input', { bubbles: true }));
         return;
       }
+      if (k === 5) {
+        // Las sobras: si hay una, entra directo (y se descuenta); si hay varias, Bloq pregunta cuál.
+        const lista = sobrasDisponibles();
+        if (lista.length === 1) { const p0 = lista[0]; items.push({ alimento: p0.alimento, gramos: Number(p0.gramos_restantes), paquete: p0, persona: null }); pintarItems(); return; }
+        return hablar('Comeré las sobras');
+      }
       hablar('¿Qué me conviene comer ahora?');
     }));
+    // La sugerencia de sobras va primero (es lo más probable si guardaste algo).
+    const sobra = d.querySelector('[data-sugerencia="5"]');
+    if (sobra) sobra.parentElement.prepend(sobra);
     animarPreguntas();
     for (const id of ['#r-camara', '#r-galeria']) {
       $(id).addEventListener('change', (e) => {

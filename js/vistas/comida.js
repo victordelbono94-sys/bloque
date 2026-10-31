@@ -135,6 +135,7 @@ async function vistaDia(app, fecha) {
         <summary class="acordeon__cab"><h2 class="seccion__titulo" id="t-ahora" style="margin:0">¿Qué como ahora?</h2><span class="acordeon__flecha" aria-hidden="true"></span></summary>
         <div class="acordeon__cuerpo"><div class="acordeon__interior">
           <div class="tarjeta pila" style="gap:12px">
+            ${htmlSobrasAhora(d.despensa)}
             ${snacks.map((x, k) => htmlSnack(x, k)).join('')}
             <div class="fila fila--entre ideas__cab"><p class="seccion__titulo ideas__titulo" style="margin:0">${ICONO_CHISPA} Ideas para ${PARA_MOMENTO[momentoPorHora(new Date())] ?? 'ahora'}</p><button type="button" class="enlace-chico enlace-boton" id="ver-despensa">Ver despensa ›</button></div>
             <div id="ideas" class="pila" style="gap:12px"></div>
@@ -152,6 +153,10 @@ async function vistaDia(app, fecha) {
   conectarPedirDespensa(app, despensaYRecargar);
   conectarPedirDieta(app, () => vistaDia(app, fecha));
   conectarAcordeon(app.querySelector('#acordeon-ahora'));
+  app.querySelectorAll('[data-sobra]').forEach((b) => b.addEventListener('click', () => {
+    const p0 = d.despensa.find((x) => x.id === b.dataset.sobra);
+    if (p0) abrirRegistro(ctx, { items: [{ alimento: p0.alimento, gramos: Number(p0.gramos_restantes), paquete: p0, persona: null }], momento: momentoPorHora(new Date()) });
+  }));
   // «Comeré esto»: abre el registro con esos alimentos ya puestos (se descuentan de la despensa si los tienes).
   app.querySelectorAll('[data-comer]').forEach((b) => b.addEventListener('click', async () => {
     const [k, j] = b.dataset.comer.split(':').map(Number);
@@ -320,11 +325,13 @@ async function mostrarIdeas(ctx, cont, boton) {
       falta_hoy: falta,
       entrenos_hoy: yo.eventos.filter((e) => e.tipo !== 'descanso').map((e) => ({ tipo: e.tipo === 'otro' ? e.actividad : e.tipo, hora: e.hora_inicio?.slice(0, 5) ?? null })),
       despensa: ctx.despensa.map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(p.gramos_restantes) })),
+      sobras: ctx.despensa.filter((p) => p.es_sobra && Number(p.gramos_restantes) > 0).map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(p.gramos_restantes) })),
       comida_a_sugerir: MOMENTOS[momento],
       lo_que_suele_comer_en_esta_comida: (await platoHabitual(momento, 6).catch(() => [])).map((x) => `${x.alimento.nombre} (${Math.round(x.gramos)} g)`),
       reglas_de_estas_ideas: `Las 3 ideas son SOLO para ${MOMENTOS[momento].toLowerCase()}: comidas típicas de esa hora, nada de otra comida del día. `
         + 'Al menos una se parece a lo que suele comer en esa comida (lo_que_suele_comer_en_esta_comida), ajustada a lo que le falta hoy. '
-        + 'Usa primero lo que hay en la despensa y marca de_despensa en esos ingredientes.',
+        + 'Usa primero lo que hay en la despensa y marca de_despensa en esos ingredientes. '
+        + 'Si hay sobras (comida ya hecha que guardó), la primera idea es comerlas, completándolas con lo que falte para su meta.',
       deporte: deporte(estado.equipo?.deporte)?.nombre ?? null,
       dieta: dietaParaIA(),
     };
@@ -462,6 +469,7 @@ async function vistaDespensa(app, { enHoja = false } = {}) {
   const despensa = datos(await sb.from('despensa').select('*, alimento:alimentos(*)').eq('hogar_id', estado.yo.hogar_id)
     .is('terminado_en', null).order('agregado_en', { ascending: false }));
   const fecha = hoyISO();
+  const sobras = despensa.filter((x) => x.es_sobra), productos = despensa.filter((x) => !x.es_sobra);
   const recargar = () => vistaDespensa(app, { enHoja });
 
   app.innerHTML = `
@@ -480,9 +488,12 @@ async function vistaDespensa(app, { enHoja = false } = {}) {
     </section>
 
     <section class="seccion" aria-labelledby="t-casa">
-      <h2 class="seccion__titulo" id="t-casa">En casa${despensa.length ? ` · ${despensa.length}` : ''}</h2>
-      ${despensa.length ? `
-        <div class="tarjeta pila" style="gap:12px">${agrupar(despensa).map(htmlGrupo).join('')}</div>
+      ${sobras.length ? `<h2 class="seccion__titulo">Sobras · ${sobras.length}</h2>
+        <div class="tarjeta pila sobras" style="gap:12px;margin-bottom:18px">${agrupar(sobras).map(htmlGrupo).join('')}
+          <p class="ayuda" style="margin:0">Comida ya hecha que guardaste. Bloq te la sugiere en la próxima comida.</p></div>` : ''}
+      <h2 class="seccion__titulo" id="t-casa">En casa${productos.length ? ` · ${productos.length}` : ''}</h2>
+      ${productos.length ? `
+        <div class="tarjeta pila" style="gap:12px">${agrupar(productos).map(htmlGrupo).join('')}</div>
         <button type="button" class="boton boton--sec boton--bloque" id="ideas-btn" style="margin-top:12px">${ICONO_CHISPA} Ideas para cocinar con esto</button>
         <div id="ideas" class="pila" style="gap:12px;margin-top:12px"></div>`
         : '<p class="vacio">La despensa está vacía. Escribe arriba lo que compraste.</p>'}
@@ -781,6 +792,21 @@ function htmlResumen(x, esYo, esHoy = true, mio = esYo) {
       ${htmlAgua(x, esHoy, mio)}
       ${notas.length ? `<ul class="notas-comida">${notas.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
     </section>`;
+}
+
+// Sobras guardadas: lo primero que conviene comer (ya está hecho).
+function htmlSobrasAhora(despensa) {
+  const sobras = (despensa ?? []).filter((x) => x.es_sobra && Number(x.gramos_restantes) > 0);
+  if (!sobras.length) return '';
+  return `
+    <div class="snack">
+      <div class="snack__cabeza"><span class="snack__hora">${IC.frasco}</span><strong>Tienes sobras</strong></div>
+      <p class="quieto" style="margin:4px 0 8px">Ya están hechas: buena opción para ${PARA_MOMENTO[momentoPorHora(new Date())] ?? 'ahora'}.</p>
+      <ul class="snack__opciones">${sobras.map((x) => `<li class="snack__op">
+        <span class="snack__op-txt">${esc(x.alimento.nombre)} <span class="quieto">· ${g(x.gramos_restantes)} · ${kc(macros(x.alimento, Number(x.gramos_restantes)).kcal)} kcal</span></span>
+        <button type="button" class="boton boton--chico snack__comer boton--suave" data-sobra="${esc(x.id)}">Comeré esto</button>
+      </li>`).join('')}</ul>
+    </div>`;
 }
 
 function htmlSnack(s, k) {

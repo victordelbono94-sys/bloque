@@ -34,6 +34,8 @@ Lee el mensaje y decide:
 3) Si dice quién comió o cómo ("esto es para los dos", "comimos los dos", "solo yo", "cada uno su plato", "lo compartimos",
    "la ensalada es de Sant"): pon quien (nombres exactos del hogar; "yo" = quien escribe) y reparto
    ("compartido" se divide en partes iguales, "cada_uno" un plato igual por persona, "distinto" cada cosa a su dueño con cambios.asignar).
+   OJO con "cada_uno": significa que CADA persona come el plato ENTERO tal como está. Si el plato tiene 2 pizzas y dicen
+   "una pizza cada uno", eso es repartir el plato entre los dos ("compartido"), NO "cada_uno" (que serían 2 pizzas para cada uno).
 4) Si pregunta ("¿me falta proteína?", "está bien así", "qué le agrego") o pide revisar: responde con números frente a la meta de esta comida,
    mirando proteína, carbohidratos, grasas y verduras o fibra. Si falta algo, ofrece 1 a 3 "sugerencias" concretas (NO las agregues tú:
    la persona las toca para sumarlas). Si conviene repartir distinto entre el hogar, ponlo en reparto_sugerido.
@@ -56,6 +58,18 @@ no asumas que come carne: sugiere opciones variadas (huevos, legumbres, lácteos
 VITAMINAS Y MINERALES: si el contexto trae "vitaminas_minerales_bajos_esta_semana", al sugerir o revisar prefiere alimentos que los aporten
 (usa la lista que viene, adaptada a lo que hay en la despensa) y dilo en una frase corta ("súmale aguacate: esta semana vas bajo en potasio").
 No lo menciones si no viene al caso. Nunca recomiendes suplementos con dosis; para hierro, vitamina D o B12 sugiere confirmarlo con un examen.
+LOS NÚMEROS DE VERDAD: diagnostico_de_la_app y le_toca_de_este_plato_ahora son del plato ANTES de lo que cambies en este mensaje.
+Si cambias el plato, quién come o el reparto, calcula cuánto le toca a CADA persona con lo nuevo y compáralo con
+le_quedan_en_el_dia_sin_este_plato de cada uno (en hogar). Nunca digas "está bien" sin hacer esa cuenta para cada uno.
+MUCHA COMIDA: si a alguien su parte le pasa claramente de lo que le queda en el día (más de ~400 kcal si su objetivo es ganar masa,
+~200 si es recomposición, ~100 si es bajar de peso), díselo con números y propone cuánto comer cada uno y cuánto guardar para
+otro día como sobra (ej. "Coman una pizza entre los dos y guarden la otra para el almuerzo de mañana"). Ofrécelo en "opciones"
+(ej. "Sí, guardar 1 pizza para mañana") y NO lo apliques hasta que acepte. Cuando acepte o lo pida ("guarda la mitad para mañana",
+"lo que sobre es para mañana"), pon en guardar_sobras el nombre exacto del alimento del plato y cuántos gramos se guardan
+(la app los saca del plato y los guarda como sobra), y ajusta quién come y el reparto de lo que queda.
+SOBRAS: el contexto trae "sobras" (comida ya hecha que guardaron). Si dice "las sobras", "lo que sobró de anoche", "la pizza de ayer",
+agrégalo con despensa = el nombre exacto de la sobra y gramos = lo que quede (o lo que diga), y valores por 100 g iguales a los de la sobra.
+Si hay varias sobras y no queda claro cuál, pregunta en "duda" con una opción por sobra.
 DESPENSA: el contexto trae "despensa" (lo que hay en casa, con su nombre exacto y cuánto queda). Si la persona dice que lo cocinó o lo sacó
 de la despensa ("lo hice con lo de la despensa", "usé el arroz de la casa", "todo de la despensa", "los huevos son de la despensa"),
 en cada alimento de agregar que salga de un producto de la despensa pon despensa = el nombre EXACTO de ese producto y
@@ -81,6 +95,7 @@ const ESQUEMA = {
     respuesta: { type: "STRING" },
     agregar: { type: "ARRAY", items: { type: "OBJECT", properties: { nombre: { type: "STRING" }, gramos: { type: "NUMBER" }, persona: { type: "STRING" }, cantidad: { type: "STRING" }, despensa: { type: "STRING" }, gramos_despensa: { type: "NUMBER" }, ...NUT }, required: ["nombre", "gramos", ...REQ_NUT] } },
     de_despensa: { type: "ARRAY", items: { type: "OBJECT", properties: { nombre: { type: "STRING" }, despensa: { type: "STRING" }, gramos_despensa: { type: "NUMBER" } }, required: ["nombre", "despensa"] } },
+    guardar_sobras: { type: "ARRAY", items: { type: "OBJECT", properties: { nombre: { type: "STRING" }, gramos: { type: "NUMBER" } }, required: ["nombre", "gramos"] } },
     a_despensa: { type: "ARRAY", items: { type: "OBJECT", properties: { nombre: { type: "STRING" }, envases: { type: "NUMBER" }, gramos_envase: { type: "NUMBER" }, ...NUT }, required: ["nombre", "envases", "gramos_envase", ...REQ_NUT] } },
     quitar: { type: "ARRAY", items: { type: "OBJECT", properties: { nombre: { type: "STRING" }, persona: { type: "STRING" } }, required: ["nombre"] } },
     ajustar: { type: "ARRAY", items: { type: "OBJECT", properties: { nombre: { type: "STRING" }, gramos: { type: "NUMBER" }, persona: { type: "STRING" } }, required: ["nombre", "gramos"] } },
@@ -154,6 +169,7 @@ function limpiar(d: Record<string, unknown>) {
     asignar: lista(d.asignar, 24).map(par).filter((a) => a.alimento && a.persona),
     de_despensa: lista(d.de_despensa, 16).map((a) => ({ nombre: texto(a.nombre, 120), despensa: texto(a.despensa, 120),
       gramos_despensa: a.gramos_despensa != null ? num(a.gramos_despensa, 1, 5000, 0) || null : null })).filter((a) => a.nombre && a.despensa),
+    guardar_sobras: lista(d.guardar_sobras, 8).map((a) => ({ nombre: texto(a.nombre, 120), gramos: num(a.gramos, 1, 5000, 0) })).filter((a) => a.nombre && a.gramos),
     a_despensa: lista(d.a_despensa, 16).map((a) => ({ nombre: texto(a.nombre, 120), envases: num(a.envases, 1, 60, 1),
       gramos_envase: num(a.gramos_envase, 1, 10000, 100), ...nut(a) })).filter((a) => a.nombre),
     quien: (Array.isArray(d.quien) ? d.quien : []).map((x) => texto(x, 60)).filter(Boolean).slice(0, 8),
@@ -204,7 +220,7 @@ Deno.serve(async (req) => {
     let res;
     try { res = limpiar(JSON.parse(salida)); } catch { ultimoError = "respuesta"; continue; }
     // Un reemplazo («no era yuca, eran papas») a veces vuelve solo con «quitar»: se le pide una vez que agregue el nuevo.
-    if (res.quitar.length && !res.agregar.length && !res.a_despensa.length && !res.duda && esReemplazo(mensaje) && Date.now() < limite - 8000) {
+    if (res.quitar.length && !res.agregar.length && !res.a_despensa.length && !res.guardar_sobras.length && !res.duda && esReemplazo(mensaje) && Date.now() < limite - 8000) {
       const otra = await llamar({ ...pedido, contents: [...contents,
         { role: "model", parts: [{ text: salida }] },
         { role: "user", parts: [{ text: `Quitaste ${res.quitar.map((q) => q.nombre).join(", ")} pero no agregaste el alimento correcto. Es un reemplazo: responde de nuevo el JSON completo con quitar Y agregar (el alimento nuevo, con los mismos gramos que tenía el viejo y sus valores por 100 g).` }] }] });
