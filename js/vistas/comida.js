@@ -721,9 +721,11 @@ function datosPersona(p, d) {
 
 function barra(nombre, valor, meta, clase) {
   const pct = meta > 0 ? Math.min(100, (valor / meta) * 100) : 0;
+  // Desde el 90 % de la meta se da por cubierta (la diferencia es menor que el error de cualquier registro).
+  const cubierta = meta > 0 && valor >= meta * 0.9;
   return `
     <div class="macro">
-      <div class="macro__fila"><span>${nombre}</span><span><strong>${Math.round(valor)}</strong> / ${Math.round(meta)} g</span></div>
+      <div class="macro__fila"><span>${nombre}</span><span><strong>${Math.round(valor)}</strong> / ${Math.round(meta)} g${cubierta ? ' ✓' : ''}</span></div>
       <div class="macro__barra"><span class="${clase}" style="width:${pct}%"></span></div>
     </div>`;
 }

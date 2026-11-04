@@ -26,9 +26,13 @@ export function vidaDiariaMedida(historial, basal) {
     const f = s.fecha ?? s.inicio?.slice(0, 10);
     porDia.set(f, (porDia.get(f) ?? 0) + Number(s.calorias ?? 0));
   }
+  // Algunas pulseras (Mi Fitness vía Health Connect) mandan un total del día que no llega ni a
+  // basal + calorías activas (ej. 1933 kcal total con 1387 activas). Ese total no es creíble:
+  // se usa basal + activas, que es lo que el día tuvo como mínimo.
+  const totalDia = (d) => Math.max(Number(d.calorias_totales ?? 0), d.calorias_activas != null ? basal + Number(d.calorias_activas) : 0);
   const sinEntrenos = historial.dias
-    .filter((d) => Number(d.calorias_totales) > basal * 0.9 && Number(d.pasos ?? 0) > 500)
-    .map((d) => Number(d.calorias_totales) - (porDia.get(d.fecha) ?? 0));
+    .filter((d) => totalDia(d) > basal * 0.9 && Number(d.pasos ?? 0) > 500)
+    .map((d) => totalDia(d) - (porDia.get(d.fecha) ?? 0));
   if (sinEntrenos.length < 5) return null;
   const orden = [...sinEntrenos].sort((a, b) => a - b);
   // Sin los extremos (un día de cama o un día de mudanza no deberían mover la meta).
@@ -235,10 +239,11 @@ export function diagnosticoDia({ metas, comido, foco = metas?.foco, hora = new D
   if (faltaP > Math.max(20, metas.proteina * 0.15) && (hora >= 17 || estado !== 'falta')) {
     notas.push(`Te faltan ~${r(faltaP)} g de proteína${estado === 'falta' ? ': una pechuga, un batido o un yogur griego con huevos ayudan a cerrar el día' : ' aunque ya cubriste las calorías: la próxima vez cambia algo de grasa o carbohidrato por proteína'}.`);
   }
-  if (faltaC > Math.max(30, metas.carbos * 0.2) && (hora >= 14 || estado !== 'falta')) {
-    notas.push(estado === 'falta'
-      ? `Para lo que queda, prioriza carbohidratos: te faltan ~${r(faltaC)} g (arroz, papa, fruta, pan).`
-      : `Los carbohidratos quedaron ~${r(faltaC)} g por debajo porque cubriste las calorías con proteína y grasa: no hace falta sumar más.`);
+  if (estado !== 'falta' && faltaC > 10) {
+    // Calorías ya cubiertas: aunque falten pocos carbohidratos, se explica por qué y que no hay que sumar más.
+    notas.push(`Te faltan ~${r(faltaC)} g de carbohidratos porque cubriste las calorías con más proteína y grasa: no hace falta comer más hoy.`);
+  } else if (faltaC > Math.max(30, metas.carbos * 0.2) && hora >= 14) {
+    notas.push(`Para lo que queda, prioriza carbohidratos: te faltan ~${r(faltaC)} g (arroz, papa, fruta, pan).`);
   }
   return { estado, tono, exceso, tolerancia, kcal, notas };
 }
