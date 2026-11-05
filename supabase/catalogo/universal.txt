@@ -1,0 +1,229 @@
+# nombre;sinonimos;kcal;proteina;carbohidratos;grasas;fibra;porciones (nombre=gramos|…)  · valores por 100 g
+# ---- Cereales, panes y harinas
+Arroz blanco cocido;arroz;130;2.7;28.2;0.3;0.4;1 taza=160|1 cucharón=100|1 plato=250
+Arroz blanco crudo;arroz seco;360;6.6;79;0.6;1.3;1 taza=185|1/2 taza=92
+Arroz integral cocido;arroz integral;123;2.7;25.6;1;1.6;1 taza=195|1 cucharón=100
+Arroz con fideo cocido;arroz con fideos;140;3;28;1.5;0.8;1 taza=160|1 plato=250
+Fideos cocidos;pasta cocida,tallarín,espagueti,spaghetti,macarrones;158;5.8;31;0.9;1.8;1 taza=140|1 plato=250
+Fideos secos (pasta);pasta seca,tallarín seco;371;13;75;1.5;3.2;1 porción=80|1 paquete=400
+Pasta integral cocida;fideo integral;149;6;30;1.7;3.9;1 taza=140|1 plato=250
+Quinua cocida;quinoa;120;4.4;21.3;1.9;2.8;1 taza=185|1/2 taza=92
+Avena en hojuelas;avena,quaker;389;16.9;66.3;6.9;10.6;1/2 taza=40|1 cucharada=10|1 taza=80
+Avena cocida con agua;avena cocinada,porridge;71;2.5;12;1.5;1.7;1 taza=234
+Granola;granola;471;10;64;20;7;1/2 taza=50|1 cucharada=12
+Corn flakes;cereal de maíz,hojuelas de maíz,zucaritas;357;7.5;84;0.4;3.3;1 taza=30
+Pan blanco;pan,pan de agua,pan cachito,pan enrollado;265;9;49;3.2;2.7;1 pan=50|1 rebanada=25
+Pan integral;pan de molde integral;247;13;41;3.4;7;1 rebanada=30|1 pan=50
+Pan de molde blanco;pan de sánduche,pan bimbo;266;8;50;3.5;2.4;1 rebanada=28
+Pan de yuca;;330;10;35;16;0.5;1 pan de yuca=40
+Pan francés;baguette;274;9;55;1.5;2.3;1 pan=60
+Croissant;cachito de hojaldre,cruasán;406;8;46;21;2.6;1 croissant=60
+Tortilla de trigo;tortilla mexicana,wrap;306;8;51;7.5;3.5;1 tortilla=45
+Tortilla de maíz;tortilla;218;5.7;45;2.9;6.3;1 tortilla=30
+Galletas de arroz;tortitas de arroz;387;8.2;81.5;2.8;4.2;1 galleta=9
+Galletas de soda;galletas saladas,saltinas,club social;421;9.5;71;10;3;1 paquete=26|1 galleta=6
+Galletas dulces;galletas de chocolate,galletas rellenas,oreo,amor;480;5;68;21;2;1 paquete=40|1 galleta=10
+Harina de trigo;harina;364;10;76;1;2.7;1 taza=125|1 cucharada=8
+Maicena;fécula de maíz,almidón de maíz;381;0.3;91;0.1;0.9;1 cucharada=8
+Choclo cocido;maíz tierno,elote,mazorca;96;3.4;21;1.5;2.4;1 choclo=150|1 taza=145
+Mote cocido;maíz pelado,mote pelado;95;2.5;20;0.9;2.5;1 taza=160|1 porción=120
+Canguil;popcorn,palomitas,poporopo;387;13;78;4.5;15;1 taza=8|1 funda=40
+Tostado;maíz tostado;400;8;75;6;7;1 puñado=30|1 taza=80
+Chifles;chips de verde,plátano frito en láminas;520;2;60;30;4;1 funda=40|1 puñado=25
+# ---- Tubérculos y plátanos
+Papa cocida;papa,patata,papas;87;1.9;20.1;0.1;1.8;1 papa mediana=150|1 papa pequeña=90|1 taza=150
+Papa frita;papas fritas,french fries;312;3.4;41;15;3.8;1 porción=120|1 porción grande=180
+Puré de papa;puré;88;2;15;2.8;1.3;1 taza=210|1 cucharón=120
+Camote cocido;batata,boniato;90;2;20.7;0.2;3.3;1 camote=130|1 taza=200
+Yuca cocida;mandioca;160;1.4;38;0.3;1.8;1 trozo=100|1 taza=200
+Yuca frita;yuca frita;330;1.5;45;16;2;1 porción=120
+Plátano verde cocido;verde cocinado,plátano verde;122;1.3;32;0.4;2.3;1 verde=180|1/2 verde=90
+Plátano maduro cocido;maduro cocinado;116;0.8;31;0.2;2.3;1 maduro=180|1/2 maduro=90
+Plátano maduro frito;maduro frito,maduro en tajadas;250;1;40;10;2.3;1 porción=120|1 tajada=40
+Patacones;tostones,patacón;300;1.5;45;13;2.5;1 patacón=40|1 porción=120
+Melloco cocido;melloco,olluco;60;1.5;13;0.1;1.5;1 taza=150
+Zanahoria blanca cocida;arracacha;100;1;24;0.2;2;1 taza=150
+# ---- Legumbres
+Fréjol cocido;frijol,fréjol rojo,poroto,menestra de fréjol;127;8.7;22.8;0.5;6.4;1 taza=170|1 cucharón=120
+Lenteja cocida;lenteja,menestra de lenteja;116;9;20;0.4;7.9;1 taza=200|1 cucharón=120
+Garbanzo cocido;garbanzos;164;8.9;27.4;2.6;7.6;1 taza=165
+Arveja cocida;arvejas,guisantes,chícharos;84;5.4;15.6;0.2;5.5;1 taza=160
+Habas cocidas;haba;110;7.6;19.6;0.4;5.4;1 taza=170
+Chochos;lupino,tarwi;119;15.6;9.9;2.9;7;1 taza=160|1 porción=100
+Soya texturizada seca;proteína de soya,carve,carne de soya;350;50;30;1;15;1 porción=30|1 taza=90
+Tofu firme;tofu;144;15.8;2.8;8.7;2.3;1 porción=100
+Hummus;puré de garbanzo;166;7.9;14.3;9.6;6;1 cucharada=15|1/4 taza=60
+# ---- Carnes, aves, pescados
+Pechuga de pollo cocida;pollo a la plancha,pechuga asada;165;31;0;3.6;0;1 filete=120|1 pechuga=170
+Pechuga de pollo cruda;pechuga;120;22.5;0;2.6;0;1 filete=150
+Muslo de pollo cocido sin piel;muslo,pierna de pollo;209;26;0;10.9;0;1 muslo=90|1 presa=120
+Pollo frito;pollo broaster,pollo apanado frito;260;24;9;14;0.4;1 presa=150|1 porción=200
+Pollo asado con piel;pollo a la brasa;239;27;0;14;0;1 presa=150|1/4 pollo=250
+Alitas de pollo;alas de pollo;254;24;0;17;0;1 alita=35|1 porción=200
+Pechuga de pollo apanada;milanesa de pollo,pollo apanado;245;20;14;12;0.8;1 milanesa=150
+Carne de res magra cocida;bistec,carne asada,lomo de res;217;30;0;10;0;1 bistec=120|1 porción=150
+Carne de res magra cruda;carne roja;143;21;0;6;0;1 bistec=150
+Carne molida de res cocida;carne picada,carne molida;250;26;0;15;0;1 porción=100|1 taza=150
+Carne molida de res 90/10 cruda;carne molida;176;20;0;10;0;1 porción=120
+Hígado de res cocido;hígado;175;27;5;5;0;1 porción=100
+Lomo de cerdo cocido;cerdo,chuleta,lomo de chancho;242;27;0;14;0;1 chuleta=120
+Lomo de cerdo crudo;cerdo crudo;143;21;0;6;0;1 chuleta=150
+Chuleta de cerdo frita;chuleta frita;290;26;0;20;0;1 chuleta=120
+Tocino;bacon,tocineta;541;37;1.4;42;0;1 lonja=8
+Jamón de pavo;jamón;104;17;2;3;0;1 lonja=20|2 lonjas=40
+Jamón de cerdo;jamón;145;18;1.5;7;0;1 lonja=20
+Salchicha;hot dog,frankfurt,vienesa;290;11;3;26;0;1 salchicha=45
+Chorizo;;455;24;2;38;0;1 chorizo=60
+Mortadela;;311;12;3;28;0;1 lonja=15
+Atún en agua (escurrido);atún al agua;116;25.5;0;0.8;0;1 lata=120|1/2 lata=60
+Atún en aceite (escurrido);atún;198;29;0;8.2;0;1 lata=120|1/2 lata=60
+Sardinas en salsa de tomate;sardina;160;17;2;9;0;1 lata=156|1/2 lata=78
+Tilapia cocida;tilapia;128;26;0;2.7;0;1 filete=120
+Tilapia cruda;;96;20;0;1.7;0;1 filete=150
+Corvina cocida;pescado blanco,corvina;110;23;0;2;0;1 filete=120
+Pescado frito;pescado apanado frito;230;20;8;13;0.3;1 filete=150
+Salmón cocido;salmón;206;22;0;12;0;1 filete=120
+Salmón crudo;;208;20;0;13;0;1 filete=150
+Camarón cocido;camarones;99;24;0.2;0.3;0;1 porción=100|1 taza=145
+Camarón apanado;camarones apanados;242;11;20;12;1;1 porción=120
+Calamar cocido;calamares;92;15.6;3;1.4;0;1 porción=100
+Concha cocida;conchas,ostión;100;16;4;1;0;1 porción=80
+# ---- Huevos y lácteos
+Huevo entero;huevo,huevos;143;12.6;0.7;9.5;0;1 huevo=50|2 huevos=100
+Huevo frito;huevo frito;196;13.6;0.8;15;0;1 huevo=55
+Huevo revuelto;huevos revueltos,perico;166;11;2;12;0;2 huevos=110
+Clara de huevo;claras;52;10.9;0.7;0.2;0;1 clara=33|3 claras=100
+Leche entera;leche;61;3.2;4.8;3.3;0;1 vaso=250|1 taza=240
+Leche semidescremada;leche semi;46;3.3;4.8;1.5;0;1 vaso=250
+Leche descremada;leche light;34;3.4;5;0.1;0;1 vaso=250
+Leche deslactosada entera;leche sin lactosa;60;3.2;4.8;3.1;0;1 vaso=250
+Leche deslactosada descremada;leche sin lactosa light;35;3.4;5;0.1;0;1 vaso=250
+Leche de almendras sin azúcar;bebida de almendra;15;0.6;0.3;1.2;0.3;1 vaso=250
+Bebida de soya;leche de soya;43;3.3;3.5;1.8;0.5;1 vaso=250
+Yogur natural;yogurt natural;61;3.5;4.7;3.3;0;1 vaso=200|1 taza=245
+Yogur griego natural;yogurt griego;97;9;3.6;5;0;1 vaso=170|1 taza=245
+Yogur griego descremado;yogurt griego light;59;10;3.6;0.4;0;1 vaso=170
+Yogur con fruta azucarado;yogurt de sabores,yogurt bebible;95;3;15;2.5;0;1 vaso=200|1 botella=250
+Queso fresco;quesillo,queso de mesa;264;18;3;20;0;1 tajada=30|1 porción=60
+Queso mozzarella;mozzarella;300;22;2.2;22;0;1 tajada=25|1 taza rallado=110
+Queso cheddar;cheddar,queso amarillo;403;25;1.3;33;0;1 tajada=20
+Queso parmesano;parmesano;431;38;4;29;0;1 cucharada=5
+Queso crema;philadelphia;342;6;4;34;0;1 cucharada=15
+Requesón;ricota,ricotta;174;11;3;13;0;1/2 taza=125
+Mantequilla;manteca;717;0.9;0.1;81.1;0;1 cucharadita=5|1 cucharada=14
+Margarina;;717;0.2;0.7;80;0;1 cucharadita=5
+Crema de leche;nata,crema;340;2.1;2.8;36;0;1 cucharada=15
+Helado de crema;helado;207;3.5;24;11;0.7;1 bola=70|1 taza=130
+# ---- Frutas
+Banana (guineo);banana,guineo,plátano de seda;89;1.1;22.8;0.3;2.6;1 banana=120|1 banana grande=150
+Manzana;manzanas;52;0.3;13.8;0.2;2.4;1 manzana=180
+Pera;peras;57;0.4;15;0.1;3.1;1 pera=180
+Naranja;naranjas;47;0.9;11.8;0.1;2.4;1 naranja=140
+Mandarina;mandarinas;53;0.8;13.3;0.3;1.8;1 mandarina=90
+Mango;mangos;60;0.8;15;0.4;1.6;1 mango=200|1 taza=165
+Papaya;papayas;43;0.5;10.8;0.3;1.7;1 taza=145|1 tajada=150
+Piña;ananá;50;0.5;13;0.1;1.4;1 taza=165|1 tajada=85
+Sandía;sandia;30;0.6;7.6;0.2;0.4;1 taza=150|1 tajada=280
+Melón;melones;34;0.8;8.2;0.2;0.9;1 taza=160
+Frutilla;fresas,frutillas;32;0.7;7.7;0.3;2;1 taza=150
+Mora;moras;43;1.4;9.6;0.5;5.3;1 taza=145
+Arándanos;blueberries;57;0.7;14.5;0.3;2.4;1 taza=150
+Uvas;uva;69;0.7;18;0.2;0.9;1 taza=150|1 racimo=100
+Kiwi;kiwis;61;1.1;14.7;0.5;3;1 kiwi=75
+Durazno;melocotón,duraznos;39;0.9;9.5;0.3;1.5;1 durazno=150
+Ciruela;ciruelas;46;0.7;11.4;0.3;1.4;1 ciruela=65
+Limón;limones,jugo de limón;29;1.1;9.3;0.3;2.8;1 limón=60
+Maracuyá;fruta de la pasión,parchita;97;2.2;23.4;0.7;10.4;1 maracuyá=40
+Guayaba;guayabas;68;2.6;14.3;1;5.4;1 guayaba=55
+Coco rallado;coco;354;3.3;15;33;9;1 cucharada=7|1/4 taza=20
+Aguacate;palta,avocado;160;2;8.5;14.7;6.7;1/2 aguacate=100|1 aguacate=200|1 cucharada=15
+Pasas;uvas pasas;299;3.1;79;0.5;3.7;1 cucharada=10|1 puñado=30
+Dátiles;dátil;282;2.5;75;0.4;8;1 dátil=8
+# ---- Verduras
+Brócoli;brocoli;34;2.8;6.6;0.4;2.6;1 taza=90
+Coliflor;;25;1.9;5;0.3;2;1 taza=100
+Espinaca;espinacas;23;2.9;3.6;0.4;2.2;1 taza=30|1 taza cocida=180
+Lechuga;ensalada verde;15;1.4;2.9;0.2;1.3;1 taza=50|1 plato=100
+Tomate;tomate riñón,jitomate;18;0.9;3.9;0.2;1.2;1 tomate=120|1/2 tomate=60
+Pepino;pepinos;15;0.7;3.6;0.1;0.5;1 pepino=200|1/2 pepino=100
+Zanahoria;zanahoria cruda,zanahorias;41;0.9;10;0.2;2.8;1 zanahoria=70|1 taza rallada=110
+Cebolla;cebolla paiteña,cebolla colorada,cebolla perla;40;1.1;9.3;0.1;1.7;1/2 cebolla=60|1 cebolla=120
+Pimiento;pimiento rojo,pimiento verde,ají pimiento;31;1;6;0.3;2.1;1 pimiento=120
+Champiñones;hongos,champiñón;22;3.1;3.3;0.3;1;1 taza=70
+Zucchini;zapallito,calabacín;17;1.2;3.1;0.3;1;1 zucchini=200|1 taza=125
+Zapallo cocido;calabaza,zapallo;20;0.7;4.9;0.1;1.1;1 taza=245
+Vainitas cocidas;ejotes,judías verdes,vainitas;35;1.9;7.9;0.3;3.2;1 taza=125
+Remolacha cocida;betabel,remolacha;44;1.7;10;0.2;2;1 taza=170
+Col;repollo;25;1.3;5.8;0.1;2.5;1 taza=90
+Apio;;16;0.7;3;0.2;1.6;1 tallo=40
+Ajo;;149;6.4;33;0.5;2.1;1 diente=3
+Mix de vegetales congelados;jardinera,menestra de verduras,vegetales mixtos;65;2.5;12;0.5;3.5;1 taza=150|1/2 taza=75
+Ensalada mixta;ensalada;20;1;4;0.2;1.5;1 plato=150|1 porción=100
+# ---- Frutos secos, semillas y grasas
+Maní tostado;maní,cacahuate;585;24;21;50;8;1 puñado=30|1 cucharada=10
+Almendras;almendra;579;21;22;50;12.5;1 puñado=28|10 almendras=12
+Nueces;nuez;654;15;14;65;6.7;1 puñado=28
+Marañón;anacardo,castañas de cajú;553;18;30;44;3.3;1 puñado=28
+Frutos secos mixtos;mix de frutos secos,mix de nueces;607;20;21;54;7;1 puñado=30
+Semillas de chía;chía;486;17;42;31;34;1 cucharada=12
+Linaza;semillas de lino;534;18;29;42;27;1 cucharada=10
+Semillas de girasol;girasol;584;21;20;51;8.6;1 cucharada=9
+Mantequilla de maní;crema de maní,peanut butter;588;25;20;50;6;1 cucharada=16
+Aceite de oliva;oliva;884;0;0;100;0;1 cucharada=13|1 cucharadita=4.5
+Aceite vegetal;aceite,aceite de girasol,aceite de canola;884;0;0;100;0;1 cucharada=13|1 cucharadita=4.5
+Aceite de coco;;862;0;0;100;0;1 cucharada=13
+Mayonesa;mayo;680;1;0.6;75;0;1 cucharada=14|1 cucharadita=5
+# ---- Dulces, salsas y condimentos
+Azúcar;azúcar blanca,azúcar morena,panela;387;0;100;0;0;1 cucharadita=4|1 cucharada=12
+Miel;miel de abeja;304;0.3;82.4;0;0.2;1 cucharada=21|1 cucharadita=7
+Mermelada;jalea;250;0.4;65;0.1;1;1 cucharada=20
+Manjar de leche;dulce de leche,arequipe,cajeta;315;6.8;55;7.4;0;1 cucharada=20
+Chocolate de leche;chocolate;535;7.6;59;30;3.4;1 barra=40|2 cuadritos=20
+Chocolate negro 70%;chocolate amargo;598;7.8;46;43;11;2 cuadritos=20
+Nutella;crema de avellanas;539;6.3;57;31;3.4;1 cucharada=19
+Salsa de tomate;ketchup,kétchup;112;1.7;26;0.2;0.3;1 cucharada=17
+Mostaza;;66;4.4;5.8;4;3.3;1 cucharadita=5
+Salsa BBQ;barbacoa;172;0.8;41;0.6;0.9;1 cucharada=17
+Salsa de soya;sillao,soya,shoyu;53;8;4.9;0.6;0.8;1 cucharada=16
+Ají;ají de casa,salsa de ají;40;1.5;7;0.6;1.5;1 cucharada=15
+Guacamole;;155;2;8.5;14;6;1 cucharada=15|1/4 taza=60
+Gelatina preparada;gelatina,jello;62;1.2;14;0;0;1 taza=240|1 porción=120
+# ---- Bebidas
+Café negro;café,tinto,café pasado,americano;2;0.3;0;0;0;1 taza=240
+Café con leche;café con leche entera,latte;40;2;3;2;0;1 taza=240
+Té;té negro,té verde,aromática,agua aromática;1;0;0.2;0;0;1 taza=240
+Jugo de naranja natural;jugo de naranja;45;0.7;10.4;0.2;0.2;1 vaso=250
+Jugo de fruta con azúcar;jugo natural,batido de fruta en agua;55;0.3;14;0.1;0.3;1 vaso=250
+Batido de fruta con leche;batido,licuado,smoothie;75;2.5;13;1.5;0.5;1 vaso=300
+Gaseosa;cola,coca cola,refresco,soda;42;0;10.6;0;0;1 vaso=250|1 lata=355|1 botella pequeña=500
+Gaseosa sin azúcar;coca cola zero,light,diet;0.4;0;0.1;0;0;1 lata=355
+Agua;agua sola;0;0;0;0;0;1 vaso=250|1 botella=500
+Bebida deportiva;gatorade,powerade;26;0;6.4;0;0;1 botella=500
+Bebida energética;red bull,monster,v220;45;0;11;0;0;1 lata=250
+Cerveza;pilsener,club;43;0.5;3.6;0;0;1 botella=330|1 lata=355|1 botella grande=600
+Vino tinto;vino;85;0.1;2.6;0;0;1 copa=150
+Proteína whey (polvo);proteína,whey,batido de proteína,scoop;400;80;8;6;0;1 scoop=30
+Proteína vegetal (polvo);proteína de arveja,proteína vegana;380;75;10;6;5;1 scoop=30
+Chocolate en polvo;cocoa,chocolisto,nesquik;380;4;85;3;6;1 cucharada=12
+# ---- Comidas rápidas y preparadas (genéricas)
+Pizza de queso;pizza;266;11;33;10;2.3;1 porción=110|2 porciones=220
+Pizza de pepperoni;pizza;298;12;34;13;2.3;1 porción=115
+Hamburguesa sencilla;hamburguesa;254;13;30;9;1.3;1 hamburguesa=150
+Hamburguesa con queso;cheeseburger;265;15;26;12;1.5;1 hamburguesa=180|1 doble=260
+Hot dog con pan;perro caliente,hot dog;290;10;24;17;1;1 hot dog=100
+Sánduche de jamón y queso;sándwich,sandwich,sánduche mixto;260;13;28;11;1.5;1 sánduche=150
+Burrito de carne;burrito;220;10;25;9;3;1 burrito=220
+Lasaña de carne;lasagna;135;8;14;5;1;1 porción=250
+Sushi (roll);maki,sushi;150;5;28;2;1;1 pieza=30|1 roll de 8=240
+Ensalada César;ensalada cesar;180;7;8;14;1.5;1 plato=250
+Sopa de pollo con verduras;caldo de pollo,sopa de pollo;45;3.5;5;1.5;0.8;1 plato=350|1 taza=240
+Crema de verduras;crema de zapallo,crema de brócoli;65;1.8;7;3.5;1.3;1 plato=300|1 taza=240
+Tortilla de huevo con verduras;omelette,tortilla española;155;10;3;11;0.6;1 porción=150
+Arroz chaufa;chaulafán,arroz chino,arroz frito;165;6;24;5;1;1 plato=350|1 porción=250
+Tallarín saltado;tallarín chino,chow mein;160;7;22;5;1.5;1 plato=350
+Empanada al horno de carne;empanada horneada;260;9;27;13;1.5;1 empanada=110
+Torta de chocolate;pastel de chocolate,cake;371;5;50;17;2;1 porción=90
+Pan de chocolate;muffin de chocolate,ponqué;390;6;52;18;2;1 unidad=100
+Donut;dona,rosquilla glaseada;452;5;51;25;1.7;1 donut=60
+Barra de cereal;barrita de granola;400;6;68;12;4;1 barra=25
+Barra de proteína;protein bar;360;30;35;12;6;1 barra=60

@@ -2309,3 +2309,17 @@ dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }
 /* Despensa: productos personales */
 .de-quien { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--volt); background: rgba(198, 244, 50, .12); vertical-align: 2px; }
 .revision__de { min-height: 34px; padding: 0 8px; border-radius: 10px; background: var(--grafito-2); color: var(--tiza); border: 1px solid var(--linea); font: inherit; font-size: 13px; }
+
+/* Registrar comida: buscador primero, «Guardar» fijo abajo, la IA plegada como última opción. */
+.reg__buscar { margin: 4px 0 6px; flex-shrink: 0; }
+.reg__buscar .ba__res { max-height: 42vh; overflow-y: auto; }
+.reg__atajos { margin: 0 0 10px; flex-shrink: 0; }
+.reg__atajos:empty { display: none; }
+.item-comida__porcion { margin-top: 6px; max-width: 100%; min-height: 34px; padding: 4px 8px; border-radius: 10px; border: 1px solid var(--linea); background: var(--grafito); color: var(--tiza); font-size: 14px; }
+.reg__usar-ia { align-self: flex-start; margin-top: 14px; padding: 0; gap: 6px; display: inline-flex; align-items: center; color: var(--gris); }
+.reg__ia-nota { margin: 4px 0 0; }
+.reg__barra { display: flex; align-items: center; gap: 12px; }
+.reg__barra-total { flex: 1; min-width: 0; font-size: 14px; color: var(--gris); }
+.reg__barra-total strong { color: var(--tiza); font-size: 16px; }
+.reg__guardar { flex: none; min-height: 48px; padding: 0 18px; font-size: 16px; }
+.reg__guardar:disabled { opacity: .45; }

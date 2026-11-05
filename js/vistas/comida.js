@@ -186,15 +186,18 @@ async function vistaDia(app, fecha) {
   app.querySelector('#cambiar-objetivo')?.addEventListener('click', () => dialogoObjetivo(yo.foco, () => vistaDia(app, fecha)));
   const botonIdeas = app.querySelector('#ideas-btn');
   botonIdeas?.addEventListener('click', (e) => mostrarIdeas(ctx, app.querySelector('#ideas'), e.currentTarget));
-  // Las ideas se cargan solas cuando la sección aparece en pantalla (y quedan guardadas 30 min).
+  // Las ideas usan IA: solo se piden con el botón. Si ya se pidieron hace poco, se muestran las guardadas (sin gastar IA).
   const contIdeas = app.querySelector('#ideas');
   if (contIdeas && botonIdeas) {
-    const obs = new IntersectionObserver((en) => {
-      if (!en.some((x) => x.isIntersecting)) return;
-      obs.disconnect();
-      mostrarIdeas(ctx, contIdeas, botonIdeas).then(() => { botonIdeas.hidden = false; });
-    }, { root: document.getElementById('app'), rootMargin: '200px 0px' });
-    obs.observe(contIdeas);
+    const clave = `bloque-ideas-${ctx.fecha}-${momentoPorHora(new Date())}-${ctx.despensa.length}`;
+    let guardadas = false;
+    try { const c = JSON.parse(sessionStorage.getItem(clave) ?? 'null'); guardadas = !!(c && Date.now() - c.t < 30 * 60e3); } catch { /* sin caché */ }
+    if (guardadas) mostrarIdeas(ctx, contIdeas, botonIdeas).then(() => { botonIdeas.hidden = false; });
+    else {
+      botonIdeas.hidden = false;
+      botonIdeas.innerHTML = `${ICONO_CHISPA} Pedir ideas a la IA`;
+      contIdeas.innerHTML = '<p class="quieto" style="margin:0">Usa la IA solo si no sabes qué comer: tarda un poco y puede equivocarse.</p>';
+    }
   }
   // De quién ver: las caras del hogar van dentro de la tarjeta de arriba (la tuya y la de cada uno).
   const resumenCont = app.querySelector('#resumen-persona');

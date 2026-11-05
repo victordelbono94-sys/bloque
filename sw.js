@@ -1,6 +1,6 @@
 // Service worker de Bloque: guarda la estructura de la app para que abra rápido
 // y sin conexión. Los datos siempre vienen de Supabase, nunca de la caché.
-const VERSION = 'bloque-v119';
+const VERSION = 'bloque-v120';
 const ARCHIVOS = [
   './',
   './index.html',
@@ -21,6 +21,8 @@ const ARCHIVOS = [
   './js/vistas/sesion.js',
   './js/rutinas.js',
   './js/variacion.js',
+  './js/catalogo/universal.json',
+  './js/catalogo/EC.json',
   './js/instalar.js',
   './js/nativo.js',
   './js/ficha.js',

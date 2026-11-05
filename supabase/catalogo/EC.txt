@@ -1,0 +1,80 @@
+# Platos y productos típicos de Ecuador (valores aproximados por 100 g de la preparación casera habitual)
+# nombre;sinonimos;kcal;proteina;carbohidratos;grasas;fibra;porciones
+Seco de pollo;seco de gallina;120;11;6;6;1;1 plato (sin arroz)=250|1 presa con salsa=200
+Seco de carne;seco de res,seco de chivo;150;14;5;8;1;1 plato (sin arroz)=250
+Seco de chivo;seco de cabrito;160;15;5;9;1;1 plato (sin arroz)=250
+Arroz con menestra y carne asada;menestra con carne,carne asada con menestra;165;9;20;5.5;3;1 plato=450
+Arroz con menestra y pollo;menestra con pollo;155;10;20;4;3;1 plato=450
+Menestra de fréjol;menestra;125;7;18;3;6;1 cucharón=150|1 porción=150
+Menestra de lenteja;menestra de lentejas;120;7.5;17;2.5;6.5;1 cucharón=150|1 porción=150
+Encebollado;encebollado de pescado,encebollado de albacora;80;7;8;2;1;1 plato=450|1 tazón=400
+Encocado de pescado;encocado;150;12;4;10;1;1 plato (sin arroz)=250
+Encocado de camarón;camarón encocado;145;11;4;10;1;1 plato (sin arroz)=250
+Ceviche de camarón;cebiche de camarón;85;11;6;1.5;1;1 plato=300|1 taza=240
+Ceviche de pescado;cebiche de pescado;80;12;5;1;0.8;1 plato=300
+Ceviche de concha;cebiche de concha;75;10;6;1;1;1 plato=300
+Ceviche de chochos;cebiche de chochos,cevichochos;95;8;10;2.5;4;1 plato=300
+Bolón de verde mixto;bolón,bolón de queso y chicharrón;280;7;32;14;2.5;1 bolón=200
+Bolón de verde con queso;bolón de queso;250;6;33;10;2.5;1 bolón=180
+Tigrillo;tigrillo de verde;220;8;22;11;2;1 plato=300
+Majado de verde;majado;210;6;28;8;2.5;1 plato=250
+Corviche;corviches;260;9;28;13;2;1 corviche=120
+Empanada de verde;empanadas de verde;290;6;32;15;2.5;1 empanada=100
+Empanada de viento;empanada de queso frita,empanada de viento;380;8;40;21;1.2;1 empanada=90
+Empanada de morocho;empanadas de morocho;300;7;33;15;2;1 empanada=100
+Empanada de manjar;empanada dulce;330;5;45;14;1;1 empanada=80
+Humita;humitas;210;5;26;10;2.5;1 humita=130
+Tamal de pollo;tamal,tamales;200;7;22;9;2;1 tamal=180
+Quimbolito;quimbolitos;280;5;38;12;1;1 quimbolito=90
+Llapingachos;llapingacho,tortillas de papa con queso;210;6;25;10;2;1 tortilla=80|1 plato con huevo y chorizo=450
+Locro de papa;locro,locro de papa con queso;95;3.5;11;4;1.2;1 plato=400|1 taza=250
+Yaguarlocro;yahuarlocro;105;6;10;4.5;1;1 plato=400
+Fanesca;fanesca;150;7;17;6;4;1 plato=450
+Caldo de bolas de verde;caldo de bolas,sopa de bolas de verde;110;6;13;4;1.5;1 plato=450
+Caldo de gallina;caldo de gallina criolla;55;5;3;2.5;0.3;1 plato=400
+Caldo de pata;caldo de patas;80;7;5;3.5;0.5;1 plato=400
+Sopa de quinua;sopa de quinoa;60;2.5;9;1.5;1;1 plato=350
+Sango de verde;sango;120;5;13;5.5;1.5;1 plato=350
+Hornado;hornado de cerdo;250;25;0;16;0;1 porción de carne=150|1 plato con mote y llapingacho=500
+Fritada;fritada de chancho;300;25;0;22;0;1 porción=150
+Chicharrón;cuero de chancho frito;545;61;0;31;0;1 porción=50
+Guatita;guatita con maní;140;9;8;8;1;1 plato (sin arroz)=300
+Churrasco;churrasco ecuatoriano;180;12;14;9;1.5;1 plato completo=550
+Lomo saltado;lomo salteado;155;11;11;7.5;1;1 plato=400
+Pollo a la brasa con papas;pollo asado con papas;230;17;14;12;1.2;1/4 de pollo con papas=400
+Arroz con pollo;arroz con pollo ecuatoriano;165;9;22;4.5;1;1 plato=400
+Arroz marinero;arroz con mariscos;155;9;21;4;1;1 plato=400
+Arroz con camarón;;160;8;22;4;1;1 plato=400
+Pescado apanado con arroz y patacones;almuerzo de pescado;210;11;25;8;2;1 plato=450
+Sopa de fideo;sopa de fideos;55;2.5;8;1.5;0.5;1 plato=350
+Morocho;morocho de leche,colada de morocho;110;3.5;18;2.5;1;1 taza=250|1 vaso=250
+Colada morada;colada;110;1.5;25;0.5;1;1 taza=240|1 vaso=250
+Guagua de pan;guaguas de pan;330;8;55;8;2;1 guagua mediana=100|1 guagua grande=150
+Colada de avena;avena con leche,colada de avena con naranjilla;80;2.5;14;1.5;0.8;1 vaso=250
+Champús;champuz;90;1.5;20;0.5;1;1 vaso=250
+Jugo de naranjilla;jugo de lulo;50;0.4;12.5;0.1;0.5;1 vaso=250
+Jugo de tomate de árbol;jugo de tamarillo;45;0.6;11;0.1;0.8;1 vaso=250
+Jugo de mora;;50;0.5;12;0.1;1;1 vaso=250
+Naranjilla;lulo;25;0.5;6;0.1;1.1;1 naranjilla=60
+Tomate de árbol;tamarillo;31;2;3.8;0.4;3.3;1 tomate de árbol=70
+Taxo;tumbo;63;1.4;14;0.5;3.5;1 taxo=60
+Pitahaya;pitaya,fruta del dragón;50;1.1;12;0.4;3;1 pitahaya=200
+Babaco;;25;0.9;5.5;0.2;1.2;1 taza=150
+Uvilla;uvillas,aguaymanto,physalis;53;1.9;11.2;0.7;4.9;1 taza=140
+Granadilla;;97;2.4;23;0.7;10;1 granadilla=70
+Chirimoya;;75;1.6;18;0.7;3;1 taza=160
+Pan de queso (almojábana);almojábana,pan de queso;320;9;40;13;1;1 pan=50
+Pan de dulce;pan dulce,pan de leche,enrollado dulce;330;8;55;8;2;1 pan=60
+Cachitos;cachito;390;7;45;20;2;1 cachito=40
+Rosquitas de maíz;rosquillas,rosquitas;450;8;65;18;3;1 funda=50
+Bizcochos de Cayambe;bizcochos;420;8;55;18;2;3 bizcochos=45
+Maní confitado;manicero;520;18;35;35;5;1 funda=40
+Tostado con chochos;chochos con tostado;250;11;35;5;7;1 porción=150
+Encurtido de cebolla y tomate;encurtido;30;0.8;6;0.3;1.2;1 cucharada=20|1/4 taza=60
+Salprieta;sal prieta;450;20;45;24;8;1 cucharada=10
+Mote pillo;mote pillo;160;6;20;6;2.5;1 plato=250
+Choclo con queso;choclo con queso fresco;140;6;17;6;2;1 choclo con tajada=180
+Habas con queso;;150;9;14;7;4;1 porción=200
+Cuy asado;cuy;200;19;0;14;0;1/4 de cuy=150
+Ceviche de pescado con canguil y chifles;cevichería;180;9;20;7;2;1 plato con acompañantes=400
+Batido de guineo con leche;batido de banana;80;2.8;13;1.8;0.8;1 vaso=300

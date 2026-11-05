@@ -5,9 +5,36 @@ import { sb, estado, datos } from './db.js';
 let catalogo = null;
 const normal = (t) => (t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
+// Catálogo grande por país: viaja con la app (js/catalogo/*.json), así busca al instante y sin conexión.
+// Se genera con supabase/catalogo/generar.py. Al elegir uno, se guarda en el hogar (guardarAlimento).
+let estaticos = null;
+async function cargarEstaticos() {
+  if (estaticos) return estaticos;
+  const pais = String(estado.equipo?.pais ?? 'EC').toUpperCase();
+  const leer = (f) => fetch(new URL(`./catalogo/${f}.json`, import.meta.url)).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+  const [universal, delPais] = await Promise.all([leer('universal'), /^[A-Z]{2}$/.test(pais) ? leer(pais) : []]);
+  estaticos = [...delPais, ...universal];
+  return estaticos;
+}
+
 export async function cargarCatalogo(forzar = false) {
   if (catalogo && !forzar) return catalogo;
-  catalogo = datos(await sb.from('alimentos').select('*').order('nombre'));
+  const [deLaBase, delPais] = await Promise.all([
+    sb.from('alimentos').select('*').order('nombre').then(datos),
+    cargarEstaticos(),
+  ]);
+  // Lo que ya está en la base manda (tiene id y puede tener datos del hogar); del catálogo del país se suman
+  // las porciones y sinónimos que le falten, y se agrega lo que todavía no está.
+  const porNombre = new Map(deLaBase.map((a) => [normal(a.nombre), a]));
+  const extra = [];
+  for (const e of delPais) {
+    const ya = porNombre.get(normal(e.nombre));
+    if (ya) {
+      if (!ya.porciones?.length) ya.porciones = e.porciones;
+      if (!ya.sinonimos) ya.sinonimos = e.sinonimos;
+    } else extra.push({ ...e });
+  }
+  catalogo = [...deLaBase, ...extra];
   return catalogo;
 }
 
@@ -32,10 +59,17 @@ export async function buscarEnCatalogo(texto) {
   const palabras = normal(texto).split(/\s+/).filter(Boolean);
   if (!palabras.length) return [];
   const lista = await cargarCatalogo();
+  const q = palabras.join(' ');
+  const puntaje = (a) => {
+    const n = normal(a.nombre);
+    return (a.hogar_id ? 0 : 1) // lo que ya usaron en el hogar, primero
+      + (n.startsWith(q) ? 0 : n.includes(q) ? 1 : 2) // después, lo que empieza igual
+      + n.length / 1000;
+  };
   return lista
-    .filter((a) => { const t = normal(`${a.nombre} ${a.marca ?? ''}`); return palabras.every((p) => t.includes(p)); })
-    .sort((a, b) => (b.hogar_id ? 1 : 0) - (a.hogar_id ? 1 : 0) || a.nombre.length - b.nombre.length)
-    .slice(0, 12);
+    .filter((a) => { const t = normal(`${a.nombre} ${a.marca ?? ''} ${a.sinonimos ?? ''}`); return palabras.every((p) => t.includes(p)); })
+    .sort((a, b) => puntaje(a) - puntaje(b))
+    .slice(0, 20);
 }
 
 // ---------- Open Food Facts ----------
@@ -87,6 +121,11 @@ export async function porCodigo(codigo) {
 /** Guarda en el catálogo del hogar un alimento que todavía no tiene id (de Open Food Facts o a mano). */
 export async function guardarAlimento(a) {
   if (a.id) return a;
+  // Del catálogo del país: si el hogar ya lo guardó antes, se usa ese (no se duplica).
+  if (!a.codigo_barras) {
+    const ya = (await cargarCatalogo()).find((x) => x.id && x.hogar_id === estado.yo.hogar_id && normal(x.nombre) === normal(a.nombre));
+    if (ya) return ya;
+  }
   const fila = { ...a, hogar_id: estado.yo.hogar_id };
   const { data, error } = await sb.from('alimentos').insert(fila).select().single();
   if (error) {
@@ -97,6 +136,10 @@ export async function guardarAlimento(a) {
     }
     throw error;
   }
-  catalogo?.push(data);
+  if (catalogo) {
+    // El que estaba sin guardar (del catálogo del país) se reemplaza por el guardado.
+    const i = catalogo.findIndex((x) => !x.id && normal(x.nombre) === normal(data.nombre));
+    if (i >= 0) catalogo.splice(i, 1, data); else catalogo.push(data);
+  }
   return data;
 }
