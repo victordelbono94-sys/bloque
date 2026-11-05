@@ -1,6 +1,7 @@
 // IA del cuerpo: cargar una medición escribiéndola, con una foto de la balanza o el PDF de la bioimpedancia,
 // y conversar sobre cómo vas (la IA explica con tus números, reajusta el ritmo si lo pides y anota lo que aprende de ti).
 import { sb, estado, datos } from './db.js';
+import { aISO } from './fechas.js';
 import { esc, aviso, avisoError, abrirDialogo, num } from './ui.js';
 import { htmlCabecera, htmlCompositor, conectarCompositor, burbujaPensando, bajar, htmlBienvenida } from './chatia.js';
 import { fotoBase64 } from './comida/comun.js';
@@ -105,7 +106,11 @@ export function abrirCuerpoIA({ alGuardar = () => {}, manual = null } = {}) {
     try {
       const fila = { persona_id: estado.yo.id, origen: m.origen ?? 'manual', es_referencia: m.origen === 'hospital' };
       for (const k of Object.keys(CAMPOS)) if (m[k] != null) fila[k] = m[k];
-      fila.medido_en = m.medido_en ? new Date(`${m.medido_en}T08:00:00`).toISOString() : new Date().toISOString();
+      // La fecha que lee la IA puede venir mal (de la pantalla de la balanza, o el día siguiente): nunca en el futuro.
+      // Si es de hoy o posterior, se guarda con la hora actual; si es de otro día, a las 08:00 de ese día.
+      const ahora = new Date();
+      const leida = /^\d{4}-\d{2}-\d{2}$/.test(m.medido_en ?? '') ? new Date(`${m.medido_en}T08:00:00`) : null;
+      fila.medido_en = (leida && aISO(leida) < aISO(ahora) ? leida : ahora).toISOString();
       datos(await sb.from('mediciones_corporales').insert(fila));
       boton.closest('.medicion-ia').querySelector('.medicion-ia__acciones').innerHTML = '<p class="propuesta__hecho">✓ Medición guardada</p>';
       aviso('Medición guardada. Tus metas se recalculan.');

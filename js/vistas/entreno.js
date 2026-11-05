@@ -9,7 +9,7 @@ import { abrirFicha, miniatura } from '../ficha.js';
 import { vistaSemana } from './semana.js';
 import { abrirEntrenador, sobraCuadriceps } from '../entrenador.js';
 import { deporte } from '../deportes.js';
-import { mejorSerie } from '../logros.js';
+import { mejorSerie, esAsistida } from '../logros.js';
 import { motivoVariacion } from '../variacion.js';
 
 export async function vistaEntreno(app) {
@@ -26,7 +26,7 @@ async function detalle(app, rutinaId) {
   const ejIds = items.map((it) => it.ejercicio.id);
   const historial = ejIds.length ? datos(await sb.from('series').select('ejercicio_id, reps, peso_kg, hecha_en').eq('persona_id', estado.yo.id)
     .in('ejercicio_id', ejIds).not('peso_kg', 'is', null).order('hecha_en', { ascending: false }).limit(600)) : [];
-  const mejor = Object.fromEntries(ejIds.map((id) => [id, mejorSerie(historial.filter((x) => x.ejercicio_id === id))]));
+  const mejor = Object.fromEntries(items.map((it) => [it.ejercicio.id, mejorSerie(historial.filter((x) => x.ejercicio_id === it.ejercicio.id), esAsistida(it.ejercicio.nombre))]));
 
   app.innerHTML = `
     <header class="encabezado encabezado--fijo">

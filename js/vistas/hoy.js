@@ -58,7 +58,7 @@ export async function vistaHoy(app) {
   eventos.sort((x, y) => x.fecha.localeCompare(y.fecha)
     || horaEfectiva(x).localeCompare(horaEfectiva(y))
     || ORDEN_TIPO[x.tipo] - ORDEN_TIPO[y.tipo]);
-  const deHoy = eventos.filter((e) => e.fecha === hoy);
+  const deHoy = eventos.filter((e) => e.fecha === hoy && !e.omitido); // lo marcado como «no fui» no se muestra como entreno de hoy
   // Lo de ayer que no se hizo no cansa: el semáforo de cada uno solo cuenta lo cumplido.
   const pasados = datos(await sb.from('calendario').select('*').eq('hogar_id', hogar)
     .gte('fecha', sumarDias(hoy, -7)).lt('fecha', ayer).eq('tipo', 'gym').not('rutina_id', 'is', null));

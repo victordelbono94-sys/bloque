@@ -78,7 +78,9 @@ async function sacarDe(e, quien) {
 
 async function aplicar(a, d) {
   const yo = estado.yo, hoy = hoyISO();
-  const registrar = (extra) => sb.from('cambios_plan').insert({ persona_id: yo.id, tipo: a.tipo, descripcion: a.resumen, ...extra }).then(() => {}, () => {});
+  // El historial de cambios no debe frenar el cambio en sí, pero si falla se avisa en la consola (antes se perdía en silencio).
+  const registrar = (extra) => sb.from('cambios_plan').insert({ persona_id: yo.id, tipo: a.tipo, descripcion: String(a.resumen ?? '').slice(0, 300) || null, ...extra })
+    .then(({ error }) => { if (error) console.warn('No se guardó el historial del cambio:', error.message); }, (e) => console.warn('No se guardó el historial del cambio:', e?.message));
   if (a.tipo === 'pausa') {
     const desde = a.desde && a.desde > hoy ? a.desde : hoy, hasta = a.hasta ?? sumarDias(desde, 6);
     const evs = d.agenda.filter((e) => !e.omitido && e.fecha >= desde && e.fecha <= hasta && tiposDe(a.actividad).includes(e.tipo)
@@ -170,7 +172,8 @@ async function cambiarDia(a, d) {
     // Si pidió una rutina que no existe, después se ofrece armarla y queda asignada a este día.
     if (a.a === 'gym' && !rutina && a.crear_rutina) a.pendiente = { eventoId: nuevo.id, que: a.crear_rutina };
   }
-  await sb.from('cambios_plan').insert({ persona_id: yo.id, tipo: 'cambiar_dia', descripcion: a.resumen, desde: a.fecha, hasta: a.fecha }).then(() => {}, () => {});
+  await sb.from('cambios_plan').insert({ persona_id: yo.id, tipo: 'cambiar_dia', descripcion: String(a.resumen ?? '').slice(0, 300) || null, desde: a.fecha, hasta: a.fecha })
+    .then(({ error }) => { if (error) console.warn('No se guardó el historial del cambio:', error.message); }, (e) => console.warn('No se guardó el historial del cambio:', e?.message));
   return a.resumen || `${fechaTxt(a.fecha)}: cambiado`;
 }
 

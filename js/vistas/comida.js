@@ -692,7 +692,7 @@ function datosPersona(p, d) {
   const grasa = d.mediciones.find((m) => m.persona_id === p.id && m.grasa_pct != null);
   const med = medicion ? { ...medicion, grasa_pct: medicion.grasa_pct ?? grasa?.grasa_pct ?? null } : null;
   const foco = d.objetivos.find((o) => o.persona_id === p.id)?.foco ?? 'recomposicion';
-  const suyos = d.eventos.filter((e) => e.asistencia === 'juntos' || e.persona_id === p.id);
+  const suyos = d.eventos.filter((e) => !e.omitido && (e.asistencia === 'juntos' || e.persona_id === p.id));
   // Derby y otros: si su reloj muestra que no fue, ese gasto no se cuenta.
   const relojP = d.reloj.filter((s) => s.persona_id === p.id);
   const { pares } = emparejar(suyos.filter((e) => e.tipo !== 'descanso'), relojP);

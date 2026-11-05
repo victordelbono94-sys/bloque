@@ -8,7 +8,7 @@ import { hoyISO, aISO } from '../fechas.js';
 import { cargarRutina, textoMeta, redondearPeso } from '../rutinas.js';
 import { motivoVariacion, respetarLoHecho } from '../variacion.js';
 import { abrirEntrenador } from '../entrenador.js';
-import { esRecord, rachaSemanas } from '../logros.js';
+import { esRecord, rachaSemanas, esAsistida } from '../logros.js';
 import { cargarMolestias, molestiaDe, nombreZona, textoIntensidad } from '../molestias.js';
 import { textoSemaforo } from '../semaforo.js';
 import { abrirFicha, miniatura } from '../ficha.js';
@@ -137,7 +137,8 @@ export async function vistaSesion(app) {
   for (const sr of [...series].filter((x) => x.persona_id === estado.yo.id).sort((a, b) => new Date(a.hecha_en) - new Date(b.hecha_en))) {
     const antes = [...previas.filter((x) => x.persona_id === estado.yo.id && x.ejercicio_id === sr.ejercicio_id),
       ...series.filter((x) => x.persona_id === estado.yo.id && x.ejercicio_id === sr.ejercicio_id && new Date(x.hecha_en) < new Date(sr.hecha_en))];
-    if (esRecord(sr, antes)) actual.records.add(sr.id);
+    const nombreSr = items.flatMap((it) => [it.ejercicio, ...it.alternativas]).find((e) => e.id === sr.ejercicio_id)?.nombre;
+    if (esRecord(sr, antes, esAsistida(nombreSr))) actual.records.add(sr.id);
   }
   const yoParticipo = participantes.some((p) => p.id === estado.yo.id);
   const terminé = sesion.terminados.includes(estado.yo.id);
@@ -154,7 +155,7 @@ export async function vistaSesion(app) {
     </header>
 
     <div class="sesion-barra">
-    ${yoParticipo && !terminé ? '<button type="button" class="agua-rapido" id="agua-entreno" aria-label="Sumar 250 ml de agua">${IC.agua} +250 ml</button>' : ''}
+    ${yoParticipo && !terminé ? `<button type="button" class="agua-rapido" id="agua-entreno" aria-label="Sumar 250 ml de agua">${IC.agua} +250 ml</button>` : ''}
     <div class="crono-sesion ${terminé ? 'crono-sesion--fin' : ''}" role="timer" aria-label="Tiempo de entreno">
       <svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5M12 2.5V5"/></svg>
       <span id="transcurrido">0:00</span>
@@ -339,12 +340,16 @@ function filaPersona(it, p) {
   // ¿La meta subió respecto de la vez pasada?
   const maxAntes = Math.max(0, ...antes.map((x) => Number(x.peso_kg ?? 0)));
   const repsAntes = Math.max(0, ...antes.map((x) => x.reps));
-  const sube = meta && antes.length && ((meta.peso_kg != null && Number(meta.peso_kg) > maxAntes) || (Number(meta.peso_kg ?? 0) >= maxAntes && meta.reps > repsAntes));
+  // Con asistencia, progresar es bajar el contrapeso.
+  const minAntes = Math.min(...antes.map((x) => Number(x.peso_kg ?? Infinity)));
+  const sube = meta && antes.length && (esAsistida(ej.nombre)
+    ? ((meta.peso_kg != null && Number(meta.peso_kg) < minAntes) || (Number(meta.peso_kg ?? Infinity) <= minAntes && meta.reps > repsAntes))
+    : ((meta.peso_kg != null && Number(meta.peso_kg) > maxAntes) || (Number(meta.peso_kg ?? 0) >= maxAntes && meta.reps > repsAntes)));
 
   return `
     <div class="fila fila--entre" style="gap:8px">
       <span class="meta-fila__nombre ${soyYo ? '' : 'meta-fila__nombre--otro'}">${esc(soyYo ? 'Yo' : p.nombre)}</span>
-      <span class="quieto">${sube ? '<span class="sube" title="Subió desde la vez pasada">↑</span> ' : ''}${esc(textoMeta(meta, ej.unidad))}${ej.por_lado ? ' · por lado' : ''}${pesoDefinir ? ' · elige tu peso' : ''}</span>
+      <span class="quieto">${sube ? '<span class="sube" title="Progresaste desde la vez pasada">↑</span> ' : ''}${esAsistida(ej.nombre) && meta?.peso_kg != null ? 'Asistencia: ' : ''}${esc(textoMeta(meta, ej.unidad))}${esAsistida(ej.nombre) ? ' · menos = más difícil' : ''}${ej.por_lado ? ' · por lado' : ''}${pesoDefinir ? ' · elige tu peso' : ''}</span>
     </div>
     <div class="series ${soyYo ? '' : 'series--otro'}" style="margin-top:6px">${huecos}${extra}</div>
     ${antes.length ? `<p class="ultima">La vez pasada: ${esc(textoUltima(antes, ej.unidad === 'segundos'))}</p>` : ''}
@@ -529,12 +534,13 @@ function registrarSerie(app, it, numero) {
       </div>
 
       <div class="campo">
-        <label for="peso">Peso (kg)${segundos ? ' · opcional' : ''}</label>
+        <label for="peso">${esAsistida(ej.nombre) ? 'Asistencia (kg) · menos = más difícil' : dosMancuernas(ej) ? 'Peso de UNA mancuerna (kg c/u)' : 'Peso (kg)'}${segundos ? ' · opcional' : ''}</label>
         <div class="paso">
           <button type="button" class="paso__boton" data-paso="peso" data-delta="-2.5" aria-label="Menos 2,5 kg">−</button>
           <input id="peso" type="number" inputmode="decimal" min="0" max="500" step="0.5" value="${peso}" placeholder="${segundos ? 'Sin peso' : 'kg'}">
           <button type="button" class="paso__boton" data-paso="peso" data-delta="2.5" aria-label="Más 2,5 kg">+</button>
         </div>
+        ${dosMancuernas(ej) ? '<p class="ayuda" id="peso-total" style="margin:6px 0 0"></p>' : ''}
       </div>
 
       <fieldset class="campo">
@@ -552,6 +558,14 @@ function registrarSerie(app, it, numero) {
     </form>`, `Serie ${numero}`);
 
   grupoChips(d.querySelector('#esfuerzo'));
+  // Mancuernas: se anota el peso de una y se muestra el total, así nadie anota las dos sumadas.
+  const totalMancuernas = d.querySelector('#peso-total');
+  if (totalMancuernas) {
+    const pintarTotal = () => { const v = Number(d.querySelector('#peso').value); totalMancuernas.textContent = v > 0 ? `2 × ${kg(v)} kg = ${kg(v * 2)} kg en total` : 'Anota lo que dice una mancuerna; la app suma las dos.'; };
+    d.querySelector('#peso').addEventListener('input', pintarTotal);
+    d.querySelectorAll('[data-paso="peso"]').forEach((b) => b.addEventListener('click', () => setTimeout(pintarTotal, 0)));
+    pintarTotal();
+  }
   if (segundos) {
     const crono = cronometro(d, { segundos: () => Number(d.querySelector('#reps').value) || objetivoSeg, porLado: !!ej.por_lado });
     d.addEventListener('close', crono.parar);
@@ -606,7 +620,7 @@ function registrarSerie(app, it, numero) {
       if (guardada) {
         const antes = [...actual.previas.filter((x) => x.persona_id === estado.yo.id && x.ejercicio_id === ej.id),
           ...actual.series.filter((x) => x.persona_id === estado.yo.id && x.ejercicio_id === ej.id && x.id !== guardada.id)];
-        const rec = esRecord(guardada, antes);
+        const rec = esRecord(guardada, antes, esAsistida(ej.nombre));
         actual.records.delete(guardada.id);
         if (rec) {
           actual.records.add(guardada.id);
@@ -641,6 +655,9 @@ function registrarSerie(app, it, numero) {
   });
 }
 
+// Ejercicios con dos mancuernas a la vez (no los de un brazo/pierna por lado).
+const dosMancuernas = (ej) => /mancuernas/i.test(ej?.nombre ?? '') && !ej?.por_lado;
+
 // Sugerencia para la siguiente serie según cómo se sintió esta.
 function sugerir(it, { reps, peso, esfuerzo, meta, segundos }) {
   const objetivo = meta?.reps ?? it.reps_base;
@@ -649,6 +666,17 @@ function sugerir(it, { reps, peso, esfuerzo, meta, segundos }) {
   if (segundos) {
     if (esfuerzo === 10 && reps < objetivo) texto = 'Si la siguiente cuesta igual, corta un poco antes y mantén la forma.';
     else if (esfuerzo === 6) texto = 'Te sobró: aguanta unos segundos más en la siguiente.';
+  } else if (peso != null && esAsistida(ejercicioDe(it, estado.yo.id).nombre)) {
+    // Asistida: si costó, más contrapeso; si sobró, menos.
+    if (esfuerzo === 10 && reps < objetivo) {
+      pesoSiguiente = redondearPeso(peso + 5);
+      texto = `No llegaste a ${objetivo}: sube la asistencia a ${num(pesoSiguiente, pesoSiguiente % 1 ? 1 : 0)} kg en la siguiente.`;
+    } else if (esfuerzo === 6 && reps >= objetivo) {
+      pesoSiguiente = Math.max(0, redondearPeso(peso - 2.5));
+      texto = pesoSiguiente === 0 ? '¡Te sobró! Prueba sin asistencia en la siguiente.' : `Te sobró: baja la asistencia a ${num(pesoSiguiente, pesoSiguiente % 1 ? 1 : 0)} kg en la siguiente.`;
+    } else if (esfuerzo === 10) {
+      texto = 'Al límite pero llegaste: mantén la asistencia y cuida la técnica.';
+    }
   } else if (peso != null) {
     if (esfuerzo === 10 && reps < objetivo) {
       pesoSiguiente = redondearPeso(peso * 0.9);
@@ -831,6 +859,19 @@ function calcularAjustes() {
       continue;
     }
     meta.peso_kg = Number(meta.peso_kg);
+    if (esAsistida(it.ejercicio.nombre)) {
+      // Asistida: progresar es bajar el contrapeso (2,5 kg); si costó mucho, subirlo un poco.
+      const conMenos = cumplio && hechas.every((s) => Number(s.peso_kg ?? Infinity) <= meta.peso_kg);
+      const costo = hechas.some((s) => s.esfuerzo === 10 && s.reps < meta.reps - 1);
+      if (conMenos && esfuerzoMedio <= 8 && meta.peso_kg > 0) {
+        const nuevo = Math.max(0, redondearPeso(meta.peso_kg - 2.5));
+        ajustes.push({ it, meta, cambio: { peso_kg: nuevo }, texto: nuevo === 0 ? `${kg(meta.peso_kg)} → sin asistencia` : `asistencia ${kg(meta.peso_kg)} → ${kg(nuevo)} kg` });
+      } else if (costo) {
+        const nuevo = redondearPeso(meta.peso_kg + 5);
+        ajustes.push({ it, meta, cambio: { peso_kg: nuevo }, texto: `asistencia ${kg(meta.peso_kg)} → ${kg(nuevo)} kg para consolidar` });
+      }
+      continue;
+    }
     const cargaCumplida = cumplio && hechas.every((s) => Number(s.peso_kg ?? 0) >= meta.peso_kg);
     const sufrio = hechas.some((s) => s.esfuerzo === 10 && s.reps < meta.reps - 1);
     const base = it.reps_base;

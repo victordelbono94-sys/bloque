@@ -4,13 +4,22 @@
 import { sb, estado, datos } from './db.js';
 import { hoyISO, sumarDias, inicioSemana } from './fechas.js';
 
-/** Fuerza estimada de una serie (para comparar 80 × 6 con 70 × 10). */
-export const fuerza = (s) => (s?.peso_kg != null && s.reps > 0 ? Number(s.peso_kg) * (1 + Math.min(s.reps, 15) / 30) : 0);
+/** Máquinas asistidas (fondos, dominadas): el peso es contrapeso que ayuda, menos peso = más difícil. */
+export const esAsistida = (nombre) => /asistid/i.test(String(nombre ?? ''));
+// Para comparar series asistidas: menos asistencia es más fuerza (sobre un tope de 200 kg de contrapeso).
+const TOPE_ASISTENCIA = 200;
+
+/** Fuerza estimada de una serie (para comparar 80 × 6 con 70 × 10). Con asistencia, cuenta al revés. */
+export const fuerza = (s, asistida = false) => {
+  if (s?.peso_kg == null || !(s.reps > 0)) return 0;
+  const carga = asistida ? Math.max(0, TOPE_ASISTENCIA - Number(s.peso_kg)) : Number(s.peso_kg);
+  return carga * (1 + Math.min(s.reps, 15) / 30);
+};
 
 /** La mejor serie de una lista (por fuerza estimada). */
-export function mejorSerie(series) {
+export function mejorSerie(series, asistida = false) {
   let mejor = null;
-  for (const s of series) if (fuerza(s) > fuerza(mejor)) mejor = s;
+  for (const s of series) if (fuerza(s, asistida) > fuerza(mejor, asistida)) mejor = s;
   return mejor;
 }
 
@@ -18,11 +27,11 @@ export function mejorSerie(series) {
  * ¿Esta serie es un récord? Compara con todas las anteriores de ese ejercicio (de otras sesiones y de esta).
  * Solo cuenta si ya había historial (la primera vez no es récord) y si supera por algo de verdad.
  */
-export function esRecord(serie, anteriores) {
+export function esRecord(serie, anteriores, asistida = false) {
   const previas = anteriores.filter((x) => x.id !== serie.id && x.peso_kg != null);
   if (!previas.length || serie.peso_kg == null) return null;
-  const antes = mejorSerie(previas);
-  if (fuerza(serie) > fuerza(antes) * 1.005) return { antes, ahora: serie };
+  const antes = mejorSerie(previas, asistida);
+  if (fuerza(serie, asistida) > fuerza(antes, asistida) * 1.005) return { antes, ahora: serie };
   return null;
 }
 
