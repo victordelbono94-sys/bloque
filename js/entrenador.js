@@ -4,7 +4,9 @@
 import { sb, estado, datos } from './db.js';
 import { esc, aviso, avisoError, abrirDialogo } from './ui.js';
 import { deporte } from './deportes.js';
-import { hoyISO, sumarDias, diaCorto } from './fechas.js';
+import { hoyISO, sumarDias, diaCorto, aISO } from './fechas.js';
+import { cargarRutina } from './rutinas.js';
+import { familiaDe } from './variacion.js';
 import { htmlCabecera, htmlCompositor, conectarCompositor, burbujaPensando, bajar, cubo } from './chatia.js';
 
 const CHISPA = '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>';
@@ -22,10 +24,11 @@ export function sobraCuadriceps(items) {
   return aislado || dominantes >= 2;
 }
 
-async function contexto(rutinaId) {
+async function contexto(rutinaId, enCurso = false) {
   const hogar = estado.yo.hogar_id;
   const hoy = hoyISO();
-  const [catalogo, rutinas, items, objetivos, agenda, molestias] = await Promise.all([
+  const hace21 = sumarDias(hoy, -21);
+  const [catalogo, rutinas, items, objetivos, agenda, molestias, sesiones] = await Promise.all([
     sb.from('ejercicios').select('id, nombre, grupo_muscular, unidad, por_lado').eq('hogar_id', hogar).order('grupo_muscular').then(datos),
     sb.from('rutinas').select('id, nombre, foco, notas').eq('hogar_id', hogar).order('creada_en').then(datos),
     sb.from('rutina_ejercicios').select('rutina_id, orden, series_base, reps_base, descanso_base, ejercicio:ejercicios(id, nombre, grupo_muscular)')
@@ -33,7 +36,16 @@ async function contexto(rutinaId) {
     sb.from('objetivos').select('persona_id, foco, desde').in('persona_id', estado.personas.map((p) => p.id)).order('desde', { ascending: false }).then(datos).catch(() => []),
     sb.from('calendario').select('fecha, tipo, hora_inicio, rutina_id, actividad').eq('hogar_id', hogar).gte('fecha', hoy).lte('fecha', sumarDias(hoy, 10)).order('fecha').then(datos),
     sb.from('molestias').select('persona_id, zona, intensidad, nota, desde').in('persona_id', estado.personas.map((p) => p.id)).is('hasta', null).then(datos).catch(() => []),
+    // Lo que de verdad hicieron las últimas 3 semanas (para variar y no repetir).
+    sb.from('sesiones').select('id, iniciada_en, rutina_id, series(persona_id, ejercicio_id, reps, peso_kg)').eq('hogar_id', hogar)
+      .gte('iniciada_en', new Date(`${hace21}T00:00:00`).toISOString()).order('iniciada_en').then(datos).catch(() => []),
   ]);
+  // La versión de esta semana de la rutina que se está mirando (los accesorios rotan solos).
+  const estaSemana = rutinaId ? await cargarRutina(rutinaId).then((r) => r.items).catch(() => null) : null;
+  const nombreEj = (id) => catalogo.find((e) => e.id === id)?.nombre ?? null;
+  const conFamilia = (nombre) => { const f = familiaDe(nombre); return f ? `${nombre} [${f.clave}: ${f.musculo}${f.basico ? ', básico' : ''}]` : nombre; };
+  const hoyHecho = sesiones.filter((x) => aISO(new Date(x.iniciada_en)) === hoy)
+    .flatMap((x) => (x.series ?? []).map((s) => nombreEj(s.ejercicio_id))).filter(Boolean);
   const dep = deporte(estado.equipo?.deporte);
   const nombreRutina = (id) => rutinas.find((r) => r.id === id)?.nombre ?? null;
   return {
@@ -48,11 +60,17 @@ async function contexto(rutinaId) {
       })),
       agenda_proximos_dias: agenda.map((e) => ({ fecha: e.fecha, dia: diaCorto(e.fecha), tipo: e.tipo, hora: e.hora_inicio?.slice(0, 5) ?? null, rutina: nombreRutina(e.rutina_id), actividad: e.actividad })),
       rutina_que_estamos_viendo: rutinaId ? nombreRutina(rutinaId) : null,
+      rutina_esta_semana: estaSemana ? estaSemana.map((it) => ({ nombre: it.ejercicio.nombre, ...(it.rotado ? { en_vez_de: it.original.nombre, rota: it.rotado } : {}) })) : null,
+      entreno_en_curso: enCurso ? { ya_hechos_hoy: [...new Set(hoyHecho)] } : null,
+      historial_ultimas_3_semanas: sesiones.map((x) => ({
+        fecha: aISO(new Date(x.iniciada_en)), rutina: nombreRutina(x.rutina_id),
+        ejercicios: [...new Set((x.series ?? []).map((s) => nombreEj(s.ejercicio_id)).filter(Boolean))],
+      })).filter((x) => x.ejercicios.length),
       rutinas: rutinas.map((r) => ({
         nombre: r.nombre, foco: r.foco,
         ejercicios: items.filter((i) => i.rutina_id === r.id).map((i) => ({ nombre: i.ejercicio.nombre, grupo: i.ejercicio.grupo_muscular, series: i.series_base, reps: i.reps_base })),
       })),
-      catalogo: catalogo.map((e) => `${e.nombre} (${e.grupo_muscular})`),
+      catalogo: catalogo.map((e) => `${conFamilia(e.nombre)} (${e.grupo_muscular})`),
     },
   };
 }
@@ -102,7 +120,7 @@ export async function abrirEntrenador({ rutinaId = null, enCurso = false, mensaj
   };
 
   try {
-    datosCtx = await contexto(rutinaId);
+    datosCtx = await contexto(rutinaId, enCurso);
   } catch (e) { avisoError(e); d.close(); return; }
   const rutinaActual = datosCtx.rutinas.find((r) => r.id === rutinaId);
   const dep = deporte(estado.equipo?.deporte);
@@ -170,13 +188,16 @@ export async function abrirEntrenador({ rutinaId = null, enCurso = false, mensaj
         <ol class="propuesta__lista">
           ${ejs.map((e) => {
             const estaba = antes.find((i) => i.ejercicio.id === e.existente?.id);
-            const etiqueta = !e.existente ? '<span class="etiqueta etiqueta--mini etiqueta--nuevo">nuevo</span>'
+            const yaHoy = enCurso && (datosCtx.ia.entreno_en_curso?.ya_hechos_hoy ?? []).some((n) => normal(n) === normal(e.existente?.nombre ?? e.nombre)) && !estaba;
+            const etiqueta = yaHoy ? '<span class="etiqueta etiqueta--mini">ya lo hiciste hoy</span>'
+              : !e.existente ? '<span class="etiqueta etiqueta--mini etiqueta--nuevo">nuevo</span>'
               : destino && !estaba ? '<span class="etiqueta etiqueta--mini etiqueta--entra">entra</span>'
               : estaba && (estaba.series_base !== e.series || estaba.reps_base !== e.reps) ? '<span class="etiqueta etiqueta--mini">cambia</span>' : '';
             return `<li><span><strong>${esc(e.existente?.nombre ?? e.nombre)}</strong> ${etiqueta}<span class="quieto"> · ${e.series} × ${e.reps}${e.unidad === 'segundos' ? ' s' : ''}${e.por_lado ? ' por lado' : ''}</span></span>${e.nota && !e.existente ? `<span class="ayuda">${esc(e.nota)}</span>` : ''}</li>`;
           }).join('')}
         </ol>
         ${salen.length ? `<p class="propuesta__salen">Sale: ${salen.map((i) => esc(i.ejercicio.nombre)).join(', ')}</p>` : ''}
+        ${destino && enCurso ? '<p class="ayuda" style="margin:6px 0 0">Esto cambia la rutina guardada (también las próximas semanas). Para cambiar solo hoy, usa «¿Ocupada? Cámbiala por» en el ejercicio.</p>' : ''}
         <button type="button" class="boton boton--ia boton--chico" data-aplicar>${CHISPA} ${destino ? 'Aplicar cambios' : 'Crear rutina'}</button>
       </div>`);
     tarjeta.querySelector('[data-aplicar]').addEventListener('click', async (ev) => {
@@ -186,7 +207,7 @@ export async function abrirEntrenador({ rutinaId = null, enCurso = false, mensaj
       try {
         const id = await aplicar(prop, ejs, destino);
         b.outerHTML = `<p class="propuesta__hecho">✓ ${destino ? 'Cambios aplicados' : 'Rutina creada'}</p>`;
-        datosCtx = await contexto(rutinaId); // para los próximos pedidos
+        datosCtx = await contexto(rutinaId, enCurso); // para los próximos pedidos
         aviso(destino ? 'Rutina actualizada.' : 'Rutina creada: la ves al agendar un gym.');
         alAplicar(id);
       } catch (e) {
@@ -244,10 +265,10 @@ export async function aplicarEjercicios(rutinaId, lista) {
     k++;
     const previo = actuales.find((it) => it.ejercicio_id === x.ejercicio_id);
     if (previo) {
-      datos(await sb.from('rutina_ejercicios').update({ orden: k, series_base: x.series, reps_base: x.reps, descanso_base: x.descanso }).eq('id', previo.id).select('id'));
+      datos(await sb.from('rutina_ejercicios').update({ orden: k, series_base: x.series, reps_base: x.reps, ...(x.descanso != null ? { descanso_base: x.descanso } : {}) }).eq('id', previo.id).select('id'));
       datos(await sb.from('metas_ejercicio').update({ series: x.series, reps: x.reps }).eq('rutina_ejercicio_id', previo.id).select('id'));
     } else {
-      datos(await sb.from('rutina_ejercicios').insert({ rutina_id: rutinaId, ejercicio_id: x.ejercicio_id, orden: k, series_base: x.series, reps_base: x.reps, descanso_base: x.descanso }).select('id'));
+      datos(await sb.from('rutina_ejercicios').insert({ rutina_id: rutinaId, ejercicio_id: x.ejercicio_id, orden: k, series_base: x.series, reps_base: x.reps, descanso_base: x.descanso ?? 90 }).select('id'));
     }
   }
 }

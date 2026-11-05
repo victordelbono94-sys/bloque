@@ -31,6 +31,22 @@ sin dolor: máquina guiada, rango corto, menos peso) y suma al final 1 o 2 ejerc
 (isométricos, movilidad, banda elástica), con unidad y series livianas. Nunca diagnostiques; si dice "duele" o lleva más de 2 semanas,
 recomiéndale ver a un fisioterapeuta en la respuesta.
 
+VARIEDAD Y PROGRESIÓN (la app ya lo hace sola, respétalo):
+- Los ejercicios básicos (press de pecho/banca, press de hombros, jalón/dominadas, remos, prensa/sentadilla, peso muerto rumano,
+  hip thrust) se mantienen 4 semanas para poder subir peso. Los accesorios (aperturas, laterales, tríceps, curls, core, trapecios,
+  antebrazos) la app los rota cada semana dentro de su familia. En el catálogo, cada ejercicio trae [familia: músculo].
+- Mira "historial_ultimas_3_semanas" y "rutina_esta_semana": si te piden variar o una rutina nueva, NO repitas los accesorios
+  de la semana anterior; cambia por otro de la misma familia o del mismo músculo con otro ángulo. Los básicos solo cámbialos si lo piden.
+
+CAMBIAR UN EJERCICIO ("otro del mismo grupo", "la máquina está ocupada", "no hay esta máquina"):
+- El reemplazo trabaja EL MISMO músculo principal y, si se puede, el mismo movimiento (misma familia). Nunca cambies a otro músculo
+  (ej. remo alto → face pull está bien, remo alto → curl no; curl martillo → curl invertido está bien, curl → tríceps no).
+- Nunca propongas algo que ya está en la rutina ni algo de "entreno_en_curso.ya_hechos_hoy", ni una variante casi igual de lo ya hecho
+  hoy (si ya hizo curl en máquina y curl martillo, otro curl de pie no suma: ofrece un ángulo distinto o di que el músculo ya está cubierto).
+- Si piden "agregar uno más" de un músculo que ya tiene 2 o más ejercicios hoy, dilo y sugiere solo uno con un ángulo distinto.
+- Si "entreno_en_curso" no es null, están entrenando ahora: cambios cortos, sin rehacer toda la rutina, y en "respuesta" aclara que
+  el cambio queda guardado en la rutina.
+
 CÓMO RESPONDER:
 - "respuesta": 1 a 4 frases explicando qué cambias y por qué, sin listas largas (la rutina ya se muestra aparte).
 - Si piden cambiar una rutina existente, devuelve en "rutinas" esa rutina completa ya cambiada con accion "editar"
@@ -122,7 +138,7 @@ function limpiar(d: Record<string, unknown>) {
         return {
           nombre: texto(e.nombre, 80), grupo_muscular: texto(e.grupo_muscular, 40) || "General",
           series: num(e.series, 1, 8, 3), reps: unidad === "segundos" ? num(e.reps, 10, 180, 30) : num(e.reps, 1, 50, 10),
-          descanso_seg: num(e.descanso_seg, 0, 300, 90), unidad, por_lado: e.por_lado === true, nota: texto(e.nota, 200) || null,
+          descanso_seg: e.descanso_seg == null ? null : num(e.descanso_seg, 0, 300, 90), unidad, por_lado: e.por_lado === true, nota: texto(e.nota, 200) || null,
         };
       }).filter((e) => e.nombre),
     })).filter((r) => r.ejercicios.length),
@@ -145,7 +161,7 @@ Deno.serve(async (req) => {
     parts: [{ text: texto(h.texto, 1500) }],
   })).filter((h) => h.parts[0].text);
   const contents = [
-    { role: "user", parts: [{ text: `${INSTRUCCIONES}\n\nContexto: ${JSON.stringify(cuerpo.contexto ?? {}).slice(0, 14000)}` }] },
+    { role: "user", parts: [{ text: `${INSTRUCCIONES}\n\nContexto: ${JSON.stringify(cuerpo.contexto ?? {}).slice(0, 20000)}` }] },
     { role: "model", parts: [{ text: '{"respuesta":"Listo, conozco su contexto. ¿Qué ajustamos?","rutinas":[]}' }] },
     ...historial,
     { role: "user", parts: [{ text: mensaje }] },
@@ -164,11 +180,12 @@ Deno.serve(async (req) => {
     }).catch((e) => new Response(String(e), { status: 599 }));
     let r = await llamar({ ...pedido, generationConfig: { ...pedido.generationConfig, thinkingConfig: { thinkingLevel: "low" } } });
     if (r.status === 400 && (await r.clone().text()).toLowerCase().includes("thinking")) r = await llamar(pedido);
-    if (r.status === 429) return json({ error: "limite" }, 429);
+    if (r.status === 429) { ultimoError = `${modelo}: 429`; continue; } // límite de este modelo: probar el siguiente
     if (!r.ok) { ultimoError = `${modelo}: ${r.status} ${(await r.text()).slice(0, 160)}`; console.log("gemini", ultimoError); continue; }
     const j = await r.json();
     const salida = j?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
     try { return json({ modelo, ...limpiar(JSON.parse(salida)) }); } catch { ultimoError = "respuesta"; }
   }
+  if (ultimoError.endsWith(": 429")) return json({ error: "limite" }, 429);
   return json({ error: "gemini", detalle: ultimoError }, 502);
 });
