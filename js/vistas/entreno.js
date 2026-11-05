@@ -10,6 +10,7 @@ import { vistaSemana } from './semana.js';
 import { abrirEntrenador, sobraCuadriceps } from '../entrenador.js';
 import { deporte } from '../deportes.js';
 import { mejorSerie } from '../logros.js';
+import { motivoVariacion } from '../variacion.js';
 
 export async function vistaEntreno(app) {
   const id = location.hash.split('/')[2];
@@ -61,6 +62,7 @@ async function detalle(app, rutinaId) {
                 <span class="ejercicio__nombre">${esc(it.ejercicio.nombre)}</span>
               </span>
               <span class="quieto" style="display:block;margin:4px 0 0">${esc(it.ejercicio.grupo_muscular)}${it.ejercicio.maquina ? ` · ${esc(it.ejercicio.maquina.nombre)}` : ''}</span>
+              ${it.rotado ? `<span class="ayuda" style="display:block;margin:4px 0 0">↻ ${esc(motivoVariacion(it))}</span>` : ''}
               ${mejor[it.ejercicio.id] ? `<span class="mejor-marca">${IC.trofeo} Tu mejor: ${Number(mejor[it.ejercicio.id].peso_kg).toLocaleString('es-EC')} kg × ${mejor[it.ejercicio.id].reps}</span>` : ''}
               <span class="ejercicio__como">Cómo se hace ›</span>
             </span>
@@ -72,7 +74,7 @@ async function detalle(app, rutinaId) {
                 <div class="meta-fila">
                   <span class="meta-fila__nombre">${esc(p.id === estado.yo.id ? 'Yo' : p.nombre)}</span>
                   <span class="meta-fila__valor">${esc(textoMeta(m, it.ejercicio.unidad))}${m && m.peso_kg == null && it.ejercicio.unidad === 'reps' ? ' · peso a definir' : ''}</span>
-                  ${m ? `<button type="button" class="boton boton--texto boton--chico" data-meta="${esc(m.id)}" aria-label="Editar meta de ${esc(p.nombre)} en ${esc(it.ejercicio.nombre)}">Editar</button>` : ''}
+                  ${m && !it.rotado ? `<button type="button" class="boton boton--texto boton--chico" data-meta="${esc(m.id)}" aria-label="Editar meta de ${esc(p.nombre)} en ${esc(it.ejercicio.nombre)}">Editar</button>` : ''}
                 </div>`;
             }).join('')}
           </div>

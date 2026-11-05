@@ -4,8 +4,9 @@
 import { IC } from '../iconos.js';
 import { sb, estado, datos } from '../db.js';
 import { esc, num, aviso, avisoError, abrirDialogo, grupoChips, valorChips } from '../ui.js';
-import { hoyISO } from '../fechas.js';
+import { hoyISO, aISO } from '../fechas.js';
 import { cargarRutina, textoMeta, redondearPeso } from '../rutinas.js';
+import { motivoVariacion, respetarLoHecho } from '../variacion.js';
 import { abrirEntrenador } from '../entrenador.js';
 import { esRecord, rachaSemanas } from '../logros.js';
 import { cargarMolestias, molestiaDe, nombreZona, textoIntensidad } from '../molestias.js';
@@ -99,12 +100,13 @@ export async function vistaSesion(app) {
     app.innerHTML = '<p class="vacio">No encontré ese entreno.</p><a class="boton boton--sec" href="#/hoy">Volver a Hoy</a>';
     return;
   }
-  const [{ rutina, items }, evento, series, miEstado] = await Promise.all([
-    cargarRutina(sesion.rutina_id),
+  const [{ rutina, items: variados }, evento, series, miEstado] = await Promise.all([
+    cargarRutina(sesion.rutina_id, { fecha: aISO(new Date(sesion.iniciada_en ?? Date.now())) }),
     sesion.calendario_id ? sb.from('calendario').select('*').eq('id', sesion.calendario_id).maybeSingle().then(datos) : null,
     sb.from('series').select('*').eq('sesion_id', id).order('hecha_en').then(datos),
     sb.from('estado_diario').select('*').eq('persona_id', estado.yo.id).eq('fecha', hoyISO()).maybeSingle().then(datos),
   ]);
+  const items = respetarLoHecho(variados, series);
   // El objetivo cambia cómo se progresa: para ganar masa, primero más reps (volumen); para bajar grasa, sostener el peso.
   const misMolestias = await cargarMolestias();
   const miFoco = (await sb.from('objetivos').select('foco').eq('persona_id', estado.yo.id).order('desde', { ascending: false }).limit(1).then(datos).catch(() => []))[0]?.foco ?? 'recomposicion';
@@ -289,6 +291,7 @@ function tarjetaEjercicio(it, i) {
             <span class="ejercicio__nombre">${esc(mio.nombre)}</span>
           </span>
           <span class="quieto" style="display:block;margin:4px 0 0">${esc(mio.grupo_muscular)}${mio.maquina ? ` · ${esc(mio.maquina.nombre)}` : ''}${cambiado ? ` · en vez de ${esc(it.ejercicio.nombre)}` : ''}</span>
+          ${!cambiado && it.rotado ? `<span class="ayuda" style="display:block;margin:4px 0 0">↻ ${esc(motivoVariacion(it))}</span>` : ''}
           <span class="ejercicio__como">Cómo se hace ›</span>
         </span>
       </button>
@@ -808,6 +811,7 @@ function calcularAjustes() {
     const meta = it.metas[estado.yo.id];
     if (!meta) continue;
     if (actual.cambios[it.id]) continue; // hizo otro ejercicio: no se toca la meta del original
+    if (it.rotado) continue; // variante de la semana: la meta guardada es del ejercicio de siempre
     const hechas = seriesDe(it, estado.yo.id).filter((s) => s.ejercicio_id === it.ejercicio.id);
     if (!hechas.length) continue;
     const segundos = it.ejercicio.unidad === 'segundos';

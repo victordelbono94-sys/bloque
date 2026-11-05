@@ -2,6 +2,8 @@
 import { sb, datos } from './db.js';
 import { num } from './ui.js';
 import { zonasDe } from './iconos.js';
+import { hoyISO } from './fechas.js';
+import { variarRutina, alternativasDe } from './variacion.js';
 
 export const FOCOS = {
   masa_muscular: 'Masa muscular',
@@ -12,13 +14,21 @@ export const FOCOS = {
   mixto: 'Mixto',
 };
 
-export async function cargarRutina(rutinaId) {
+const CAMPOS_EJERCICIO = 'id, nombre, grupo_muscular, unidad, por_lado, descripcion, imagenes, tecnica, video_url, maquina:maquinas(id, nombre)';
+
+/**
+ * Rutina con sus ejercicios. Con `fecha`, los ejercicios ya vienen variados para esa semana
+ * (básicos fijos 4 semanas, accesorios que rotan cada semana; ver variacion.js).
+ * `variar: false` devuelve la rutina tal como está guardada (para editarla).
+ */
+export async function cargarRutina(rutinaId, { fecha = hoyISO(), variar = true } = {}) {
   const rutina = datos(await sb.from('rutinas').select('*').eq('id', rutinaId).single());
-  const items = datos(await sb.from('rutina_ejercicios')
-    .select('id, orden, series_base, reps_base, descanso_base, ejercicio:ejercicios(id, nombre, grupo_muscular, unidad, por_lado, descripcion, imagenes, tecnica, video_url, maquina:maquinas(id, nombre))')
+  const guardados = datos(await sb.from('rutina_ejercicios')
+    .select(`id, orden, series_base, reps_base, descanso_base, ejercicio:ejercicios(${CAMPOS_EJERCICIO})`)
     .eq('rutina_id', rutinaId).order('orden'));
-  const ids = items.map((i) => i.id);
-  const ejIds = items.map((i) => i.ejercicio.id);
+  const catalogo = variar ? datos(await sb.from('ejercicios').select(CAMPOS_EJERCICIO).eq('hogar_id', rutina.hogar_id)) : [];
+  const ids = guardados.map((i) => i.id);
+  const ejIds = guardados.map((i) => i.ejercicio.id);
 
   const [metas, pares] = await Promise.all([
     ids.length ? sb.from('metas_ejercicio').select('*').in('rutina_ejercicio_id', ids).then(datos) : [],
@@ -29,13 +39,17 @@ export async function cargarRutina(rutinaId) {
     ? datos(await sb.from('ejercicios').select('id, nombre, grupo_muscular, unidad, por_lado, descripcion, imagenes, tecnica, video_url, maquina:maquinas(id, nombre)').in('id', altIds))
     : [];
 
-  for (const it of items) {
+  for (const it of guardados) {
     it.metas = Object.fromEntries(metas.filter((m) => m.rutina_ejercicio_id === it.id).map((m) => [m.persona_id, m]));
     it.alternativas = pares
       .filter((p) => p.ejercicio_id === it.ejercicio.id)
       .map((p) => alts.find((a) => a.id === p.alternativa_id))
       .filter(Boolean);
   }
+  if (!variar) return { rutina, items: guardados };
+  const items = variarRutina(guardados, catalogo, fecha);
+  // «¿Ocupada? Cámbiala por»: siempre del mismo músculo y movimiento, sin repetir lo que ya está en la rutina.
+  for (const it of items) it.alternativas = alternativasDe(it, items, catalogo, it.alternativas);
   return { rutina, items };
 }
 
