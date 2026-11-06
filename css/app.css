@@ -2331,3 +2331,17 @@ dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }
 .opcion-fila span { font-size: .85rem; color: var(--gris); }
 .opcion-fila[aria-pressed="true"] { border-color: var(--volt); }
 .opcion-fila[hidden] { display: none; }
+
+/* Privacidad, términos y aviso de salud (legal.js) */
+.chatia__aviso { margin: 6px 0 0; font-size: 11.5px; color: var(--gris); text-align: center; }
+.legal { display: flex; flex-direction: column; gap: 12px; }
+.legal__mensajes { display: grid; gap: 8px; }
+.legal__msj { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radio-chico); background: var(--grafito-2); }
+.legal__msj span { font-size: 13px; color: var(--tiza-2); }
+.aviso-salud { margin: 0; padding: 10px 12px; border-radius: var(--radio-chico); border-left: 3px solid var(--ambar); background: rgba(232, 163, 23, .1); font-size: 13.5px; }
+.legal__acepto { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+.legal__acepto input { margin-top: 3px; width: 20px; height: 20px; accent-color: var(--volt); flex: none; }
+.legal__ia summary { cursor: pointer; color: var(--volt); font-size: 14px; }
+.legal__texto h3 { font-size: 15px; margin: 14px 0 4px; }
+.legal__texto p, .legal__texto li { font-size: 14px; color: var(--tiza-2); line-height: 1.45; }
+.legal .aviso-fila small { display: block; color: var(--gris); font-size: 12px; }

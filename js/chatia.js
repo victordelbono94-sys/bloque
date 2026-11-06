@@ -43,11 +43,13 @@ export function htmlCompositor({ id, placeholder, foto = true, valor = '', ids =
           <span class="chatia__enviar-chispa">${ICONOS.chispa}</span><span class="chatia__enviar-flecha">${ICONOS.flecha}</span>
         </button>
       </div>
+      <p class="chatia__aviso">Orientativo: no reemplaza a un profesional de la salud.</p>
     </section>`;
 }
 
 /** Conecta el cuadro: crece con el texto, Enter envía, y el botón se transforma cuando hay algo para mandar. */
 export function conectarCompositor(raiz, { texto, enviar, alEnviar, hayAdjunto = () => false }) {
+  import('./legal.js').then((L) => L.recordarAvisoIA()).catch(() => {}); // aviso de salud, una vez al mes
   const t = raiz.querySelector(texto), b = raiz.querySelector(enviar);
   const actualizar = () => {
     t.style.height = 'auto';

@@ -91,6 +91,7 @@ export async function vistaPerfil(app) {
     <section class="seccion" aria-labelledby="t-cuenta">
       <h2 class="seccion__titulo" id="t-cuenta">Cuenta y datos</h2>
       <div class="per-menu">
+        ${filaMenu('privacidad', IC.candado ?? ICONO_CANDADO, 'Privacidad', 'Qué guarda Bloq, la IA y tus documentos')}
         ${filaMenu('exportar-json', IC.documento, 'Descargar todo', 'Una copia completa de tu hogar (JSON)')}
         ${filaMenu('exportar-csv', IC.grafico, 'Descargar mediciones', 'Peso y composición en una planilla (CSV)')}
         ${filaMenu('salir', ICONO_SALIR, 'Cerrar sesión', '')}
@@ -114,6 +115,7 @@ export async function vistaPerfil(app) {
   conectarNativo(app);
   conectarGimnasio(app, gimnasio);
   conectarAvisos(app);
+  app.querySelector('#privacidad').addEventListener('click', () => import('../legal.js').then((L) => L.dialogoPrivacidad()).catch(avisoError));
   app.querySelector('#exportar-json').addEventListener('click', exportarJSON);
   app.querySelector('#exportar-csv').addEventListener('click', exportarCSV);
   app.querySelector('#salir').addEventListener('click', () => sb.auth.signOut());
@@ -121,6 +123,7 @@ export async function vistaPerfil(app) {
 }
 
 const ICONO_HOGAR = '<svg class="icono-ui" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5"/><path d="M6 9.5V19h12V9.5"/></svg>';
+const ICONO_CANDADO = '<svg class="icono-ui" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 const ICONO_SALIR = '<svg class="icono-ui" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 8l-4 4 4 4M6 12h9"/></svg>';
 const ICONO_BORRAR = '<svg class="icono-ui" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v5M14 11v5"/></svg>';
 const CHEVRON = '<svg class="icono-ui per-fila__ir" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
@@ -206,6 +209,8 @@ function dialogoMisDatos(app) {
     const alturaTexto = d.querySelector('#altura_cm').value.trim().replace(',', '.');
     const altura = alturaTexto === '' ? null : Number(alturaTexto);
     if (altura != null && !(altura >= 100 && altura <= 250)) return aviso('Revisa la altura (entre 100 y 250 cm).', 'error');
+    const nac = d.querySelector('#fecha_nacimiento').value;
+    if (nac && edad(nac) != null && edad(nac) < 18) return aviso('Bloq es para personas de 18 años o más (ver términos de uso).', 'error');
     const boton = d.querySelector('#guardar');
     boton.disabled = true;
     try {

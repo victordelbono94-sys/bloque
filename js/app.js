@@ -67,6 +67,7 @@ function pantallaPrimeraVez() {
     await cargarPersonas();
     await fotoInicialDeGoogle().catch(() => {});
     await mostrarRuta();
+    import('./legal.js').then((L) => L.pedirConsentimiento()).catch((e) => console.error('consentimiento', e));
     aviso(mensaje);
   }, async () => { await sb.auth.signOut(); });
 }
@@ -179,6 +180,8 @@ async function arrancar() {
     const invitacion = invitacionPendiente();
     if (invitacion && !location.hash.startsWith('#/unirme/')) history.replaceState(null, '', `${location.pathname}#/unirme/${invitacion}`);
     await mostrarRuta();
+    // Privacidad, términos (18+) y aviso de salud: una vez por versión del texto.
+    import('./legal.js').then((L) => L.pedirConsentimiento()).catch((e) => console.error('consentimiento', e));
     escucharHogar();
     // En la app: conectar este teléfono con la cuenta para traer los datos de la banda.
     if (enApp) {

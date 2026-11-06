@@ -1,5 +1,6 @@
 // Asistente para completar el perfil: cuerpo, reloj, objetivo, deporte y gym. Al final arma el plan
 // (rutinas y agenda) si el hogar todavía no tiene uno. Se abre al crear la cuenta o desde el aviso de Hoy.
+import { edad } from '../nutricion.js';
 import { sb, estado, datos, cargarPersonas } from '../db.js';
 import { esc, aviso, avisoError } from '../ui.js';
 import { hoyISO } from '../fechas.js';
@@ -192,6 +193,8 @@ export async function vistaCompletar(app) {
 
 async function guardar(s, conPlan) {
   const yo = estado.yo;
+  // Términos de uso: Bloq es para mayores de 18 (datos de salud, dietas y metas de peso).
+  if (s.nacimiento && edad(s.nacimiento) != null && edad(s.nacimiento) < 18) throw new Error('Bloq es para personas de 18 años o más (ver términos de uso).');
   datos(await sb.from('personas').update({
     sexo: s.sexo, fecha_nacimiento: s.nacimiento, altura_cm: Number(s.altura), experiencia: s.experiencia,
   }).eq('id', yo.id));
