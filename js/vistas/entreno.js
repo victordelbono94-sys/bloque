@@ -35,7 +35,7 @@ async function detalle(app, rutinaId) {
         <h1 class="titulo">${esc(rutina.nombre)}</h1>
         <p class="subtitulo">${esc(FOCOS[rutina.foco] ?? '')}${rutina.notas ? ` · ${esc(rutina.notas)}` : ''}</p>
       </div>
-      <button type="button" class="boton boton--ia boton--chico" id="ajustar-ia">✦ Ajustar con IA</button>
+      <button type="button" class="boton boton--ia boton--chico" id="ajustar-ia">✦ Ajustar tu rutina</button>
     </header>
     ${sobraCuadriceps(items) ? `
       <section class="tarjeta aviso-deporte">

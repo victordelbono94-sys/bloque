@@ -151,7 +151,7 @@ export async function vistaSesion(app) {
         <h1 class="titulo">${esc(rutina.nombre)}</h1>
         <p class="subtitulo">${esc(participantes.length > 1 ? `${participantes.filter((p) => p.id !== estado.yo.id).map((p) => p.nombre).join(', ')} y yo` : (participantes[0]?.id === estado.yo.id ? 'Solo yo' : `Solo ${participantes[0]?.nombre ?? ''}`))}</p>
       </div>
-      ${terminé ? '' : '<button type="button" class="boton boton--ia boton--chico" id="ajustar-ia">✦ Ajustar con IA</button>'}
+      ${terminé ? '' : '<button type="button" class="boton boton--ia boton--chico" id="ajustar-ia">✦ Ajustar tu rutina</button>'}
     </header>
 
     <div class="sesion-barra">
@@ -299,7 +299,7 @@ function tarjetaEjercicio(it, i) {
       ${(() => { const m = molestiaDe(mio, actual.molestias); return m ? `<p class="ejercicio__molestia">${IC.curita} Carga tu ${esc(nombreZona(m.zona).toLowerCase())}: hazlo liviano y sin dolor, o cámbialo.</p>` : ''; })()}
       ${it.alternativas.length && actual.participantes.some((p) => p.id === estado.yo.id) ? `
         <button type="button" class="boton boton--sec boton--chico boton--ocupada" style="margin-top:10px" data-cambiar="${esc(it.id)}">
-          ¿Máquina ocupada? Cambiar ejercicio
+          ¿No puedes hacer este ejercicio?
         </button>` : ''}
       <div class="pila" style="gap:10px;margin-top:14px">
         ${actual.participantes.map((p) => `<div id="fila-${esc(it.id)}-${esc(p.id)}">${filaPersona(it, p)}</div>`).join('')}
@@ -442,11 +442,13 @@ function verFicha(app, it) {
 
 function elegirAlternativa(app, it) {
   const actualId = ejercicioDe(it, estado.yo.id).id;
-  const opciones = [it.ejercicio, ...it.alternativas];
+  // Sin lo que ya hice hoy en otro ejercicio de la sesión.
+  const hechosHoy = new Set(actual.series.filter((s) => s.persona_id === estado.yo.id && s.ejercicio_id !== actualId).map((s) => s.ejercicio_id));
+  const opciones = [it.ejercicio, ...it.alternativas].filter((o) => o.id === actualId || !hechosHoy.has(o.id));
   const d = abrirDialogo(`
     <div class="dialogo">
-      <h2 class="tarjeta__titulo">Cambiar ejercicio</h2>
-      <p class="quieto" style="margin:-8px 0 0">Solo para ti en este entreno. Trabajan el mismo grupo muscular.</p>
+      <h2 class="tarjeta__titulo">¿No puedes hacer este ejercicio?</h2>
+      <p class="quieto" style="margin:-8px 0 0">Elige otro del mismo músculo. Solo cambia para ti en este entreno.</p>
       <div class="pila" style="gap:8px">
         ${opciones.map((o) => `
           <div class="alternativa ${o.id === actualId ? 'alternativa--actual' : ''}">
@@ -454,7 +456,7 @@ function elegirAlternativa(app, it) {
               ${miniatura(o, 48)}
               <span class="alternativa__texto">
                 <strong>${esc(o.nombre)}</strong>
-                <span class="quieto">${o.id === it.ejercicio.id ? 'El de la rutina' : esc(o.maquina?.nombre ?? 'Peso libre')}</span>
+                <span class="quieto">${o.id === it.ejercicio.id ? 'El de la rutina' : `${o.comparacion ? `<span class="alternativa__nivel alternativa__nivel--${o.comparacion === 'Más fácil' ? 'facil' : o.comparacion === 'Más difícil' ? 'dificil' : 'igual'}">${esc(o.comparacion)}</span> · ` : ''}${o.mismoMovimiento === false ? 'otro movimiento · ' : ''}${esc(o.maquina?.nombre ?? 'Peso libre')}`}</span>
               </span>
             </button>
             <button type="button" class="boton boton--texto boton--chico" data-info="${esc(o.id)}" aria-label="Cómo se hace ${esc(o.nombre)}">Ver</button>
