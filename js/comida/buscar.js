@@ -10,7 +10,12 @@ import { estado } from '../db.js';
  * @param {HTMLElement} cont
  * @param {{ despensa?: Array, alElegir: (alimento, paquete) => void, placeholder?: string }} op
  */
-export function panelBuscar(cont, { despensa = [], alElegir, alFoto = null, placeholder = 'Buscar: arroz, huevo, avena Quaker…' }) {
+const ZONA = `
+      <div class="ba__res" id="ba-res"></div>
+      <button type="button" class="boton boton--texto boton--chico ba__crear" id="ba-crear" hidden>＋ ¿No aparece? Crear alimento a mano</button>
+      <div id="ba-form" hidden></div>`;
+
+export function panelBuscar(cont, { despensa = [], alElegir, alFoto = null, resultados = null, alBuscar = () => {}, placeholder = 'Buscar: arroz, huevo, avena Quaker…' }) {
   cont.innerHTML = `
     <div class="ba">
       <div class="ba__fila">
@@ -22,17 +27,18 @@ export function panelBuscar(cont, { despensa = [], alElegir, alFoto = null, plac
           <svg class="icono" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
         </button>` : ''}
       </div>
-      <div class="ba__res" id="ba-res"></div>
-      <button type="button" class="boton boton--texto boton--chico ba__crear" id="ba-crear" hidden>＋ ¿No aparece? Crear alimento a mano</button>
-      <div id="ba-form" hidden></div>
+      ${resultados ? '' : ZONA}
     </div>`;
+  // Los resultados pueden ir en otra caja (ej. arriba, con el buscador fijo abajo).
+  if (resultados) resultados.innerHTML = `<div class="ba">${ZONA}</div>`;
+  const zona = resultados ?? cont;
   const q = cont.querySelector('#ba-q');
-  const res = cont.querySelector('#ba-res');
+  const res = zona.querySelector('#ba-res');
   let pedido = 0, espera = null, offLista = [];
 
   const fila = (a, i, origen, extra = '') => `
     <button type="button" class="ba__item" data-origen="${origen}" data-i="${i}">
-      <span><strong>${esc(a.nombre)}</strong>${a.marca ? ` <span class="quieto">· ${esc(a.marca)}</span>` : ''}</span>
+      <span><strong>${esc(a.nombre)}</strong>${a.marca && !/desconocid|unknown|sin marca/i.test(a.marca) ? ` <span class="quieto">· ${esc(a.marca)}</span>` : ''}</span>
       <span class="quieto">${extra || `${kc(a.kcal)} kcal · P ${Math.round(a.proteina_g)} · C ${Math.round(a.carbohidratos_g)} · G ${Math.round(a.grasas_g)} por 100 g`}</span>
     </button>`;
 
@@ -56,7 +62,7 @@ export function panelBuscar(cont, { despensa = [], alElegir, alFoto = null, plac
       !cargandoOFF && buscando && !enDespensa.length && !enCatalogo.length && !offLista.length
         ? '<p class="quieto ba__vacio">No lo encontré. Escanea el código de barras, créalo a mano o usa la IA.</p>' : '',
     ].join('');
-    const crear = cont.querySelector('#ba-crear');
+    const crear = zona.querySelector('#ba-crear');
     if (crear) crear.hidden = !buscando;
     res.querySelector('#ba-mas')?.addEventListener('click', () => { todaDespensa = true; pintar(); });
   };
@@ -82,6 +88,7 @@ export function panelBuscar(cont, { despensa = [], alElegir, alFoto = null, plac
   pintar();
 
   q.addEventListener('input', () => {
+    alBuscar(q.value.trim());
     clearTimeout(espera);
     const t = q.value.trim();
     const turno = ++pedido;
@@ -116,7 +123,7 @@ export function panelBuscar(cont, { despensa = [], alElegir, alFoto = null, plac
   });
 
   const formulario = (codigo = '', nombre = '') => {
-    const f = cont.querySelector('#ba-form');
+    const f = zona.querySelector('#ba-form');
     f.hidden = false;
     f.innerHTML = `
       <div class="ba__manual pila" style="gap:10px">
@@ -148,7 +155,7 @@ export function panelBuscar(cont, { despensa = [], alElegir, alFoto = null, plac
     });
     f.querySelector('#m-nombre').focus();
   };
-  cont.querySelector('#ba-crear').addEventListener('click', () => formulario('', q.value.trim()));
+  zona.querySelector('#ba-crear').addEventListener('click', () => formulario('', q.value.trim()));
 
   cont.querySelector('#ba-foto')?.addEventListener('click', () => alFoto());
   cont.querySelector('#ba-escanear').addEventListener('click', async () => {

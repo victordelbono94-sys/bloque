@@ -178,6 +178,9 @@ export function abrirRegistro(ctx, op = {}) {
     $('#r-momento-btn').textContent = `${MOMENTOS[momento]} ▾`;
     if ($('#r-paso')) $('#r-paso').textContent = paso === 2 ? 'Paso 2 de 2 · quién comió' : '';
     d.querySelectorAll('#r-momento [data-valor]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.valor === momento)));
+    // Que el momento elegido se vea aunque esté al final de la fila (ej. Snack).
+    const elegido = d.querySelector(`#r-momento [data-valor="${momento}"]`);
+    if (elegido && !$('#r-momento').hidden) requestAnimationFrame(() => { const f = $('#r-momento'); f.scrollLeft = Math.max(0, elegido.offsetLeft - (f.clientWidth - elegido.offsetWidth) / 2); });
   };
   pintarMomento();
   if (!editar) cargarHabitual();
@@ -189,61 +192,121 @@ export function abrirRegistro(ctx, op = {}) {
   d.querySelectorAll('#r-momento [data-valor]').forEach((b) => b.addEventListener('click', () => {
     momento = b.dataset.valor;
     pintarMomento();
-    $('#r-momento').hidden = true;
+    if (paso !== 1) $('#r-momento').hidden = true;
     pintarMeta();
     if (!editar) cargarHabitual();
   }));
 
   // ---------- Paso 1: qué comiste ----------
   const lista = ctx.habituales?.length ? ctx.habituales : (ctx.frecuentes ?? []);
+  // Una sola pantalla que se va completando (pedido de Victor, 6/11): el momento siempre a la vista, tu plato arriba,
+  // «¿Quién comió?» y «Guardar» aparecen cuando hay comida, y abajo, fijo, el buscador con escáner y foto. Sin chat de IA:
+  // la foto se analiza una vez y sus alimentos entran al plato, editables como cualquier otro.
   const pintarPaso1 = () => {
     paso = 1;
-    $('#r-momento-btn').hidden = false;
+    $('#r-momento').hidden = false;
+    $('#r-momento-btn').hidden = true;
     pintarMomento();
-    // Arriba (lo que se desplaza): tu plato con su desglose y la conversación con la IA.
-    // Abajo, fijo como en una app de mensajes: el total + «Seguir», y el cuadro para escribirle a la IA o mandar una foto.
     $('#r-izq').innerHTML = ICONOS.x;
     $('#r-izq').setAttribute('aria-label', 'Cerrar');
     $('#r-accion').innerHTML = '';
     $('#r-cuerpo').innerHTML = `
-      <div class="chatia__resumen" id="r-resumen" hidden><span>Tu plato</span><span class="comida-total" id="r-total"></span></div>
-      <div id="r-buscar" class="reg__buscar"></div>
-      <div class="chips chips--scroll reg__atajos" id="r-rapidos" aria-label="Agregar rápido">
-        ${sobrasDisponibles().length ? `<button type="button" class="chip chip--mini chip--sugerencia" id="r-sobras">+ Sobras (${sobrasDisponibles().length})</button>` : ''}
-        ${lista.map((f, i) => `<button type="button" class="chip chip--mini" data-frec="${i}">+ ${esc(nombreCorto(f.alimento))}</button>`).join('')}
+      <div id="r-res" class="reg__res" hidden></div>
+      <div id="r-plato" class="reg__plato">
+        <div class="chatia__resumen" id="r-resumen" hidden><span>Tu plato</span><span class="comida-total" id="r-total"></span></div>
+        <p class="reg__titulo-plato">Tu plato</p>
+        <p class="quieto reg__vacio" id="r-vacio">Busca, escanea o sácale una foto a lo que comiste.</p>
+        <div class="chips chips--scroll reg__atajos" id="r-rapidos" aria-label="Lo que sueles comer">
+          ${sobrasDisponibles().length ? `<button type="button" class="chip chip--mini chip--sugerencia" id="r-sobras">+ Sobras (${sobrasDisponibles().length})</button>` : ''}
+          ${lista.map((f, i) => `<button type="button" class="chip chip--mini" data-frec="${i}">+ ${esc(nombreCorto(f.alimento))}</button>`).join('')}
+        </div>
+        <div id="r-foto-estado" class="reg__foto-estado" hidden></div>
+        <div id="r-items" class="pila" style="gap:8px"></div>
+        <div class="consejo" id="r-consejo" hidden><div class="consejo__meta" id="r-meta"></div></div>
+        <div id="r-quien" class="reg__quien" hidden></div>
+        <button type="button" class="boton boton--bloque reg__guardar-final" id="r-seguir" hidden>Guardar</button>
+        ${editar ? '<button type="button" class="boton boton--texto boton--chico reg__borrar" id="r-borrar">Eliminar esta comida</button>' : ''}
       </div>
-      <div id="r-items" class="pila" style="gap:8px"></div>
-      <button type="button" class="chip chip--mini chip--sugerencia reg__de-despensa" id="r-de-despensa" hidden>+ Lo cociné con lo de la despensa</button>
-      <div class="consejo" id="r-consejo" hidden>
-        <div class="consejo__meta" id="r-meta"></div>
-      </div>
-      <div class="ia-chat" id="r-chat" aria-live="polite">${chatLog.join('')}</div>
-      <button type="button" class="boton boton--texto boton--chico reg__usar-ia" id="r-usar-ia" aria-expanded="false">${ICONO.chispa} ¿No lo encuentras? Usar IA con foto o texto</button>
-      <p class="ayuda reg__ia-nota" id="r-ia-nota" hidden>Última opción: tarda más y a veces se equivoca. Revisa lo que agregue antes de guardar.</p>
-      ${editar ? '<button type="button" class="boton boton--texto boton--chico reg__borrar" id="r-borrar">Eliminar esta comida</button>' : ''}`;
+      <input type="file" id="r-foto-in" accept="image/*" capture="environment" hidden>`;
     $('#r-pie').hidden = false;
-    $('#r-pie').innerHTML = `
-      <div id="r-ia-zona" ${chatLog.length || op.texto || fotoPendiente ? '' : 'hidden'}>
-        ${htmlCompositor({
-          id: 'r-ia', placeholder: 'Escríbele a la IA o manda una foto…', valor: op.texto ?? '',
-          ids: { texto: 'r-texto', enviar: 'r-leer', camara: 'r-camara', galeria: 'r-galeria', foto: 'r-foto', quitar: 'r-foto-quitar', estado: 'r-estado' },
-        })}
-      </div>
-      <div class="reg__barra">
-        <span class="reg__barra-total" id="r-barra-total">Busca y agrega lo que comiste</span>
-        <button type="button" class="boton reg__guardar" id="r-seguir" disabled>${varios ? 'Seguir · quién comió' : 'Guardar comida'}</button>
-      </div>`;
-    conectarPaso1();
+    $('#r-pie').innerHTML = '<div id="r-buscar" class="reg__buscar reg__buscar--abajo"></div>';
     pintarHabitual();
     pintarPlatos();
     pintarItems();
-    if (fotoPendiente) mostrarFoto(fotoPendiente);
+    const cajaBuscar = $('#r-buscar');
+    panelBuscar(cajaBuscar, {
+      despensa: [],
+      resultados: $('#r-res'),
+      placeholder: 'Busca: porción de arroz, huevo…',
+      // Mientras se busca, los resultados ocupan el lugar del plato.
+      alBuscar: (t) => { $('#r-res').hidden = !t; $('#r-plato').hidden = !!t; },
+      alFoto: () => $('#r-foto-in').click(),
+      alElegir: (alimento, paquete) => {
+        agregar(alimento, paquete ? Math.min(Number(paquete.gramos_restantes), Number(alimento.porcion_g ?? 100)) : Number(alimento.porcion_g ?? 100), paquete);
+        const q = cajaBuscar.querySelector('#ba-q');
+        if (q) { q.value = ''; q.dispatchEvent(new Event('input', { bubbles: true })); q.blur(); }
+      },
+    });
+    $('#r-foto-in').addEventListener('change', async (e) => {
+      const foto = e.target.files?.[0];
+      e.target.value = '';
+      if (foto) await analizarFoto(foto);
+    });
+    $('#r-sobras')?.addEventListener('click', () => {
+      for (const p0 of sobrasDisponibles()) items.push({ alimento: p0.alimento, gramos: Number(p0.gramos_restantes), paquete: p0, persona: null });
+      pintarItems();
+    });
+    d.querySelectorAll('[data-frec]').forEach((b) => b.addEventListener('click', () => { const f = lista[Number(b.dataset.frec)]; agregar(f.alimento, f.gramos); }));
+    $('#r-borrar')?.addEventListener('click', async () => {
+      try { await borrarComida(op.comida); d.close(); aviso('Comida eliminada.'); ctx.recargar(); } catch (err) { avisoError(err); }
+    });
+    $('#r-seguir').addEventListener('click', () => guardar());
+    if (op.foto) { const f = op.foto; op.foto = null; analizarFoto(f); }
   };
 
-  const mensaje = (t, cargando = false) => {
-    const el = $('#r-estado');
-    if (!el) return;
-    el.hidden = !t; el.textContent = t ?? '';
+  // Foto del plato: una sola consulta a la IA (con respaldo); los alimentos entran al plato y se ajustan a mano.
+  const analizarFoto = async (foto) => {
+    const caja = $('#r-foto-estado');
+    caja.hidden = false;
+    caja.innerHTML = `<img class="reg__foto-mini" src="${URL.createObjectURL(foto)}" alt=""><span>Mirando la foto…</span>`;
+    try {
+      const r = await gemini('foto', { imagen: await fotoBase64(foto), tipo: 'image/jpeg' });
+      if (!r.alimentos?.length) { caja.innerHTML = '<span>No reconocí comida en la foto. Prueba más cerca o búscalo arriba.</span>'; return; }
+      for (const x of r.alimentos) agregar(await aAlimento(x), x.gramos);
+      caja.innerHTML = `<span>✓ Agregué ${r.alimentos.length} alimento${r.alimentos.length === 1 ? '' : 's'} de la foto. Revisa las cantidades.</span>`;
+      setTimeout(() => { caja.hidden = true; }, 5000);
+    } catch (err) {
+      caja.innerHTML = `<span>${esc(err.message)}</span>`;
+    }
+  };
+
+  // «¿Quién comió?» dentro de la misma pantalla, cuando ya hay comida en el plato.
+  const pintarQuien = () => {
+    const caja = $('#r-quien');
+    if (!caja) return;
+    caja.hidden = !items.length || !varios;
+    if (caja.hidden) return;
+    const muchos = quien.length > 1;
+    caja.innerHTML = `
+      <p class="reg__titulo-plato">¿Quién comió?</p>
+      <div class="chips">${estado.personas.map((p) => `<button type="button" class="chip" data-quien="${esc(p.id)}" aria-pressed="${quien.includes(p.id)}">${esc(p.id === estado.yo.id ? 'Yo' : p.nombre)}</button>`).join('')}</div>
+      ${muchos ? `<div class="chips" style="margin-top:8px">
+        <button type="button" class="chip chip--mini" data-rep="compartido" aria-pressed="${reparto === 'compartido'}">Lo compartimos</button>
+        <button type="button" class="chip chip--mini" data-rep="cada_uno" aria-pressed="${reparto === 'cada_uno'}">Un plato cada uno</button>
+        <button type="button" class="chip chip--mini" data-rep="distinto" aria-pressed="${reparto === 'distinto'}">Cada uno comió distinto ›</button>
+      </div>` : ''}
+      ${muchos ? `<p class="quieto" style="margin:8px 0 0">${porPersona().map(([id, m]) => `${esc(id === estado.yo.id ? 'Yo' : estado.personas.find((x) => x.id === id)?.nombre ?? '')}: ${kc(m.kcal)} kcal`).join(' · ')}</p>` : ''}`;
+    caja.querySelectorAll('[data-quien]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.quien;
+      quien = quien.includes(id) ? quien.filter((x) => x !== id) : [...quien, id];
+      if (!quien.length) quien = [id];
+      pintarQuien();
+    }));
+    caja.querySelectorAll('[data-rep]').forEach((b) => b.addEventListener('click', () => {
+      reparto = b.dataset.rep;
+      if (reparto === 'distinto') return pintarPaso2();
+      pintarQuien();
+    }));
   };
 
   const agregar = (alimento, gramos, paquete = null, persona = null) => { items.push({ alimento, gramos: Number(gramos) || 100, paquete, persona }); pintarItems(); };
@@ -289,9 +352,7 @@ export function abrirRegistro(ctx, op = {}) {
               <option value="">Porción…</option>
               ${porcionesDe(it.alimento).flatMap((p) => [0.5, 1, 1.5, 2].map((k) => `<option value="${Math.round(p.g * k * 10) / 10}">${esc(cantidadPorcion(p.nombre, k))} · ${g(p.g * k)}</option>`)).join('')}
             </select>` : ''}
-            ${paquete ? `<button type="button" class="chip chip--mini chip--activo" data-despensa="${i}">De la despensa ✓${it.gramosDespensa && Math.round(it.gramosDespensa) !== Math.round(it.gramos) ? ` · usa ${g(it.gramosDespensa)}${paquete.alimento?.nombre && sinTilde(paquete.alimento.nombre) !== sinTilde(it.alimento.nombre) ? ` de ${esc(paquete.alimento.nombre.toLowerCase())}` : ''}` : ''}</button>`
-              : enDespensa ? `<button type="button" class="chip chip--mini" data-despensa="${i}">Descontar de la despensa</button>` : ''}
-            ${paquete ? '' : `<button type="button" class="item-comida__guardar" data-guardar="${i}">${IC.frasco}Es para guardar en la despensa</button>`}
+            ${paquete && enDespensa === false ? '' : ''}
           </div>
           <div class="paso-mini">
             <button type="button" data-menos="${i}" aria-label="Menos">${ICONO.menos}</button>
@@ -304,10 +365,15 @@ export function abrirRegistro(ctx, op = {}) {
     const total = sumar(items.map((it) => macros(it.alimento, it.gramos)));
     $('#r-total').innerHTML = items.length ? `<strong>${kc(total.kcal)}</strong> kcal · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}` : '';
     $('#r-seguir').disabled = !items.length;
+    if (paso === 1) {
+      $('#r-seguir').hidden = !items.length;
+      $('#r-seguir').textContent = items.length ? `Guardar ${(MOMENTOS[momento] ?? 'comida').toLowerCase()} · ${kc(total.kcal)} kcal` : 'Guardar';
+      if ($('#r-vacio')) $('#r-vacio').hidden = !!items.length;
+      pintarQuien();
+    }
     if ($('#r-barra-total')) $('#r-barra-total').innerHTML = items.length ? `<strong>${kc(total.kcal)}</strong> kcal · P ${Math.round(total.proteina)} · C ${Math.round(total.carbos)} · G ${Math.round(total.grasas)}` : 'Busca y agrega lo que comiste';
     $('#r-resumen').hidden = true; // el total va en la barra de abajo, junto a Guardar
     if ($('#r-de-despensa')) $('#r-de-despensa').hidden = !(ctx.despensa?.some((p) => Number(p.gramos_restantes) > 0) && items.length && items.some((it) => !it.paquete));
-    if ($('#r-vacio')) $('#r-vacio').hidden = !!items.length || chatLog.length > 0;
     $('#r-ia') && conectado?.actualizar();
     if ($('#r-texto') && !fotoPendiente) $('#r-texto').placeholder = items.length ? 'Agrega, corrige o pregunta…' : 'Qué comiste o compraste…';
     pintarMeta();

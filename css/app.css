@@ -2365,3 +2365,16 @@ dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }
 .ba__fila input { flex: 1; min-width: 0; }
 .ba__crear, .ba__mas { align-self: flex-start; padding: 0; margin-top: 4px; }
 .ba .reg__atajos { margin: 10px 0 4px; }
+/* Agregar comida en una sola pantalla (6/11): plato arriba, buscador fijo abajo */
+.reg__momentos:not([hidden]) { padding: 10px 16px 4px; }
+.reg__titulo-plato { margin: 6px 0 8px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--gris); }
+.reg__vacio { margin: 0 0 12px; }
+.reg__plato { display: flex; flex-direction: column; gap: 10px; }
+.reg__quien { padding: 12px 14px; border-radius: var(--radio-chico); background: var(--grafito-2); }
+.reg__quien .reg__titulo-plato { margin-top: 0; }
+.reg__guardar-final { margin-top: 4px; }
+.reg__foto-estado { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radio-chico); background: var(--grafito-2); font-size: 14px; }
+.reg__foto-mini { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; flex: none; }
+.reg__buscar--abajo { padding: 8px 0 2px; }
+.reg__buscar--abajo .ba { gap: 0; }
+.reg__res .ba__grupo:first-child { margin-top: 0; }
