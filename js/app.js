@@ -1,4 +1,7 @@
 // Arranque de Bloq: sesión, equipo y navegación entre pantallas.
+// Errores no atrapados: quedan en errores_app para revisarlos.
+window.addEventListener('error', (e) => import('./ui.js').then((u) => u.anotarError(e.error ?? e.message, 'global')));
+window.addEventListener('unhandledrejection', (e) => import('./ui.js').then((u) => u.anotarError(e.reason, 'promesa')));
 import { sb, estado, escrituras, cargarPersonas, fotoInicialDeGoogle, revisarDespertar } from './db.js';
 import { hoyISO } from './fechas.js';
 import { aviso, avisoError } from './ui.js';

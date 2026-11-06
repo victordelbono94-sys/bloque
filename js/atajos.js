@@ -96,3 +96,48 @@ export function usarPlato(p) {
     .then(({ error }) => { if (error) console.warn('platos:', error.message); }, () => {});
   cache = null;
 }
+
+/** Mis platos: revisar, corregir gramos, renombrar o borrar. Lo que se corrige a mano queda como «manual» y la IA no lo pisa. */
+export async function dialogoMisPlatos(alCambiar = () => {}) {
+  const { esc, aviso, avisoError, abrirDialogo } = await import('./ui.js');
+  const lista = await misPlatos(true);
+  const kcal = (p) => Math.round(p.items.reduce((a, i) => a + (Number(i.kcal) || 0) * (Number(i.gramos) || 0) / 100, 0));
+  const d = abrirDialogo(`
+    <div class="dialogo">
+      <h2 class="tarjeta__titulo">Mis platos</h2>
+      <p class="quieto" style="margin:-6px 0 0">Se registran con un toque y sin IA. Los gramos son de tu porción.</p>
+      <div class="pila" id="mp-lista" style="gap:10px">
+        ${lista.length ? lista.map((p, k) => `
+          <details class="mp" data-k="${k}">
+            <summary><strong>${esc(p.nombre)}</strong><span class="quieto"> · ${kcal(p)} kcal${p.origen === 'manual' ? ' · corregido' : ''}</span></summary>
+            <label class="campo"><span class="campo__etiqueta">Nombre</span><input type="text" data-nombre value="${esc(p.nombre)}" maxlength="80"></label>
+            ${p.items.map((i, j) => `<label class="mp__item"><span>${esc(i.nombre)}</span><input type="number" inputmode="decimal" min="0" step="5" data-g="${j}" value="${Math.round(Number(i.gramos) || 0)}"> g</label>`).join('')}
+            <div class="fila fila--entre" style="margin-top:8px">
+              <button type="button" class="boton boton--texto boton--chico" data-borrar style="color:var(--error)">Borrar</button>
+              <button type="button" class="boton boton--chico" data-guardar>Guardar</button>
+            </div>
+          </details>`).join('') : '<p class="quieto">Todavía no hay platos. Se guardan solos cuando registras una comida con la IA.</p>'}
+      </div>
+      <div class="dialogo__pie"><button type="button" class="boton boton--sec" data-cerrar>Cerrar</button></div>
+    </div>`, 'Mis platos');
+  d.querySelectorAll('.mp').forEach((el) => {
+    const p = lista[Number(el.dataset.k)];
+    el.querySelector('[data-guardar]').addEventListener('click', async (e) => {
+      const b = e.currentTarget; b.disabled = true;
+      const nombre = el.querySelector('[data-nombre]').value.trim() || p.nombre;
+      const items = p.items.map((i, j) => ({ ...i, gramos: Math.max(0, Number(el.querySelector(`[data-g="${j}"]`).value) || 0) })).filter((i) => i.gramos > 0);
+      try {
+        datos(await sb.from('platos').update({ nombre, clave: normal(nombre), items, origen: 'manual' }).eq('id', p.id).select('id'));
+        cache = null; aviso('Plato guardado.'); alCambiar();
+        el.querySelector('summary .quieto').textContent = ` · ${kcal({ items })} kcal · corregido`;
+      } catch (err) { avisoError(err); }
+      b.disabled = false;
+    });
+    el.querySelector('[data-borrar]').addEventListener('click', async () => {
+      try {
+        datos(await sb.from('platos').delete().eq('id', p.id).select('id'));
+        cache = null; el.remove(); aviso('Plato borrado.'); alCambiar();
+      } catch (err) { avisoError(err); }
+    });
+  });
+}

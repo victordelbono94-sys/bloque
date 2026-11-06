@@ -2347,3 +2347,8 @@ dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }
 .legal .aviso-fila small { display: block; color: var(--gris); font-size: 12px; }
 /* Código de barras al frente: escanear no gasta IA */
 .ba__escanear { display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; white-space: nowrap; flex: none; }
+.mp { padding: 10px 12px; border-radius: var(--radio-chico); background: var(--grafito-2); }
+.mp summary { cursor: pointer; }
+.mp .campo { margin-top: 10px; }
+.mp__item { display: grid; grid-template-columns: 1fr 80px auto; gap: 8px; align-items: center; margin-top: 6px; font-size: 14px; }
+.mp__item input { padding: 6px 8px; }

@@ -30,6 +30,22 @@ export function aviso(texto, tipo = 'ok') {
 export function avisoError(error) {
   console.error(error);
   aviso(mensajeError(error), 'error');
+  anotarError(error, 'aviso');
+}
+
+/** Registra un error en errores_app (sin datos de salud: solo pantalla y mensaje técnico). Nunca frena nada. */
+let errores = 0;
+export function anotarError(error, origen = '') {
+  try {
+    if (errores++ > 20) return; // tope por sesión
+    const texto = String(error?.message || error || '').slice(0, 300);
+    if (!texto || /Failed to fetch|NetworkError|Load failed|AbortError/i.test(texto)) return; // sin conexión: no es un bug
+    import('./db.js').then(({ sb, estado }) => {
+      if (!estado.yo?.id) return;
+      sb.from('errores_app').insert({ persona_id: estado.yo.id, pantalla: `${location.hash.split('?')[0].slice(0, 60)} ${origen}`.trim(), mensaje: texto })
+        .then(() => {}, () => {});
+    }).catch(() => {});
+  } catch { /* nada */ }
 }
 
 function mensajeError(error) {
@@ -228,8 +244,10 @@ function preguntarDescartar(d) {
         <button type="button" class="boton boton--sec" id="dsc-seguir">Seguir editando</button>
         <button type="button" class="boton boton--peligro" id="dsc-salir">Descartar</button>
       </div>
+      ${typeof d.guardarAlSalir === 'function' ? `<button type="button" class="boton boton--bloque" id="dsc-guardar">${esc(d.textoGuardar ?? 'Guardar y salir')}</button>` : ''}
     </div>`, 'Descartar cambios');
   q.classList.add('descartar');
+  q.querySelector('#dsc-guardar')?.addEventListener('click', () => { q.close(); d.guardarAlSalir(); });
   q.querySelector('#dsc-seguir').addEventListener('click', () => q.close());
   q.querySelector('#dsc-salir').addEventListener('click', () => { q.close(); d.close(); });
 }

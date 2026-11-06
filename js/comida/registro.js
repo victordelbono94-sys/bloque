@@ -3,7 +3,7 @@
 //      Debajo, la lista para revisar y si alcanza para esa comida (desayuno, almuerzo…) con sugerencias.
 //   2. Quién comió (solo si en el hogar hay más personas): uno, varios, y si fue un plato cada uno o compartido.
 import { llamarIA, anotarSinIA } from '../ia.js';
-import { leerAgua, buscarPlato, usarPlato, guardarPlato, misPlatos } from '../atajos.js';
+import { leerAgua, buscarPlato, usarPlato, guardarPlato, misPlatos, dialogoMisPlatos } from '../atajos.js';
 import { sb, estado, datos } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
 import { hoyISO } from '../fechas.js';
@@ -115,7 +115,10 @@ export function abrirRegistro(ctx, op = {}) {
     fila.querySelectorAll('[data-plato]').forEach((b) => b.remove());
     const ancla = d.querySelector('#r-habitual');
     const html = lista.map((p, k) => `<button type="button" class="chip chip--mini chip--sugerencia" data-plato="${k}" title="Mis platos">★ ${esc(p.nombre.length > 28 ? `${p.nombre.slice(0, 27)}…` : p.nombre)}</button>`).join('');
-    if (ancla) ancla.insertAdjacentHTML('afterend', html); else fila.insertAdjacentHTML('afterbegin', html);
+    const editarHtml = '<button type="button" class="chip chip--mini" data-plato-editar>Mis platos ›</button>';
+    fila.querySelector('[data-plato-editar]')?.remove();
+    if (ancla) ancla.insertAdjacentHTML('afterend', html + editarHtml); else fila.insertAdjacentHTML('afterbegin', html + editarHtml);
+    fila.querySelector('[data-plato-editar]').addEventListener('click', () => dialogoMisPlatos(() => pintarPlatos()));
     fila.querySelectorAll('[data-plato]').forEach((b) => b.addEventListener('click', async () => {
       const p = lista[Number(b.dataset.plato)];
       b.disabled = true;
@@ -167,6 +170,10 @@ export function abrirRegistro(ctx, op = {}) {
   $('#r-izq').addEventListener('click', () => (paso === 2 ? pintarPaso1() : d.descartar()));
   // Atrás, tocar afuera o deslizar no borran lo anotado sin preguntar.
   d.proteger = () => paso === 2 || !!fotoPendiente || !!$('#r-texto')?.value.trim() || (!editar && items.length > 0);
+  // Si hay alimentos en el plato y se intenta salir, se ofrece guardarla (antes se perdían comidas al volver atrás).
+  d.textoDescartar = '¿Salir sin guardar la comida?';
+  d.textoGuardar = 'Guardar la comida';
+  d.guardarAlSalir = () => (items.length ? guardar() : d.close());
   const pintarMomento = () => {
     $('#r-momento-btn').textContent = `${MOMENTOS[momento]} ▾`;
     if ($('#r-paso')) $('#r-paso').textContent = paso === 2 ? 'Paso 2 de 2 · quién comió' : '';

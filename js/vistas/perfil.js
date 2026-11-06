@@ -55,6 +55,7 @@ export async function vistaPerfil(app) {
       <div class="per-menu">
         ${filaMenu('mis-datos', IC.nota, 'Mis datos', resumenDatos(yo))}
         ${filaMenu('mi-dieta', IC.manzana, 'Mi alimentación', resumenDieta())}
+        ${filaMenu('mis-platos', IC.comida ?? IC.manzana, 'Mis platos', 'Los platos que registras con un toque, sin IA')}
       </div>
     </section>
 
@@ -100,6 +101,7 @@ export async function vistaPerfil(app) {
     </section>`;
 
   app.querySelector('#mis-datos').addEventListener('click', () => dialogoMisDatos(app));
+  app.querySelector('#mis-platos').addEventListener('click', () => import('../atajos.js').then((A) => A.dialogoMisPlatos()).catch(avisoError));
   app.querySelector('#mi-dieta').addEventListener('click', () => import('../dieta.js').then((D) => D.dialogoDieta(() => vistaPerfil(app))));
 
   // Mis objetivos (deporte, gym, objetivo, experiencia) con la IA para cambiarlos.
