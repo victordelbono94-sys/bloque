@@ -57,11 +57,8 @@ export function abrirFicha(ej, { alternativas = [], alElegir = null, actualId = 
       </button>
       ${alternativas.length ? `
         <div>
-          <button type="button" class="boton boton--sec boton--bloque ficha__no-puedo" id="no-puedo" aria-expanded="false" aria-controls="ficha-alternativas">
-            ¿No puedes hacer este ejercicio?
-          </button>
-          <div class="pila" id="ficha-alternativas" hidden style="gap:8px;margin-top:10px">
-            <p class="quieto" style="margin:0">Opciones del mismo músculo. Tócala para ver cómo se hace${alElegir ? ' o «Usar» para cambiarla' : ''}.</p>
+          <p class="seccion__titulo" style="margin:4px 0 8px">${alElegir ? '¿Ocupada o quieres variar? Cámbiala por' : 'Otras opciones para variar'}</p>
+          <div class="pila" style="gap:8px">
             ${alternativas.map((a) => `
               <div class="alternativa ${a.id === actualId ? 'alternativa--actual' : ''}">
                 <button type="button" class="alternativa__ver" data-ver="${esc(a.id)}" aria-label="Ver cómo se hace ${esc(a.nombre)}">
@@ -84,12 +81,6 @@ export function abrirFicha(ej, { alternativas = [], alElegir = null, actualId = 
     </div>`, `Cómo se hace ${ej.nombre}`, { pantalla: true });
 
   d.querySelector('#video').addEventListener('click', () => abrirExterno(urlVideo(ej)));
-  d.querySelector('#no-puedo')?.addEventListener('click', (e) => {
-    const lista = d.querySelector('#ficha-alternativas');
-    lista.hidden = !lista.hidden;
-    e.currentTarget.setAttribute('aria-expanded', String(!lista.hidden));
-    if (!lista.hidden) setTimeout(() => lista.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
-  });
   d.querySelector('#usar-este')?.addEventListener('click', () => { d.close(); alUsarEste(); });
   d.querySelectorAll('[data-ver]').forEach((b) => b.addEventListener('click', () => {
     const alt = alternativas.find((a) => a.id === b.dataset.ver);

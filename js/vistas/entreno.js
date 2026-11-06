@@ -78,7 +78,19 @@ async function detalle(app, rutinaId) {
                 </div>`;
             }).join('')}
           </div>
-          ${it.alternativas.length ? `<p class="ayuda" style="margin-top:10px">Si está ocupada: ${it.alternativas.map((a) => esc(a.nombre)).join(' · ')} (en «Cómo se hace» ves cada una)</p>` : ''}
+          ${it.alternativas.length ? `
+            <button type="button" class="boton boton--sec boton--chico" style="margin-top:12px" data-no-puedo="${esc(it.id)}" aria-expanded="false">¿No puedes hacer este ejercicio?</button>
+            <div class="pila" id="alt-${esc(it.id)}" hidden style="gap:8px;margin-top:10px">
+              <p class="quieto" style="margin:0">Opciones para variar o si la máquina está ocupada. Toca una para ver cómo se hace.</p>
+              ${it.alternativas.map((a) => `
+                <button type="button" class="alternativa alternativa__ver" data-alt="${esc(it.id)}|${esc(a.id)}">
+                  ${miniatura(a, 48)}
+                  <span class="alternativa__texto">
+                    <strong>${esc(a.nombre)}</strong>
+                    <span class="quieto">${a.comparacion ? `<span class="alternativa__nivel alternativa__nivel--${a.comparacion === 'Más fácil' ? 'facil' : a.comparacion === 'Más difícil' ? 'dificil' : 'igual'}">${esc(a.comparacion)}</span> · ` : ''}${a.mismoMovimiento === false ? 'otro movimiento · ' : ''}${esc(a.maquina?.nombre ?? 'Peso libre')}</span>
+                  </span>
+                </button>`).join('')}
+            </div>` : ''}
         </article>`).join('')}
     </div>
     <p class="ayuda" style="margin-top:16px">Las metas sin peso se completan solas con lo que registren en el primer entreno. Después se ajustan según cómo les vaya.</p>`;
@@ -88,6 +100,17 @@ async function detalle(app, rutinaId) {
   app.querySelector('#ajustar-deporte')?.addEventListener('click', () => abrirEntrenador({
     rutinaId, alAplicar: recargar,
     mensaje: `Ajusta esta rutina para ${deporte(estado.equipo?.deporte)?.nombre.toLowerCase() ?? 'mi deporte'}: menos cuádriceps, más glúteos y femorales.`,
+  }));
+  app.querySelectorAll('[data-no-puedo]').forEach((b) => b.addEventListener('click', () => {
+    const lista = app.querySelector(`#alt-${CSS.escape(b.dataset.noPuedo)}`);
+    lista.hidden = !lista.hidden;
+    b.setAttribute('aria-expanded', String(!lista.hidden));
+  }));
+  app.querySelectorAll('[data-alt]').forEach((b) => b.addEventListener('click', () => {
+    const [itId, altId] = b.dataset.alt.split('|');
+    const it = items.find((x) => String(x.id) === itId);
+    const a = it?.alternativas.find((x) => String(x.id) === altId);
+    if (a) abrirFicha(a, { alternativas: [it.ejercicio, ...it.alternativas.filter((x) => x.id !== a.id)] });
   }));
   app.querySelectorAll('[data-ficha]').forEach((b) => b.addEventListener('click', () => {
     const it = items.find((x) => x.id === b.dataset.ficha);

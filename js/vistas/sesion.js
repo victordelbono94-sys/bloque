@@ -299,7 +299,7 @@ function tarjetaEjercicio(it, i) {
       ${(() => { const m = molestiaDe(mio, actual.molestias); return m ? `<p class="ejercicio__molestia">${IC.curita} Carga tu ${esc(nombreZona(m.zona).toLowerCase())}: hazlo liviano y sin dolor, o cámbialo.</p>` : ''; })()}
       ${it.alternativas.length && actual.participantes.some((p) => p.id === estado.yo.id) ? `
         <button type="button" class="boton boton--sec boton--chico boton--ocupada" style="margin-top:10px" data-cambiar="${esc(it.id)}">
-          ¿No puedes hacer este ejercicio?
+          ¿Máquina ocupada? Cambiar ejercicio
         </button>` : ''}
       <div class="pila" style="gap:10px;margin-top:14px">
         ${actual.participantes.map((p) => `<div id="fila-${esc(it.id)}-${esc(p.id)}">${filaPersona(it, p)}</div>`).join('')}
@@ -447,8 +447,8 @@ function elegirAlternativa(app, it) {
   const opciones = [it.ejercicio, ...it.alternativas].filter((o) => o.id === actualId || !hechosHoy.has(o.id));
   const d = abrirDialogo(`
     <div class="dialogo">
-      <h2 class="tarjeta__titulo">¿No puedes hacer este ejercicio?</h2>
-      <p class="quieto" style="margin:-8px 0 0">Elige otro del mismo músculo. Solo cambia para ti en este entreno.</p>
+      <h2 class="tarjeta__titulo">Cambiar ejercicio</h2>
+      <p class="quieto" style="margin:-8px 0 0">Solo para ti en este entreno. Trabajan el mismo grupo muscular.</p>
       <div class="pila" style="gap:8px">
         ${opciones.map((o) => `
           <div class="alternativa ${o.id === actualId ? 'alternativa--actual' : ''}">
