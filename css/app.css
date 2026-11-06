@@ -2345,3 +2345,5 @@ dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }
 .legal__texto h3 { font-size: 15px; margin: 14px 0 4px; }
 .legal__texto p, .legal__texto li { font-size: 14px; color: var(--tiza-2); line-height: 1.45; }
 .legal .aviso-fila small { display: block; color: var(--gris); font-size: 12px; }
+/* Código de barras al frente: escanear no gasta IA */
+.ba__escanear { display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; white-space: nowrap; flex: none; }

@@ -14,8 +14,9 @@ export function panelBuscar(cont, { despensa = [], alElegir, placeholder = 'Busc
     <div class="ba">
       <div class="ba__fila">
         <input type="search" id="ba-q" autocomplete="off" placeholder="${esc(placeholder)}" aria-label="Buscar alimento">
-        <button type="button" class="boton boton--sec boton--icono" id="ba-escanear" aria-label="Escanear código de barras">
-          <svg class="icono" viewBox="0 0 24 24" style="width:22px;height:22px"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M7 8v8M10 8v8M13 8v8M16.5 8v8"/></svg>
+        <button type="button" class="boton ba__escanear" id="ba-escanear" aria-label="Escanear código de barras">
+          <svg class="icono" viewBox="0 0 24 24" style="width:20px;height:20px"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M7 8v8M10 8v8M13 8v8M16.5 8v8"/></svg>
+          <span>Escanear</span>
         </button>
       </div>
       <div class="ba__res" id="ba-res"></div>

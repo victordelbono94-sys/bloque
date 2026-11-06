@@ -1,6 +1,7 @@
 // IA del cuerpo: cargar una medición escribiéndola, con una foto de la balanza o el PDF de la bioimpedancia,
 // y conversar sobre cómo vas (la IA explica con tus números, reajusta el ritmo si lo pides y anota lo que aprende de ti).
-import { llamarIA } from './ia.js';
+import { llamarIA, anotarSinIA } from './ia.js';
+import { leerMedicion } from './atajos.js';
 import { sb, estado, datos } from './db.js';
 import { aISO } from './fechas.js';
 import { esc, aviso, avisoError, abrirDialogo, num } from './ui.js';
@@ -144,7 +145,12 @@ export function abrirCuerpoIA({ alGuardar = () => {}, manual = null } = {}) {
         cuerpo.tipo = archivo.tipo === 'application/pdf' ? 'application/pdf' : 'image/jpeg';
         cuerpo.archivo = archivo.tipo === 'application/pdf' ? await leerArchivo(archivo.archivo) : await fotoBase64(archivo.archivo);
       }
-      const r = await llamarIA('cuerpo', cuerpo, { manual: 'Puedes cargar la medición a mano.' });
+      // «peso 66», «grasa 12 %»: se entiende sin IA, al instante.
+      const local = !archivo && leerMedicion(texto);
+      if (local) anotarSinIA('cuerpo');
+      const r = local
+        ? { respuesta: `Entendido: ${[local.peso_kg != null && `${num(local.peso_kg, 1)} kg`, local.grasa_pct != null && `${num(local.grasa_pct, 1)} % de grasa`, local.musculo_esqueletico_kg != null && `${num(local.musculo_esqueletico_kg, 1)} kg de músculo`, local.agua_pct != null && `${num(local.agua_pct, 1)} % de agua`].filter(Boolean).join(', ')}. Revísalo y guárdalo.`, medicion: local }
+        : await llamarIA('cuerpo', cuerpo, { manual: 'Puedes cargar la medición a mano.' });
       historial.push({ rol: 'yo', texto: texto || (archivo ? `Te mandé ${archivo.tipo === 'application/pdf' ? 'un PDF' : 'una foto'} de mi medición.` : '') }, { rol: 'ia', texto: r.respuesta });
       pensando.terminar(`<span>${esc(r.respuesta || 'Listo.')}</span>`);
       if (r.medicion) {

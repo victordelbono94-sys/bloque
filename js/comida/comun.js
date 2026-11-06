@@ -90,7 +90,8 @@ export async function aAlimento(x) {
   const n = normalizar(x.nombre);
   const igual = lista.find((a) => normalizar(a.nombre) === n)
     ?? (await buscarEnCatalogo(x.nombre)).find((a) => normalizar(a.nombre).startsWith(n) || n.startsWith(normalizar(a.nombre)));
-  if (igual) return igual;
+  // Lo del catálogo del país viene sin id: se guarda en el hogar antes de usarlo (si no, la comida no se puede guardar).
+  if (igual) return igual.id ? igual : guardarAlimento(igual);
   return guardarAlimento({
     nombre: x.nombre, marca: x.marca ?? null, kcal: x.kcal, proteina_g: x.proteina_g,
     carbohidratos_g: x.carbohidratos_g, grasas_g: x.grasas_g, origen: 'gemini',
@@ -198,6 +199,8 @@ export async function borrarComida(c) {
  * @param {{ anterior?, fecha, hora, momento, descripcion, items: Array<{alimento, gramos, paquete?}>, fracciones: Array<[personaId, fraccion]> }} c
  */
 export async function guardarComida(c) {
+  // Red de seguridad: un alimento del catálogo del país (sin id) se guarda en el hogar antes de la comida.
+  for (const it of c.items) if (!it.alimento?.id) it.alimento = await guardarAlimento(it.alimento);
   // Al editar, primero se guarda la nueva y recién después se borra la anterior: si algo falla a mitad de
   // camino, la comida no desaparece (como mucho queda la versión anterior).
   const comida = datos(await sb.from('comidas').insert({

@@ -189,9 +189,9 @@ async function vistaDia(app, fecha) {
   // Las ideas usan IA: solo se piden con el botón. Si ya se pidieron hace poco, se muestran las guardadas (sin gastar IA).
   const contIdeas = app.querySelector('#ideas');
   if (contIdeas && botonIdeas) {
-    const clave = `bloque-ideas-${ctx.fecha}-${momentoPorHora(new Date())}-${ctx.despensa.length}`;
+    const clave = claveIdeas(ctx, momentoPorHora(new Date()));
     let guardadas = false;
-    try { const c = JSON.parse(sessionStorage.getItem(clave) ?? 'null'); guardadas = !!(c && Date.now() - c.t < 30 * 60e3); } catch { /* sin caché */ }
+    try { guardadas = !!JSON.parse(localStorage.getItem(clave) ?? 'null'); } catch { /* sin caché */ }
     if (guardadas) mostrarIdeas(ctx, contIdeas, botonIdeas).then(() => { botonIdeas.hidden = false; });
     else {
       botonIdeas.hidden = false;
@@ -307,13 +307,22 @@ function htmlComidasDia(comidas) {
 
 // ---------- Ideas con Gemini ----------
 
+// Las ideas se guardan por comida del día (aunque se cierre la app) y se recalculan solo si cambia la despensa
+// o lo que ya se comió: así son 1 o 2 consultas de IA por comida como mucho.
+function claveIdeas(ctx, momento) {
+  const despensa = (ctx.despensa ?? []).map((p) => `${p.alimento?.nombre ?? ''}:${Math.round(Number(p.gramos_restantes) / 50)}`).sort().join('|');
+  let h = 0;
+  for (const ch of `${despensa}#${(ctx.comidas ?? []).length}`) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return `bloque-ideas-${ctx.fecha}-${momento}-${(h >>> 0).toString(36)}`;
+}
+
 async function mostrarIdeas(ctx, cont, boton) {
   const yo = ctx.info[0];
   // Ideas para la comida que toca a esta hora (desayuno, almuerzo, cena…), con la despensa y lo que sueles comer ahí.
   const momento = momentoPorHora(new Date());
-  const clave = `bloque-ideas-${ctx.fecha}-${momento}-${ctx.despensa.length}`;
+  const clave = claveIdeas(ctx, momento);
   let ideas = null;
-  try { const c = JSON.parse(sessionStorage.getItem(clave) ?? 'null'); if (c && Date.now() - c.t < 30 * 60e3 && !boton.dataset.otra) ideas = c.ideas; } catch { /* sin caché */ }
+  try { const c = JSON.parse(localStorage.getItem(clave) ?? 'null'); if (c && !boton.dataset.otra) ideas = c.ideas; } catch { /* sin caché */ }
   if (!ideas) {
     boton.disabled = true;
     cont.innerHTML = '';
@@ -345,7 +354,11 @@ async function mostrarIdeas(ctx, cont, boton) {
     if (bajos) contexto.vitaminas_minerales_bajos_esta_semana = bajos;
     try {
       ideas = (await gemini('ideas', { contexto })).ideas ?? [];
-      try { sessionStorage.setItem(clave, JSON.stringify({ t: Date.now(), ideas })); } catch { /* sin caché */ }
+      try {
+        // Solo se guardan las ideas de la comida actual: se borran las viejas.
+        Object.keys(localStorage).filter((k) => k.startsWith('bloque-ideas-') && k !== clave).forEach((k) => localStorage.removeItem(k));
+        localStorage.setItem(clave, JSON.stringify({ t: Date.now(), ideas }));
+      } catch { /* sin caché */ }
     } catch (err) {
       cont.innerHTML = `<p class="quieto" style="margin:0">${esc(err.message)}</p>`;
       boton.disabled = false;

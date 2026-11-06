@@ -2,7 +2,8 @@
 //   1. Qué comiste: la IA al centro (foto, texto o ambos) o a mano (buscar, escanear, habituales).
 //      Debajo, la lista para revisar y si alcanza para esa comida (desayuno, almuerzo…) con sugerencias.
 //   2. Quién comió (solo si en el hogar hay más personas): uno, varios, y si fue un plato cada uno o compartido.
-import { llamarIA } from '../ia.js';
+import { llamarIA, anotarSinIA } from '../ia.js';
+import { leerAgua, buscarPlato, usarPlato, guardarPlato, misPlatos } from '../atajos.js';
 import { sb, estado, datos } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
 import { hoyISO } from '../fechas.js';
@@ -104,6 +105,26 @@ export function abrirRegistro(ctx, op = {}) {
       fila.insertAdjacentHTML('afterbegin', `<button type="button" class="chip chip--mini chip--sugerencia" id="r-habitual" title="${esc(ejemploHabitual())}">+ Lo de siempre</button>`);
       d.querySelector('#r-habitual').addEventListener('click', () => habitual.forEach((x) => agregar(x.alimento, x.gramos)));
     }
+  };
+  // Mis platos: lo que ya se registró con la IA (o se armó a mano) entra con un toque, sin IA.
+  const pintarPlatos = async () => {
+    if (editar) return;
+    const lista = (await misPlatos().catch(() => [])).slice(0, 5);
+    const fila = d.querySelector('#r-rapidos');
+    if (!fila || !lista.length) return;
+    fila.querySelectorAll('[data-plato]').forEach((b) => b.remove());
+    const ancla = d.querySelector('#r-habitual');
+    const html = lista.map((p, k) => `<button type="button" class="chip chip--mini chip--sugerencia" data-plato="${k}" title="Mis platos">★ ${esc(p.nombre.length > 28 ? `${p.nombre.slice(0, 27)}…` : p.nombre)}</button>`).join('');
+    if (ancla) ancla.insertAdjacentHTML('afterend', html); else fila.insertAdjacentHTML('afterbegin', html);
+    fila.querySelectorAll('[data-plato]').forEach((b) => b.addEventListener('click', async () => {
+      const p = lista[Number(b.dataset.plato)];
+      b.disabled = true;
+      const veces = reparto === 'cada_uno' ? 1 : Math.max(1, quien.length);
+      for (const i of p.items) agregar(await aAlimento(i), Math.round(Number(i.gramos) * veces));
+      usarPlato(p);
+      anotarSinIA('comida_plato');
+      b.disabled = false;
+    }));
   };
   // El título va cambiando: qué comiste, qué vas a comer, qué compraste…
   let giro = null;
@@ -207,6 +228,7 @@ export function abrirRegistro(ctx, op = {}) {
       </div>`;
     conectarPaso1();
     pintarHabitual();
+    pintarPlatos();
     pintarItems();
     if (fotoPendiente) mostrarFoto(fotoPendiente);
   };
@@ -433,7 +455,7 @@ export function abrirRegistro(ctx, op = {}) {
       sobras: sobrasDisponibles().map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(Number(p.gramos_restantes)), guardada: String(p.agregado_en ?? '').slice(0, 10) })),
     };
   };
-  const preguntarPlato = (mensaje) => llamarIA('plato', { mensaje, contexto: contextoPlato(), historial: historial.slice(-8) },
+  const preguntarPlato = (mensaje) => (usoIA = true) && llamarIA('plato', { mensaje, contexto: contextoPlato(), historial: historial.slice(-8) },
     { espera: 60000, manual: 'Puedes corregirlo a mano tocando cada alimento.' });
 
   const aplicarCambios = async (r) => {
@@ -536,6 +558,27 @@ export function abrirRegistro(ctx, op = {}) {
     }, 60);
   };
 
+  // Sin IA: agua («tomé 500 ml») y platos guardados («arroz con menestra», si ya se registró antes). Devuelve
+  // una respuesta con el mismo formato que la IA, o null para preguntarle a la IA.
+  let usoIA = false;
+  const atajoSinIA = async (texto) => {
+    const ml = leerAgua(texto);
+    if (ml) {
+      anotarSinIA('comida_agua');
+      return { respuesta: `Sumé ${ml} ml de agua (sin IA).`, agregar: [{ nombre: 'Agua', gramos: ml, kcal: 0, proteina_g: 0, carbohidratos_g: 0, grasas_g: 0, persona: null }] };
+    }
+    if (items.length) return null; // correcciones de un plato que ya tiene cosas: las entiende la IA
+    const p = await buscarPlato(texto);
+    if (!p?.items?.length) return null;
+    usarPlato(p);
+    anotarSinIA('comida_plato');
+    const veces = reparto === 'cada_uno' ? 1 : Math.max(1, quien.length);
+    return {
+      respuesta: `Es tu plato guardado «${p.nombre}» (sin IA). Si la porción fue distinta, toca cada alimento para cambiarla.`,
+      agregar: p.items.map((i) => ({ nombre: i.nombre, gramos: Math.round(Number(i.gramos) * veces), kcal: i.kcal, proteina_g: i.proteina_g,
+        carbohidratos_g: i.carbohidratos_g, grasas_g: i.grasas_g, persona: null })),
+    };
+  };
   const hablar = async (texto, { auto = false } = {}) => {
     if (!auto) {
       burbuja('yo', esc(texto));
@@ -547,7 +590,7 @@ export function abrirRegistro(ctx, op = {}) {
       ? ['Revisando tu plato…', 'Mirando tu meta del día…', 'Pensando qué sugerirte…']
       : ['Pensando…', 'Mirando tu plato…', 'Revisando tu meta del día…']) : null;
     try {
-      const r = await preguntarPlato(texto);
+      const r = (!auto && await atajoSinIA(texto)) || await preguntarPlato(texto);
       const aguaAntes = aguaDelPlato();
       await aplicarCambios(r);
       const aguaSumada = aguaDelPlato() - aguaAntes;
@@ -923,6 +966,17 @@ export function abrirRegistro(ctx, op = {}) {
       });
       d.close();
       aviso(editar ? 'Comida actualizada.' : `Registrado: ${kc(total.kcal)} kcal.`);
+      // Mis platos: lo que armó la IA queda guardado con el nombre que escribió la persona, para la próxima vez sin IA.
+      const nombrePlato = historial.find((h) => h.rol === 'yo')?.texto;
+      if (usoIA && !editar && nombrePlato && nombrePlato.length <= 80) {
+        const mia = (it) => !it.persona || it.persona === estado.yo.id;
+        const parte = reparto === 'cada_uno' || quien.length === 1 ? 1 : 1 / quien.length;
+        guardarPlato(nombrePlato, items.filter((it) => mia(it) && !/^agua$/i.test(it.alimento.nombre)).map((it) => ({
+          nombre: it.alimento.nombre, alimento_id: it.alimento.id ?? null, gramos: Math.round(it.gramos * (it.persona ? 1 : parte)),
+          kcal: Number(it.alimento.kcal) || 0, proteina_g: Number(it.alimento.proteina_g) || 0,
+          carbohidratos_g: Number(it.alimento.carbohidratos_g) || 0, grasas_g: Number(it.alimento.grasas_g) || 0,
+        })), { momento }).catch(() => {});
+      }
       ctx.recargar(fecha);
     } catch (err) {
       avisoError(err);
