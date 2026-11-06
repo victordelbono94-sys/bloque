@@ -2355,3 +2355,13 @@ dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }
 .alternativa__nivel { font-weight: 600; }
 .alternativa__nivel--facil { color: var(--volt); }
 .alternativa__nivel--dificil { color: var(--ambar); }
+/* Buscador de comida: escanear y foto como iconos, atajos debajo */
+.ba__icono { flex: none; width: 52px; height: 52px; display: grid; place-items: center; border-radius: var(--radio-chico);
+  border: 1.5px solid var(--linea); background: var(--grafito-2); color: var(--tiza); cursor: pointer; }
+.ba__icono .icono { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ba__icono:active { transform: scale(.96); }
+#ba-escanear.ba__icono { background: var(--volt); color: var(--grafito); border-color: var(--volt); }
+.ba__fila { display: flex; gap: 8px; align-items: center; }
+.ba__fila input { flex: 1; min-width: 0; }
+.ba__crear, .ba__mas { align-self: flex-start; padding: 0; margin-top: 4px; }
+.ba .reg__atajos { margin: 10px 0 4px; }

@@ -839,12 +839,21 @@ export function abrirRegistro(ctx, op = {}) {
     panelBuscar(cajaBuscar, {
       despensa: ctx.despensa,
       placeholder: 'Busca: arroz, seco de pollo, avena…',
+      // Foto del plato: abre la IA y la cámara de una vez.
+      alFoto: () => {
+        const zona = $('#r-ia-zona');
+        if (zona.hidden) $('#r-usar-ia').click();
+        $('#r-camara')?.click();
+      },
       alElegir: (alimento, paquete) => {
         agregar(alimento, paquete ? Math.min(Number(paquete.gramos_restantes), Number(alimento.porcion_g ?? 100)) : Number(alimento.porcion_g ?? 100), paquete);
         const q = cajaBuscar.querySelector('#ba-q');
         if (q) { q.value = ''; q.dispatchEvent(new Event('input', { bubbles: true })); }
       },
     });
+    // Atajos («Lo de siempre», Mis platos, sobras, frecuentes) justo debajo del buscador, antes de los resultados.
+    const rapidos = $('#r-rapidos');
+    if (rapidos) cajaBuscar.querySelector('.ba__fila')?.after(rapidos);
     $('#r-sobras')?.addEventListener('click', () => {
       for (const p0 of sobrasDisponibles()) items.push({ alimento: p0.alimento, gramos: Number(p0.gramos_restantes), paquete: p0, persona: null });
       pintarItems();

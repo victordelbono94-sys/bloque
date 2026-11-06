@@ -3,24 +3,27 @@ import { esc, aviso, avisoError } from '../ui.js';
 import { buscarEnCatalogo, buscarEnOFF, porCodigo, guardarAlimento } from '../alimentos.js';
 import { escanearCodigo } from '../escaner.js';
 import { kc, g } from './comun.js';
+import { estado } from '../db.js';
 
 /**
  * Panel de búsqueda dentro de un diálogo.
  * @param {HTMLElement} cont
  * @param {{ despensa?: Array, alElegir: (alimento, paquete) => void, placeholder?: string }} op
  */
-export function panelBuscar(cont, { despensa = [], alElegir, placeholder = 'Buscar: arroz, huevo, avena Quaker…' }) {
+export function panelBuscar(cont, { despensa = [], alElegir, alFoto = null, placeholder = 'Buscar: arroz, huevo, avena Quaker…' }) {
   cont.innerHTML = `
     <div class="ba">
       <div class="ba__fila">
         <input type="search" id="ba-q" autocomplete="off" placeholder="${esc(placeholder)}" aria-label="Buscar alimento">
-        <button type="button" class="boton ba__escanear" id="ba-escanear" aria-label="Escanear código de barras">
-          <svg class="icono" viewBox="0 0 24 24" style="width:20px;height:20px"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M7 8v8M10 8v8M13 8v8M16.5 8v8"/></svg>
-          <span>Escanear</span>
+        <button type="button" class="ba__icono" id="ba-escanear" aria-label="Escanear código de barras" title="Escanear código de barras">
+          <svg class="icono" viewBox="0 0 24 24"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M7 8v8M10 8v8M13 8v8M16.5 8v8"/></svg>
         </button>
+        ${alFoto ? `<button type="button" class="ba__icono" id="ba-foto" aria-label="Sacar foto del plato" title="Sacar foto del plato (usa IA)">
+          <svg class="icono" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        </button>` : ''}
       </div>
       <div class="ba__res" id="ba-res"></div>
-      <button type="button" class="boton boton--texto boton--chico" id="ba-crear" style="align-self:flex-start;padding:0">No está: crear con la etiqueta</button>
+      <button type="button" class="boton boton--texto boton--chico ba__crear" id="ba-crear" hidden>＋ ¿No aparece? Crear alimento a mano</button>
       <div id="ba-form" hidden></div>
     </div>`;
   const q = cont.querySelector('#ba-q');
@@ -33,20 +36,47 @@ export function panelBuscar(cont, { despensa = [], alElegir, placeholder = 'Busc
       <span class="quieto">${extra || `${kc(a.kcal)} kcal · P ${Math.round(a.proteina_g)} · C ${Math.round(a.carbohidratos_g)} · G ${Math.round(a.grasas_g)} por 100 g`}</span>
     </button>`;
 
-  let enDespensa = [], enCatalogo = [];
+  let enDespensa = [], enCatalogo = [], todaDespensa = false;
+  // De quién es cada cosa de la despensa (la leche de uno y la del otro se ven distintas).
+  const deQuien = (x) => {
+    if (!x.persona_id) return '';
+    if (x.persona_id === estado.yo?.id) return ' · tuya';
+    const p = (estado.personas ?? []).find((y) => y.id === x.persona_id);
+    return p ? ` · de ${p.nombre}` : '';
+  };
   const pintar = (cargandoOFF = false) => {
+    const buscando = q.value.trim().length >= 2;
+    const despensaVisible = buscando || todaDespensa ? enDespensa : enDespensa.slice(0, 3);
     res.innerHTML = [
-      enDespensa.length ? `<p class="ba__grupo">En la despensa</p>${enDespensa.map((x, i) => fila(x.alimento, i, 'despensa', `Quedan ${g(x.gramos_restantes)}`)).join('')}` : '',
+      enDespensa.length ? `<p class="ba__grupo">${buscando ? 'En la despensa' : 'De tu despensa'}</p>${despensaVisible.map((x) => fila(x.alimento, enDespensa.indexOf(x), 'despensa', `${x.es_sobra ? 'Sobra · ' : ''}Quedan ${g(x.gramos_restantes)}${x.envases > 1 ? ` (${x.envases} envases)` : ''}${deQuien(x)}`)).join('')}
+        ${despensaVisible.length < enDespensa.length ? `<button type="button" class="boton boton--texto boton--chico ba__mas" id="ba-mas">Ver toda la despensa (${enDespensa.length}) ›</button>` : ''}` : '',
       enCatalogo.length ? `<p class="ba__grupo">Alimentos</p>${enCatalogo.map((a, i) => fila(a, i, 'catalogo')).join('')}` : '',
-      offLista.length ? `<p class="ba__grupo">Productos (Open Food Facts)</p>${offLista.map((a, i) => fila(a, i, 'off')).join('')}` : '',
+      offLista.length ? `<p class="ba__grupo">Productos con marca</p>${offLista.map((a, i) => fila(a, i, 'off')).join('')}` : '',
       cargandoOFF ? '<p class="quieto ba__vacio">Buscando productos con marca…</p>' : '',
-      !cargandoOFF && q.value.trim().length >= 2 && !enDespensa.length && !enCatalogo.length && !offLista.length
-        ? '<p class="quieto ba__vacio">No encontré nada. Escanea el código o créalo con la etiqueta.</p>' : '',
+      !cargandoOFF && buscando && !enDespensa.length && !enCatalogo.length && !offLista.length
+        ? '<p class="quieto ba__vacio">No lo encontré. Escanea el código de barras, créalo a mano o usa la IA.</p>' : '',
     ].join('');
+    const crear = cont.querySelector('#ba-crear');
+    if (crear) crear.hidden = !buscando;
+    res.querySelector('#ba-mas')?.addEventListener('click', () => { todaDespensa = true; pintar(); });
+  };
+  // Varios envases iguales del mismo dueño se muestran como una sola fila («2 envases»); al elegir se usa el más gastado.
+  const agrupar = (lista) => {
+    const grupos = new Map();
+    for (const x of lista) {
+      const k = `${x.alimento.id ?? x.alimento.nombre}|${x.persona_id ?? ''}|${x.es_sobra ? 1 : 0}`;
+      const gr = grupos.get(k);
+      if (!gr) grupos.set(k, { ...x, envases: 1, total: Number(x.gramos_restantes) || 0, usar: x });
+      else {
+        gr.envases++; gr.total += Number(x.gramos_restantes) || 0;
+        if (Number(x.gramos_restantes) < Number(gr.usar.gramos_restantes)) gr.usar = x;
+      }
+    }
+    return [...grupos.values()].map((gr) => ({ ...gr.usar, gramos_restantes: gr.total, envases: gr.envases, paquete: gr.usar }));
   };
   const filtrarDespensa = (t) => {
     const n = t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    return despensa.filter((x) => !n || x.alimento.nombre.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes(n));
+    return agrupar(despensa.filter((x) => !n || x.alimento.nombre.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes(n)));
   };
   enDespensa = filtrarDespensa('');
   pintar();
@@ -80,7 +110,7 @@ export function panelBuscar(cont, { despensa = [], alElegir, placeholder = 'Busc
     const b = e.target.closest('.ba__item');
     if (!b) return;
     const i = Number(b.dataset.i);
-    if (b.dataset.origen === 'despensa') elegir(enDespensa[i].alimento, enDespensa[i]);
+    if (b.dataset.origen === 'despensa') elegir(enDespensa[i].alimento, enDespensa[i].paquete ?? enDespensa[i]);
     else if (b.dataset.origen === 'catalogo') elegir(enCatalogo[i]);
     else elegir(offLista[i]);
   });
@@ -120,6 +150,7 @@ export function panelBuscar(cont, { despensa = [], alElegir, placeholder = 'Busc
   };
   cont.querySelector('#ba-crear').addEventListener('click', () => formulario('', q.value.trim()));
 
+  cont.querySelector('#ba-foto')?.addEventListener('click', () => alFoto());
   cont.querySelector('#ba-escanear').addEventListener('click', async () => {
     const codigo = await escanearCodigo();
     if (!codigo) return;
