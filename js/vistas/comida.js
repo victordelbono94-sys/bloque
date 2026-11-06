@@ -130,21 +130,9 @@ async function vistaDia(app, fecha) {
         : `<p class="vacio">Todavía nada${esHoy ? ' hoy' : ''}. Toca «Agregar comida» para anotarla.</p>`}
     </section>
 
-    ${esHoy ? `
-      <details class="seccion acordeon" id="acordeon-ahora" ${(() => { try { return localStorage.getItem('bloque-ahora-cerrado') === '1' ? '' : 'open'; } catch { return 'open'; } })()}>
-        <summary class="acordeon__cab"><h2 class="seccion__titulo" id="t-ahora" style="margin:0">¿Qué como ahora?</h2><span class="acordeon__flecha" aria-hidden="true"></span></summary>
-        <div class="acordeon__cuerpo"><div class="acordeon__interior">
-          <div class="tarjeta pila" style="gap:12px">
-            ${htmlSobrasAhora(d.despensa)}
-            ${snacks.map((x, k) => htmlSnack(x, k)).join('')}
-            <div class="fila fila--entre ideas__cab"><p class="seccion__titulo ideas__titulo" style="margin:0">${ICONO_CHISPA} Ideas para ${PARA_MOMENTO[momentoPorHora(new Date())] ?? 'ahora'}</p><button type="button" class="enlace-chico enlace-boton" id="ver-despensa">Ver despensa ›</button></div>
-            <div id="ideas" class="pila" style="gap:12px"></div>
-            <button type="button" class="boton boton--sec" id="ideas-btn" hidden>${ICONO_CHISPA} Otras ideas</button>
-          </div>
-        </div></div>
-      </details>` : ''}`;
+    `;
   // Arriba de todo: pedir lo que hay en casa (despensa), si no se pospuso.
-  if (esHoy) app.querySelector('.encabezado').insertAdjacentHTML('afterend', htmlPedirDieta() + htmlPedirDespensa(d.despensa));
+  if (esHoy) app.querySelector('.encabezado').insertAdjacentHTML('afterend', htmlPedirDieta());
 
   // Agregar comida: botón flotante (abre el chat con la IA).
   fabIA('Agregar comida', () => abrirRegistro(ctx, {}), /^#\/comida/);

@@ -2378,3 +2378,10 @@ dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }
 .reg__buscar--abajo { padding: 8px 0 2px; }
 .reg__buscar--abajo .ba { gap: 0; }
 .reg__res .ba__grupo:first-child { margin-top: 0; }
+/* Nueva medición paso a paso (medicion.js) */
+.med { display: flex; flex-direction: column; gap: 14px; }
+.med__peso { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.med__paso { width: 56px; height: 56px; border-radius: 50%; border: 1.5px solid var(--linea); background: var(--grafito-2); color: var(--tiza); font-size: 28px; cursor: pointer; }
+.med__num { display: flex; align-items: baseline; gap: 6px; }
+.med__num input { width: 140px; font-size: 44px; font-weight: 700; text-align: center; padding: 6px 8px; }
+.med__num span { font-size: 18px; color: var(--gris); }

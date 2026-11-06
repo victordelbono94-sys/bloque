@@ -357,8 +357,9 @@ export async function vistaCuerpo(app) {
     const b = e.target.closest('[data-que-es]');
     if (b) abrirQueEs(b.dataset.queEs, mediciones, persona, foco);
   });
-  const abrirIA = async () => (await import('../cuerpoia.js')).abrirCuerpoIA({ alGuardar: recargar, manual: (v) => dialogoMedicion(recargar, v ?? {}) });
-  conectarSugerencias(app, { abrirIA, pesar: () => dialogoMedicion(recargar, {}) });
+  // Nueva medición: asistente paso a paso (peso o bioimpedancia; a mano, foto o PDF). Sin chat de IA.
+  const abrirIA = async () => (await import('../medicion.js')).nuevaMedicion(recargar);
+  conectarSugerencias(app, { abrirIA, pesar: abrirIA });
   app.querySelectorAll('[data-metrica]').forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.sin) { if (soyYo) abrirIA(); return; }
     try { sessionStorage.setItem('bloque-cuerpo-metrica', b.dataset.metrica); } catch { /* nada */ }
@@ -427,7 +428,7 @@ export function dialogoMedicion(alGuardar, valores = {}) {
         ${CAMPOS.map((c) => `
           <div class="campo">
             <label for="${c.id}">${c.etiqueta}${c.unidad ? ` (${c.unidad})` : ''}</label>
-            <input id="${c.id}" type="number" inputmode="decimal" min="${c.min}" max="${c.max}" step="${c.paso}">
+            <input id="${c.id}" type="text" inputmode="decimal">
           </div>`).join('')}
       </div>
 
@@ -473,7 +474,7 @@ export function dialogoMedicion(alGuardar, valores = {}) {
     for (const c of CAMPOS) {
       const input = d.querySelector(`#${c.id}`);
       if (input.value === '') { fila[c.id] = null; continue; }
-      const v = Number(input.value);
+      const v = Number(String(input.value).trim().replace(',', '.'));
       if (!Number.isFinite(v) || v < c.min || v > c.max) {
         input.focus();
         return aviso(`${c.etiqueta}: revisa el valor (entre ${c.min} y ${c.max}).`, 'error');
