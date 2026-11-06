@@ -1,4 +1,5 @@
 // Lo que comparten las partes de Comida: Gemini, cantidades legibles, guardar y borrar comidas.
+import { llamarIA } from '../ia.js';
 import { sb, estado, datos } from '../db.js';
 import { buscarEnCatalogo, guardarAlimento, cargarCatalogo, macros, sumar } from '../alimentos.js';
 
@@ -66,22 +67,7 @@ export function cantidadTexto(a, gramos) {
 
 // ---------- Gemini (función analizar-comida en el servidor) ----------
 export async function gemini(modo, cuerpo) {
-  // Tope de espera: si Gemini no contesta en 70 s, se avisa en vez de quedarse trabado.
-  const espera = new Promise((_, no) => setTimeout(() => no(new Error('La IA tardó demasiado. Prueba de nuevo o búscalo a mano.')), 70000));
-  const { data, error } = await Promise.race([sb.functions.invoke('analizar-comida', { body: { modo, ...cuerpo } }), espera]);
-  if (error) {
-    let codigo = null;
-    try { codigo = (await error.context?.json?.())?.error; } catch { /* sin detalle */ }
-    throw new Error({
-      sin_clave: 'La IA no está disponible.',
-      limite: 'La IA llegó al límite gratis por ahora. Prueba en un minuto.',
-      imagen: 'La foto es muy pesada o no se pudo leer.',
-      texto: 'Escribe qué comiste.',
-      gemini: 'La IA está saturada en este momento. Prueba en un rato o búscalo a mano.',
-      sesion: 'Tu sesión se venció: vuelve a entrar a Bloq.',
-    }[codigo] ?? 'No se pudo conectar con la IA. Revisa la conexión.');
-  }
-  return data;
+  return llamarIA('analizar-comida', { modo, ...cuerpo }, { manual: modo === 'ideas' ? '' : 'Mientras tanto, puedes buscarlo a mano.' });
 }
 
 /** Achica una foto a 1024 px y la devuelve en base64 (JPEG). */

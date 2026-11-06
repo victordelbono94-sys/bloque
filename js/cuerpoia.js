@@ -1,5 +1,6 @@
 // IA del cuerpo: cargar una medición escribiéndola, con una foto de la balanza o el PDF de la bioimpedancia,
 // y conversar sobre cómo vas (la IA explica con tus números, reajusta el ritmo si lo pides y anota lo que aprende de ti).
+import { llamarIA } from './ia.js';
 import { sb, estado, datos } from './db.js';
 import { aISO } from './fechas.js';
 import { esc, aviso, avisoError, abrirDialogo, num } from './ui.js';
@@ -143,13 +144,7 @@ export function abrirCuerpoIA({ alGuardar = () => {}, manual = null } = {}) {
         cuerpo.tipo = archivo.tipo === 'application/pdf' ? 'application/pdf' : 'image/jpeg';
         cuerpo.archivo = archivo.tipo === 'application/pdf' ? await leerArchivo(archivo.archivo) : await fotoBase64(archivo.archivo);
       }
-      const espera = new Promise((_, no) => setTimeout(() => no(new Error('La IA tardó demasiado. Prueba de nuevo.')), 70000));
-      const { data: r, error } = await Promise.race([sb.functions.invoke('cuerpo', { body: cuerpo }), espera]);
-      if (error) {
-        let codigo = null;
-        try { codigo = (await error.context?.json?.())?.error; } catch { /* nada */ }
-        throw new Error({ limite: 'La IA llegó al límite gratis por ahora. Prueba en un minuto.', imagen: 'El archivo es muy pesado o no se pudo leer.', gemini: 'La IA está saturada. Prueba en un rato.' }[codigo] ?? 'No se pudo conectar con la IA. Revisa la conexión.');
-      }
+      const r = await llamarIA('cuerpo', cuerpo, { manual: 'Puedes cargar la medición a mano.' });
       historial.push({ rol: 'yo', texto: texto || (archivo ? `Te mandé ${archivo.tipo === 'application/pdf' ? 'un PDF' : 'una foto'} de mi medición.` : '') }, { rol: 'ia', texto: r.respuesta });
       pensando.terminar(`<span>${esc(r.respuesta || 'Listo.')}</span>`);
       if (r.medicion) {

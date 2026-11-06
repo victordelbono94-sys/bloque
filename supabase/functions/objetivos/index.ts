@@ -2,9 +2,8 @@
 // «cambio a crossfit», «ahora quiero ganar músculo») y la IA lo traduce en acciones sobre su plan, que la persona confirma.
 // La dieta y los entrenos se readaptan solos porque salen de la agenda, el objetivo y el deporte.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { pedirIA, errorIA, usuarioDe } from "../_shared/ia.ts";
 
-const MODELOS = (Deno.env.get("GEMINI_MODELO") ?? "gemini-3.1-flash-lite,gemini-3-flash-preview,gemini-flash-latest")
-  .split(",").map((m) => m.trim()).filter(Boolean);
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -40,6 +39,10 @@ Acciones posibles (pon solo las que correspondan):
 si el cambio es solo suyo o de todos (ej. "no vamos a derby" = todos; "no voy a derby" = yo), y la acción toca entrenos juntos, pregúntalo:
 pon la pregunta en "duda", 2 opciones en "opciones" y no pongas acciones todavía.
 En "resumen" de cada acción, una frase corta de lo que va a pasar ("Sin derby del 3 al 9 de noviembre").
+Si cancela un entreno puntual ("hoy no voy al gym", "mañana no hay derby"), pon un "cambiar_dia" a "descanso" para ese día y nada más
+para el resto de la semana: la app le ofrece sola, con botones, mover la rutina que se salta al próximo día libre o dejarla perderse.
+Dilo en una frase ("Te ofrezco mover la rutina de hoy"). Un día lleva una sola rutina: si pide juntar dos, elige la principal y dile que
+sume lo otro al final del entreno.
 En la respuesta di cómo se readapta lo demás: la dieta baja o sube calorías sola según los entrenos, y si cambia el deporte o la
 frecuencia conviene ajustar las rutinas (la app lo ofrece). Si solo pregunta algo, responde y deja acciones vacío.`;
 
@@ -75,55 +78,37 @@ const ESQUEMA = {
   required: ["respuesta"],
 };
 
-async function leerClave(): Promise<string | null> {
-  const env = Deno.env.get("GEMINI_API_KEY");
-  if (env) return env;
-  const url = Deno.env.get("SUPABASE_URL"), servicio = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !servicio) return null;
-  const r = await fetch(`${url}/rest/v1/rpc/secreto_servidor`, {
-    method: "POST",
-    signal: AbortSignal.timeout(8000),
-    headers: { "Content-Type": "application/json", apikey: servicio, Authorization: `Bearer ${servicio}` },
-    body: JSON.stringify({ p_nombre: "GEMINI_API_KEY" }),
-  });
-  if (!r.ok) return null;
-  const v = await r.json();
-  return typeof v === "string" && v ? v : null;
-}
-
-function esUsuario(req: Request): boolean {
-  try {
-    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-    const datos = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return datos.role === "authenticated" && typeof datos.sub === "string";
-  } catch {
-    return false;
-  }
-}
-
 const texto = (v: unknown, largo: number) => String(v ?? "").trim().slice(0, largo);
 const lista = (v: unknown, n: number) => (Array.isArray(v) ? v.slice(0, n) : []) as Record<string, unknown>[];
-const fecha = (v: unknown) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v ?? "")) ? String(v) : null);
+// Acepta «2026-11-02», «2026-11-02T00:00» o «2026/11/02» (antes una fecha con hora hacía que el cambio se descartara sin aviso).
+const fecha = (v: unknown) => { const m = String(v ?? "").match(/^(\d{4})[-/](\d{2})[-/](\d{2})/); return m ? `${m[1]}-${m[2]}-${m[3]}` : null; };
+const SINONIMOS: Record<string, string> = { gimnasio: "gym", gim: "gym", descansar: "descanso", libre: "descanso", nada: "descanso", derby: "deporte", roller_derby: "deporte" };
+const norm = (v: unknown) => { const t = String(v ?? "").toLowerCase().trim(); return SINONIMOS[t] ?? t; };
 
 function limpiar(d: Record<string, unknown>) {
-  return {
+  const todas = lista(d.acciones, 5);
+  const r = {
     respuesta: texto(d.respuesta, 700),
     duda: texto(d.duda, 200) || null,
     opciones: (Array.isArray(d.opciones) ? d.opciones : []).map((x) => texto(x, 60)).filter(Boolean).slice(0, 4),
-    acciones: lista(d.acciones, 5).map((a) => ({
+    acciones: todas.map((a) => ({
       tipo: String(a.tipo), actividad: ["deporte", "gym", "todo"].includes(String(a.actividad)) ? a.actividad : null,
       desde: fecha(a.desde), hasta: fecha(a.hasta),
       dias: [...new Set((Array.isArray(a.dias) ? a.dias : []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))],
       foco: a.foco ?? null, deporte: /^[a-z_]{2,30}$/.test(String(a.deporte ?? "")) ? a.deporte : null,
       experiencia: a.experiencia ?? null, quien: a.quien === "todos" ? "todos" : "yo", resumen: texto(a.resumen, 160),
       fecha: fecha(a.fecha),
-      de: ["deporte", "gym", "otro", "cualquiera"].includes(String(a.de)) ? a.de : "cualquiera",
-      a: ["gym", "deporte", "descanso", "otro"].includes(String(a.a)) ? a.a : null,
+      de: ["deporte", "gym", "otro", "cualquiera"].includes(norm(a.de)) ? norm(a.de) : "cualquiera",
+      a: ["gym", "deporte", "descanso", "otro"].includes(norm(a.a)) ? norm(a.a) : null,
       rutina: texto(a.rutina, 80) || null, crear_rutina: texto(a.crear_rutina, 120) || null,
       hora: /^\d{2}:\d{2}$/.test(String(a.hora ?? "")) ? a.hora : null,
     })).filter((a) => ["pausa", "frecuencia_gym", "objetivo", "deporte", "experiencia", "cambiar_dia"].includes(a.tipo)
       && (a.tipo !== "cambiar_dia" || (a.fecha && a.a))),
+    descartadas: 0,
   };
+  // Si alguna acción vino incompleta, la app lo dice en vez de mostrar menos cambios sin explicación.
+  r.descartadas = todas.length - r.acciones.length;
+  return r;
 }
 
 Deno.serve(async (req) => {
@@ -131,34 +116,13 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "metodo" }, 405);
   let cuerpo: { mensaje?: string; contexto?: unknown; historial?: { rol?: string; texto?: string }[] };
   try { cuerpo = await req.json(); } catch { return json({ error: "formato" }, 400); }
-  if (!esUsuario(req)) return json({ error: "sesion" }, 401);
+  if (!usuarioDe(req)) return json({ error: "sesion" }, 401);
   const mensaje = texto(cuerpo.mensaje, 1000);
   if (!mensaje) return json({ error: "texto" }, 400);
-  const clave = await leerClave().catch(() => null);
-  if (!clave) return json({ error: "sin_clave" }, 503);
   const historial = lista(cuerpo.historial, 8).map((h) => ({ role: h.rol === "ia" ? "model" : "user", parts: [{ text: texto(h.texto, 800) }] }))
     .filter((h) => h.parts[0].text);
-  const pedido = {
-    contents: [...historial, { role: "user", parts: [{ text: `${INSTRUCCIONES}\n\nContexto: ${JSON.stringify(cuerpo.contexto ?? {}).slice(0, 12000)}\n\nMensaje: ${mensaje}` }] }],
-    generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA, temperature: 0.2 },
-  };
-  let ultimoError = "";
-  const limite = Date.now() + 55000;
-  for (const modelo of MODELOS) {
-    if (Date.now() > limite - 3000) break;
-    const llamar = (c: unknown) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": clave },
-      body: JSON.stringify(c),
-      signal: AbortSignal.timeout(Math.max(3000, Math.min(35000, limite - Date.now()))),
-    }).catch((e) => new Response(String(e), { status: 599 }));
-    let r = await llamar({ ...pedido, generationConfig: { ...pedido.generationConfig, thinkingConfig: { thinkingLevel: "low" } } });
-    if (r.status === 400 && (await r.clone().text()).toLowerCase().includes("thinking")) r = await llamar(pedido);
-    if (r.status === 429) return json({ error: "limite" }, 429);
-    if (!r.ok) { ultimoError = `${modelo}: ${r.status}`; continue; }
-    const j = await r.json();
-    const salida = j?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
-    try { return json({ modelo, ...limpiar(JSON.parse(salida)) }); } catch { ultimoError = "respuesta"; }
-  }
-  return json({ error: "gemini", detalle: ultimoError }, 502);
+  const contents = [...historial, { role: "user", parts: [{ text: `${INSTRUCCIONES}\n\nContexto: ${JSON.stringify(cuerpo.contexto ?? {}).slice(0, 12000)}\n\nMensaje: ${mensaje}` }] }];
+  const r = await pedirIA({ req, funcion: "objetivos", contents, esquema: ESQUEMA, temperatura: 0.2 });
+  if (!r.ok) { const e = errorIA(r); return json({ ...e.cuerpo }, e.estado); }
+  return json({ modelo: r.modelo, proveedor: r.proveedor, ...limpiar(r.datos) });
 });

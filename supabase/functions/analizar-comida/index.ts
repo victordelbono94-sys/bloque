@@ -7,9 +7,8 @@
 // La clave de Gemini vive solo en el servidor (secreto GEMINI_API_KEY o la tabla
 // privado.secretos) y solo responde a usuarios con sesión.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { pedirIA, errorIA, usuarioDe } from "../_shared/ia.ts";
 
-const MODELOS = (Deno.env.get("GEMINI_MODELO") ?? "gemini-3.1-flash-lite,gemini-3-flash-preview,gemini-flash-latest")
-  .split(",").map((m) => m.trim()).filter(Boolean);
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -201,34 +200,7 @@ const ESQ_CONSEJO = {
 };
 const ESQUEMAS: Record<string, unknown> = { foto: ESQ_ALIMENTOS, texto: ESQ_TEXTO, despensa: ESQ_DESPENSA, ideas: ESQ_IDEAS, consejo: ESQ_CONSEJO };
 
-// La clave: primero el secreto de la función; si no está, la tabla privada (solo service role).
-async function leerClave(): Promise<string | null> {
-  const env = Deno.env.get("GEMINI_API_KEY");
-  if (env) return env;
-  const url = Deno.env.get("SUPABASE_URL"), servicio = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !servicio) return null;
-  const r = await fetch(`${url}/rest/v1/rpc/secreto_servidor`, {
-    method: "POST",
-    signal: AbortSignal.timeout(8000),
-    headers: { "Content-Type": "application/json", apikey: servicio, Authorization: `Bearer ${servicio}` },
-    body: JSON.stringify({ p_nombre: "GEMINI_API_KEY" }),
-  });
-  if (!r.ok) return null;
-  const v = await r.json();
-  return typeof v === "string" && v ? v : null;
-}
-
 // La firma del token ya la verificó Supabase (verify_jwt); acá se mira que sea un usuario.
-function esUsuario(req: Request): boolean {
-  try {
-    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-    const datos = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return datos.role === "authenticated" && typeof datos.sub === "string";
-  } catch {
-    return false;
-  }
-}
-
 const num = (v: unknown, min: number, max: number) => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.round(Math.min(max, Math.max(min, n)) * 10) / 10 : min;
@@ -297,13 +269,11 @@ Deno.serve(async (req) => {
 
   let cuerpo: { modo?: string; imagen?: string; tipo?: string; texto?: string; contexto?: unknown; nota?: string; personas?: { yo?: string; otro?: string } };
   try { cuerpo = await req.json(); } catch { return json({ error: "formato" }, 400); }
-  if (!esUsuario(req)) return json({ error: "sesion" }, 401);
+  if (!usuarioDe(req)) return json({ error: "sesion" }, 401);
 
-  const clave = await leerClave().catch(() => null);
-  if (!clave) return json({ error: "sin_clave" }, 503);
 
   const modo = ["foto", "texto", "despensa", "ideas", "consejo"].includes(cuerpo.modo ?? "") ? cuerpo.modo! : "foto";
-  const partes: Record<string, unknown>[] = [{ text: INSTRUCCIONES[modo] }];
+  const partes: { text?: string; inline_data?: { mime_type: string; data: string } }[] = [{ text: INSTRUCCIONES[modo] }];
   const imagen = cuerpo.imagen ?? "";
   if (imagen) {
     if (imagen.length > 2_800_000 || !/^[A-Za-z0-9+/=]+$/.test(imagen)) return json({ error: "imagen" }, 400);
@@ -321,42 +291,8 @@ Deno.serve(async (req) => {
   if (modo === "texto" && !escrito) return json({ error: "texto" }, 400);
   if (modo === "despensa" && !imagen && !escrito) return json({ error: "texto" }, 400);
 
-  const pedido = {
-    contents: [{ role: "user", parts: partes }],
-    generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMAS[modo], temperature: modo === "ideas" ? 0.7 : modo === "consejo" ? 0.4 : 0.2 },
-  };
-
-  let ultimoError = "";
-  const limite = Date.now() + 55000;
-  const llamar = (modelo: string, cuerpo: unknown) => {
-    const resta = Math.max(3000, Math.min(modo === "foto" ? 30000 : 22000, limite - Date.now()));
-    return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": clave },
-      body: JSON.stringify(cuerpo),
-      signal: AbortSignal.timeout(resta),
-    }).catch((e) => new Response(String(e), { status: 599 }));
-  };
-  for (const modelo of MODELOS) {
-    if (Date.now() > limite - 3000) break;
-    // Poco "pensar": para leer una comida no hace falta, y responde mucho más rápido.
-    const conPensar = { ...pedido, generationConfig: { ...pedido.generationConfig, thinkingConfig: { thinkingLevel: "low" } } };
-    let r = await llamar(modelo, conPensar);
-    if (r.status === 400 && (await r.clone().text()).toLowerCase().includes("thinking")) r = await llamar(modelo, pedido);
-    if (r.status === 429) return json({ error: "limite" }, 429);
-    if (!r.ok) {
-      // Modelo saturado o que ya no existe: se prueba con el siguiente.
-      ultimoError = `${modelo}: ${r.status} ${(await r.text()).slice(0, 160)}`;
-      console.log("gemini", ultimoError);
-      continue;
-    }
-    const j = await r.json();
-    const salida = j?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
-    try {
-      return json({ modelo, ...limpiar(modo, JSON.parse(salida)) });
-    } catch {
-      ultimoError = "respuesta";
-    }
-  }
-  return json({ error: "gemini", detalle: ultimoError }, 502);
+  const r = await pedirIA({ req, funcion: `comida_${modo}`, contents: [{ role: "user", parts: partes }], esquema: ESQUEMAS[modo],
+    temperatura: modo === "ideas" ? 0.7 : modo === "consejo" ? 0.4 : 0.2 });
+  if (!r.ok) { const e = errorIA(r); return json({ ...e.cuerpo }, e.estado); }
+  return json({ modelo: r.modelo, proveedor: r.proveedor, ...limpiar(modo, r.datos) });
 });

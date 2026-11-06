@@ -218,8 +218,9 @@ export function diagnosticoDia({ metas, comido, foco = metas?.foco, hora = new D
   const r = (n) => Math.round(n).toLocaleString('es-EC');
   let estado, tono, kcal;
   if (exceso > tolerancia) {
-    estado = 'pasado'; tono = 'ojo';
-    kcal = ganar ? `Te pasaste ~${r(exceso)} kcal: es mucho incluso para ganar masa. Mañana sigue normal.`
+    // Para ganar, la meta es un mínimo: pasarse no se reta. Solo se sugiere mirar el promedio de la semana.
+    estado = 'pasado'; tono = ganar ? 'info' : 'ojo';
+    kcal = ganar ? `Sumaste ~${r(exceso)} kcal más que tu meta. Para ganar está bien; lo que importa es el promedio de la semana.`
       : bajar ? `Te pasaste ~${r(exceso)} kcal de tu déficit. No pasa nada por un día: mañana sigue normal.`
       : `Te pasaste ~${r(exceso)} kcal. No pasa nada por un día: mañana sigue normal.`;
   } else if (exceso > 0) {

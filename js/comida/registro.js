@@ -2,6 +2,7 @@
 //   1. Qué comiste: la IA al centro (foto, texto o ambos) o a mano (buscar, escanear, habituales).
 //      Debajo, la lista para revisar y si alcanza para esa comida (desayuno, almuerzo…) con sugerencias.
 //   2. Quién comió (solo si en el hogar hay más personas): uno, varios, y si fue un plato cada uno o compartido.
+import { llamarIA } from '../ia.js';
 import { sb, estado, datos } from '../db.js';
 import { esc, aviso, avisoError, abrirDialogo, cara } from '../ui.js';
 import { hoyISO } from '../fechas.js';
@@ -432,16 +433,9 @@ export function abrirRegistro(ctx, op = {}) {
       sobras: sobrasDisponibles().map((p) => ({ nombre: p.alimento.nombre, quedan_g: Math.round(Number(p.gramos_restantes)), guardada: String(p.agregado_en ?? '').slice(0, 10) })),
     };
   };
-  const preguntarPlato = async (mensaje) => {
-    const espera = new Promise((_, no) => setTimeout(() => no(new Error('La IA tardó demasiado. Prueba de nuevo.')), 60000));
-    const { data, error } = await Promise.race([sb.functions.invoke('plato', { body: { mensaje, contexto: contextoPlato(), historial: historial.slice(-8) } }), espera]);
-    if (error) {
-      let codigo = null;
-      try { codigo = (await error.context?.json?.())?.error; } catch { /* sin detalle */ }
-      throw new Error({ limite: 'La IA llegó al límite gratis por ahora. Prueba en un minuto.', gemini: 'La IA está saturada. Prueba en un rato.', sesion: 'Tu sesión se venció: vuelve a entrar.' }[codigo] ?? 'No se pudo conectar con la IA. Revisa la conexión.');
-    }
-    return data;
-  };
+  const preguntarPlato = (mensaje) => llamarIA('plato', { mensaje, contexto: contextoPlato(), historial: historial.slice(-8) },
+    { espera: 60000, manual: 'Puedes corregirlo a mano tocando cada alimento.' });
+
   const aplicarCambios = async (r) => {
     const idDe = (n) => personaPorNombre(n)?.id ?? null;
     for (const x of r.quitar ?? []) {

@@ -2,6 +2,7 @@
 // Se cambian conversando con la IA («no hago derby esta semana», «voy a ir 2 veces al gym», «cambio a crossfit»):
 // la IA propone acciones, las confirmas y la app cambia la agenda, el objetivo o el deporte. La dieta y la carga de
 // los entrenos se recalculan solas porque salen de ahí.
+import { llamarIA } from './ia.js';
 import { sb, estado, datos, cargarPersonas } from './db.js';
 import { esc, aviso, avisoError, abrirDialogo } from './ui.js';
 import { hoyISO, sumarDias, diaCorto } from './fechas.js';
@@ -151,6 +152,18 @@ async function cambiarDia(a, d) {
   const evs = d.agenda.filter((e) => e.fecha === a.fecha && !e.omitido && deTipos.includes(e.tipo)
     && (a.quien === 'todos' || e.asistencia === 'juntos' || e.persona_id === yo.id));
   const hora = a.hora ?? evs.find((e) => e.hora_inicio)?.hora_inicio ?? null;
+  if (a.a === 'descanso') {
+    // Cancelar no borra: se marca como «no fui» (queda el historial y se puede deshacer). Un gym con rutina abre
+    // después el diálogo «No voy» (pasar la rutina a otro día, correr la semana o dejarla), calculado sin IA.
+    for (const e of evs) {
+      if (e.tipo === 'gym' && e.rutina_id && !a.noVoy) { a.noVoy = e; continue; }
+      if (a.quien === 'todos' || e.persona_id === yo.id || estado.personas.length === 1) datos(await sb.from('calendario').update({ omitido: true }).eq('id', e.id).select('id'));
+      else await sacarDe(e, a.quien);
+    }
+    if (a.noVoy && a.quien !== 'todos' && estado.personas.length > 1 && a.noVoy.asistencia === 'juntos') a.noVoySoloYo = true;
+    registrarDia(a);
+    return a.resumen || `${fechaTxt(a.fecha)}: descanso`;
+  }
   for (const e of evs) await sacarDe(e, a.quien);
   let nuevo = null;
   if (a.a !== 'descanso') {
@@ -172,9 +185,12 @@ async function cambiarDia(a, d) {
     // Si pidió una rutina que no existe, después se ofrece armarla y queda asignada a este día.
     if (a.a === 'gym' && !rutina && a.crear_rutina) a.pendiente = { eventoId: nuevo.id, que: a.crear_rutina };
   }
-  await sb.from('cambios_plan').insert({ persona_id: yo.id, tipo: 'cambiar_dia', descripcion: String(a.resumen ?? '').slice(0, 300) || null, desde: a.fecha, hasta: a.fecha })
-    .then(({ error }) => { if (error) console.warn('No se guardó el historial del cambio:', error.message); }, (e) => console.warn('No se guardó el historial del cambio:', e?.message));
+  registrarDia(a);
   return a.resumen || `${fechaTxt(a.fecha)}: cambiado`;
+}
+function registrarDia(a) {
+  return sb.from('cambios_plan').insert({ persona_id: estado.yo.id, tipo: 'cambiar_dia', descripcion: String(a.resumen ?? '').slice(0, 300) || null, desde: a.fecha, hasta: a.fecha })
+    .then(({ error }) => { if (error) console.warn('No se guardó el historial del cambio:', error.message); }, (e) => console.warn('No se guardó el historial del cambio:', e?.message));
 }
 
 // ---------- El chat ----------
@@ -238,11 +254,11 @@ export function abrirObjetivosIA({ alCambiar = () => {} } = {}) {
     $('#ob-enviar').disabled = true;
     try {
       if (!datosPlan) await recargarDatos();
-      const espera = new Promise((_, no) => setTimeout(() => no(new Error('La IA tardó demasiado. Prueba de nuevo.')), 70000));
-      const { data: r, error } = await Promise.race([sb.functions.invoke('objetivos', { body: { mensaje: texto, contexto: contexto(), historial: historial.slice(-8) } }), espera]);
-      if (error) throw new Error('No se pudo conectar con la IA. Prueba en un rato.');
+      const r = await llamarIA('objetivos', { mensaje: texto, contexto: contexto(), historial: historial.slice(-8) },
+        { manual: 'También puedes tocar «No voy» o mover el entreno en la semana.' });
       historial.push({ rol: 'yo', texto }, { rol: 'ia', texto: [r.respuesta, r.duda].filter(Boolean).join(' ') });
       pensando.terminar(`<span>${esc(r.respuesta || 'Listo.')}</span>${r.duda ? `<p class="ia-msg__duda">${esc(r.duda)}</p>` : ''}${r.opciones?.length ? `<div class="chips ia-msg__opciones">${r.opciones.map((o, k) => `<button type="button" class="chip chip--mini" data-op="${k}">${esc(o)}</button>`).join('')}</div>` : ''}`);
+      if (r.descartadas) burbuja('ia', `<span class="quieto">${r.descartadas === 1 ? 'Un cambio vino incompleto y no lo puse' : `${r.descartadas} cambios vinieron incompletos y no los puse`}. Dímelo de nuevo con el día exacto, o usa «No voy» en Hoy.</span>`);
       pensando.querySelectorAll('[data-op]').forEach((b) => b.addEventListener('click', () => { pensando.querySelector('.ia-msg__opciones')?.remove(); enviar(r.opciones[Number(b.dataset.op)]); }));
       if (r.acciones?.length) {
         const t = burbuja('propuesta', `
@@ -263,6 +279,16 @@ export function abrirObjetivosIA({ alCambiar = () => {} } = {}) {
             aviso('Plan actualizado: tu dieta y tus entrenos ya se readaptaron.');
             import('./nativo.js').then((m) => m.sincronizarAgenda?.().catch(() => {}));
             alCambiar();
+            // Un gym cancelado: «No voy» (sin IA) decide qué pasa con su rutina.
+            const cancelados = r.acciones.filter((x) => x.noVoy);
+            if (cancelados.length) {
+              const { noVoy } = await import('./reacomodo.js');
+              for (const a of cancelados) {
+                const o = burbuja('ia', `<span>¿Qué hacemos con la rutina de ${esc(datosPlan.rutinas.find((x) => x.id === a.noVoy.rutina_id)?.nombre ?? 'gym')} del ${esc(fechaTxt(a.fecha))}?</span><div class="chips"><button type="button" class="chip chip--mini chip--sugerencia" data-novoy>Elegir: pasarla, correr la semana o dejarla</button></div>`);
+                o.querySelector('[data-novoy]').addEventListener('click', () => noVoy(a.noVoy, datosPlan.rutinas, () => { recargarDatos(); alCambiar(); }).catch(avisoError));
+              }
+              noVoy(cancelados[0].noVoy, datosPlan.rutinas, () => { recargarDatos(); alCambiar(); }).catch(avisoError);
+            }
             // Una rutina que no existía (ej. pliometría): se ofrece armarla y queda puesta en ese día.
             for (const a of r.acciones.filter((x) => x.pendiente)) {
               const o = burbuja('ia', `<span>No tienen una rutina de ${esc(a.pendiente.que)}. ¿Te la armo y la dejo puesta para el ${esc(fechaTxt(a.fecha))}?</span><div class="chips"><button type="button" class="chip chip--mini chip--sugerencia" data-armar>✦ Sí, armar la rutina</button></div>`);

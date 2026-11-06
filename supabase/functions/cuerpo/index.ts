@@ -2,9 +2,8 @@
 // Con el contexto (mediciones, objetivo, ritmo de peso, gasto real aprendido, comidas y entrenos de la semana y lo que
 // ya aprendió antes) explica cómo vas, reajusta la proyección si la persona lo pide y anota lo que aprende.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { pedirIA, errorIA, usuarioDe } from "../_shared/ia.ts";
 
-const MODELOS = (Deno.env.get("GEMINI_MODELO") ?? "gemini-3.1-flash-lite,gemini-3-flash-preview,gemini-flash-latest")
-  .split(",").map((m) => m.trim()).filter(Boolean);
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -61,32 +60,6 @@ const RANGOS: Record<string, [number, number]> = {
   masa_grasa_kg: [1, 200], musculo_esqueletico_kg: [5, 100], agua_intracelular_l: [5, 60], agua_extracelular_l: [3, 40], angulo_fase: [1, 15],
 };
 
-async function leerClave(): Promise<string | null> {
-  const env = Deno.env.get("GEMINI_API_KEY");
-  if (env) return env;
-  const url = Deno.env.get("SUPABASE_URL"), servicio = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !servicio) return null;
-  const r = await fetch(`${url}/rest/v1/rpc/secreto_servidor`, {
-    method: "POST",
-    signal: AbortSignal.timeout(8000),
-    headers: { "Content-Type": "application/json", apikey: servicio, Authorization: `Bearer ${servicio}` },
-    body: JSON.stringify({ p_nombre: "GEMINI_API_KEY" }),
-  });
-  if (!r.ok) return null;
-  const v = await r.json();
-  return typeof v === "string" && v ? v : null;
-}
-
-function esUsuario(req: Request): boolean {
-  try {
-    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-    const datos = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return datos.role === "authenticated" && typeof datos.sub === "string";
-  } catch {
-    return false;
-  }
-}
-
 const texto = (v: unknown, largo: number) => String(v ?? "").trim().slice(0, largo);
 const lista = (v: unknown, n: number) => (Array.isArray(v) ? v.slice(0, n) : []) as Record<string, unknown>[];
 
@@ -116,42 +89,19 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "metodo" }, 405);
   let cuerpo: { mensaje?: string; contexto?: unknown; historial?: { rol?: string; texto?: string }[]; archivo?: string; tipo?: string };
   try { cuerpo = await req.json(); } catch { return json({ error: "formato" }, 400); }
-  if (!esUsuario(req)) return json({ error: "sesion" }, 401);
+  if (!usuarioDe(req)) return json({ error: "sesion" }, 401);
   const mensaje = texto(cuerpo.mensaje, 1200);
   const archivo = cuerpo.archivo ?? "";
   if (!mensaje && !archivo) return json({ error: "texto" }, 400);
   if (archivo && (archivo.length > 9_000_000 || !/^[A-Za-z0-9+/=]+$/.test(archivo))) return json({ error: "imagen" }, 400);
   const tipo = /^(image\/(jpeg|png|webp)|application\/pdf)$/.test(cuerpo.tipo ?? "") ? cuerpo.tipo! : "image/jpeg";
-  const clave = await leerClave().catch(() => null);
-  if (!clave) return json({ error: "sin_clave" }, 503);
 
   const historial = lista(cuerpo.historial, 10).map((h) => ({ role: h.rol === "ia" ? "model" : "user", parts: [{ text: texto(h.texto, 1000) }] }))
     .filter((h) => h.parts[0].text);
-  const partes: Record<string, unknown>[] = [{ text: `${INSTRUCCIONES}\n\nContexto: ${JSON.stringify(cuerpo.contexto ?? {}).slice(0, 12000)}` }];
+  const partes: { text?: string; inline_data?: { mime_type: string; data: string } }[] = [{ text: `${INSTRUCCIONES}\n\nContexto: ${JSON.stringify(cuerpo.contexto ?? {}).slice(0, 12000)}` }];
   if (archivo) partes.push({ inline_data: { mime_type: tipo, data: archivo } });
   partes.push({ text: `Mensaje: ${mensaje || (tipo === "application/pdf" ? "Te mando el PDF de mi medición." : "Te mando la foto de mi medición.")}` });
-  const pedido = {
-    contents: [...historial, { role: "user", parts: partes }],
-    generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA, temperature: 0.3 },
-  };
-
-  let ultimoError = "";
-  const limite = Date.now() + 55000;
-  for (const modelo of MODELOS) {
-    if (Date.now() > limite - 3000) break;
-    const llamar = (c: unknown) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": clave },
-      body: JSON.stringify(c),
-      signal: AbortSignal.timeout(Math.max(3000, Math.min(40000, limite - Date.now()))),
-    }).catch((e) => new Response(String(e), { status: 599 }));
-    let r = await llamar({ ...pedido, generationConfig: { ...pedido.generationConfig, thinkingConfig: { thinkingLevel: "low" } } });
-    if (r.status === 400 && (await r.clone().text()).toLowerCase().includes("thinking")) r = await llamar(pedido);
-    if (r.status === 429) return json({ error: "limite" }, 429);
-    if (!r.ok) { ultimoError = `${modelo}: ${r.status} ${(await r.text()).slice(0, 160)}`; console.log("gemini", ultimoError); continue; }
-    const j = await r.json();
-    const salida = j?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
-    try { return json({ modelo, ...limpiar(JSON.parse(salida)) }); } catch { ultimoError = "respuesta"; }
-  }
-  return json({ error: "gemini", detalle: ultimoError }, 502);
+  const r = await pedirIA({ req, funcion: "cuerpo", contents: [...historial, { role: "user", parts: partes }], esquema: ESQUEMA, temperatura: 0.3 });
+  if (!r.ok) { const e = errorIA(r); return json({ ...e.cuerpo }, e.estado); }
+  return json({ modelo: r.modelo, proveedor: r.proveedor, ...limpiar(r.datos) });
 });

@@ -2,10 +2,9 @@
 // órdenes sobre el plato («quita el arroz», «eran 150 g», «esto es para los dos», «la ensalada es de Sant»)
 // y preguntas («¿me falta proteína?»). Devuelve los cambios a aplicar, la respuesta y sugerencias opcionales.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { pedirIA, errorIA, usuarioDe } from "../_shared/ia.ts";
 
 // Si un modelo está saturado (503), se reintenta una vez y se pasa al siguiente; los 2.5 son de respaldo (otra capacidad).
-const MODELOS = (Deno.env.get("GEMINI_MODELO") ?? "gemini-3.1-flash-lite,gemini-3-flash-preview,gemini-flash-latest,gemini-2.5-flash,gemini-2.5-flash-lite")
-  .split(",").map((m) => m.trim()).filter(Boolean);
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -52,6 +51,7 @@ con sus kcal; un plato hondo de caldo ≈ 350-450 ml) y lo sólido aparte (fideo
 o un ramen como un solo alimento, corrígelo así (quitar + agregar). Cuando sumes líquido, dilo en la respuesta ("el caldo suma ~400 ml de agua").
 Puede ser una mezcla (agregar y preguntar a la vez). Para líquidos gramos ≈ ml; el agua va como "Agua" con 0 kcal.
 "Café con leche" = café y leche por separado. Nombres simples en español ("Arroz blanco cocido", "Pechuga de pollo a la plancha").
+Si el contexto trae alimentos ya conocidos (de la despensa o del plato), usa EXACTAMENTE ese nombre en vez de inventar uno parecido.
 En "respuesta" di qué cambiaste y/o responde la pregunta. Nunca inventes alimentos que no dijo.
 DIETA: el contexto trae "dieta" (cómo come la persona). Respétala siempre: si es vegetariana o vegana no sugieras carne ni pescado
 (ni lácteos o huevo si es vegana), respeta restricciones y alergias, y evita lo que no le gusta. Si dice que no la dijo todavía,
@@ -64,7 +64,8 @@ Si cambias el plato, quién come o el reparto, calcula cuánto le toca a CADA pe
 le_quedan_en_el_dia_sin_este_plato de cada uno (en hogar). Nunca digas "está bien" sin hacer esa cuenta para cada uno.
 MUCHA COMIDA: si a alguien su parte le pasa claramente de lo que le queda en el día (más de ~400 kcal si su objetivo es ganar masa,
 ~200 si es recomposición, ~100 si es bajar de peso), díselo con números y propone cuánto comer cada uno y cuánto guardar para
-otro día como sobra (ej. "Coman una pizza entre los dos y guarden la otra para el almuerzo de mañana"). Ofrécelo en "opciones"
+otro día como sobra (ej. "Coman una pizza entre los dos y guarden la otra para el almuerzo de mañana"). Para quien quiere ganar masa,
+díselo sin retar: comer de más le suma. Ofrécelo en "opciones"
 (ej. "Sí, guardar 1 pizza para mañana") y NO lo apliques hasta que acepte. Cuando acepte o lo pida ("guarda la mitad para mañana",
 "lo que sobre es para mañana"), pon en guardar_sobras el nombre exacto del alimento del plato y cuántos gramos se guardan
 (la app los saca del plato y los guarda como sobra), y ajusta quién come y el reparto de lo que queda.
@@ -116,32 +117,6 @@ const ESQUEMA = {
   required: ["respuesta"],
 };
 
-async function leerClave(): Promise<string | null> {
-  const env = Deno.env.get("GEMINI_API_KEY");
-  if (env) return env;
-  const url = Deno.env.get("SUPABASE_URL"), servicio = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !servicio) return null;
-  const r = await fetch(`${url}/rest/v1/rpc/secreto_servidor`, {
-    method: "POST",
-    signal: AbortSignal.timeout(8000),
-    headers: { "Content-Type": "application/json", apikey: servicio, Authorization: `Bearer ${servicio}` },
-    body: JSON.stringify({ p_nombre: "GEMINI_API_KEY" }),
-  });
-  if (!r.ok) return null;
-  const v = await r.json();
-  return typeof v === "string" && v ? v : null;
-}
-
-function esUsuario(req: Request): boolean {
-  try {
-    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-    const datos = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return datos.role === "authenticated" && typeof datos.sub === "string";
-  } catch {
-    return false;
-  }
-}
-
 const num = (v: unknown, min: number, max: number, def: number) => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.round(Math.min(max, Math.max(min, n))) : def;
@@ -192,11 +167,9 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "metodo" }, 405);
   let cuerpo: { mensaje?: string; contexto?: unknown; historial?: { rol?: string; texto?: string }[] };
   try { cuerpo = await req.json(); } catch { return json({ error: "formato" }, 400); }
-  if (!esUsuario(req)) return json({ error: "sesion" }, 401);
+  if (!usuarioDe(req)) return json({ error: "sesion" }, 401);
   const mensaje = texto(cuerpo.mensaje, 1200);
   if (!mensaje) return json({ error: "texto" }, 400);
-  const clave = await leerClave().catch(() => null);
-  if (!clave) return json({ error: "sin_clave" }, 503);
 
   const historial = lista(cuerpo.historial, 8).map((h) => ({ role: h.rol === "ia" ? "model" : "user", parts: [{ text: texto(h.texto, 800) }] }))
     .filter((h) => h.parts[0].text);
@@ -204,45 +177,15 @@ Deno.serve(async (req) => {
     ...historial,
     { role: "user", parts: [{ text: `${INSTRUCCIONES}\n\nContexto (el plato AHORA): ${JSON.stringify(cuerpo.contexto ?? {}).slice(0, 9000)}\n\nMensaje: ${mensaje}` }] },
   ];
-  const pedido = { contents, generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA, temperature: 0.3 } };
-
-  let ultimoError = "";
-  const limite = Date.now() + 55000;
-  for (const modelo of MODELOS) {
-    if (Date.now() > limite - 3000) break;
-    const llamar = (c: unknown) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": clave },
-      body: JSON.stringify(c),
-      signal: AbortSignal.timeout(Math.max(3000, Math.min(30000, limite - Date.now()))),
-    }).catch((e) => new Response(String(e), { status: 599 }));
-    let r = await llamar({ ...pedido, generationConfig: { ...pedido.generationConfig, thinkingConfig: { thinkingLevel: "low" } } });
-    if (r.status === 400 && (await r.clone().text()).toLowerCase().includes("thinking")) r = await llamar(pedido);
-    if ((r.status === 503 || r.status === 500) && Date.now() < limite - 8000) {
-      await new Promise((ok) => setTimeout(ok, 1200));
-      r = await llamar(pedido);
-    }
-    if (r.status === 429) return json({ error: "limite" }, 429);
-    if (!r.ok) { ultimoError = `${modelo}: ${r.status} ${(await r.text()).slice(0, 160)}`; console.log("gemini", ultimoError); continue; }
-    const j = await r.json();
-    const salida = j?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
-    let res;
-    try { res = limpiar(JSON.parse(salida)); } catch { ultimoError = "respuesta"; continue; }
-    // Un reemplazo («no era yuca, eran papas») a veces vuelve solo con «quitar»: se le pide una vez que agregue el nuevo.
-    if (res.quitar.length && !res.agregar.length && !res.a_despensa.length && !res.guardar_sobras.length && !res.duda && esReemplazo(mensaje) && Date.now() < limite - 8000) {
-      const otra = await llamar({ ...pedido, contents: [...contents,
-        { role: "model", parts: [{ text: salida }] },
-        { role: "user", parts: [{ text: `Quitaste ${res.quitar.map((q) => q.nombre).join(", ")} pero no agregaste el alimento correcto. Es un reemplazo: responde de nuevo el JSON completo con quitar Y agregar (el alimento nuevo, con los mismos gramos que tenía el viejo y sus valores por 100 g).` }] }] });
-      if (otra.ok) {
-        try {
-          const j2 = await otra.json();
-          const s2 = j2?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
-          const r2 = limpiar(JSON.parse(s2));
-          if (r2.agregar.length) res = r2;
-        } catch { /* se queda con la primera */ }
-      }
-    }
-    return json({ modelo, ...res });
+  const r = await pedirIA({ req, funcion: "plato", contents, esquema: ESQUEMA, temperatura: 0.3 });
+  if (!r.ok) { const e = errorIA(r); return json({ ...e.cuerpo }, e.estado); }
+  let res = limpiar(r.datos);
+  // Un reemplazo («no era yuca, eran papas») a veces vuelve solo con «quitar»: se le pide una vez que agregue el nuevo.
+  if (res.quitar.length && !res.agregar.length && !res.a_despensa.length && !res.guardar_sobras.length && !res.duda && esReemplazo(mensaje)) {
+    const otra = await pedirIA({ req, funcion: "plato", esquema: ESQUEMA, temperatura: 0.3, limiteMs: 25000, contents: [...contents,
+      { role: "model", parts: [{ text: r.texto }] },
+      { role: "user", parts: [{ text: `Quitaste ${res.quitar.map((q) => q.nombre).join(", ")} pero no agregaste el alimento correcto. Es un reemplazo: responde de nuevo el JSON completo con quitar Y agregar (el alimento nuevo, con los mismos gramos que tenía el viejo y sus valores por 100 g).` }] }] });
+    if (otra.ok) { const r2 = limpiar(otra.datos); if (r2.agregar.length) res = r2; }
   }
-  return json({ error: "gemini", detalle: ultimoError }, 502);
+  return json({ modelo: r.modelo, proveedor: r.proveedor, ...res });
 });

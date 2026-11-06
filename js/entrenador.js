@@ -1,6 +1,7 @@
 // Entrenador IA: un chat para ajustar la rutina (también la de un entreno en curso) o armar rutinas nuevas.
 // La IA sabe el deporte del hogar y evita sumar fatiga donde el deporte ya carga (derby → menos cuádriceps,
 // más glúteos y femorales). Lo que propone se ve antes de aplicarlo.
+import { llamarIA } from './ia.js';
 import { sb, estado, datos } from './db.js';
 import { esc, aviso, avisoError, abrirDialogo } from './ui.js';
 import { deporte } from './deportes.js';
@@ -75,19 +76,8 @@ async function contexto(rutinaId, enCurso = false) {
   };
 }
 
-async function preguntar(mensaje, ctxIA, historial) {
-  const espera = new Promise((_, no) => setTimeout(() => no(new Error('La IA tardó demasiado. Prueba de nuevo.')), 70000));
-  const { data, error } = await Promise.race([sb.functions.invoke('entrenador', { body: { mensaje, contexto: ctxIA, historial } }), espera]);
-  if (error) {
-    let codigo = null;
-    try { codigo = (await error.context?.json?.())?.error; } catch { /* sin detalle */ }
-    throw new Error({
-      limite: 'La IA llegó al límite gratis por ahora. Prueba en un minuto.',
-      gemini: 'La IA está saturada en este momento. Prueba en un rato.',
-      sesion: 'Tu sesión se venció: vuelve a entrar a Bloq.',
-    }[codigo] ?? 'No se pudo conectar con la IA. Revisa la conexión.');
-  }
-  return data;
+function preguntar(mensaje, ctxIA, historial) {
+  return llamarIA('entrenador', { mensaje, contexto: ctxIA, historial }, { manual: 'Puedes editar la rutina a mano.' });
 }
 
 /**

@@ -792,7 +792,9 @@ function htmlResumen(x, esYo, esHoy = true, mio = esYo) {
           ? `<span class="kcal__texto kcal__texto--arriba">Faltan</span><span class="kcal__numero">${kc(quedan)}</span><span class="kcal__texto">kcal por comer</span>`
           : quedan > -25
             ? '<span class="kcal__numero kcal__numero--ok">Meta cumplida ✓</span><span class="kcal__texto">Ya no te faltan calorías hoy</span>'
-            : `<span class="kcal__texto kcal__texto--arriba">Te pasaste</span><span class="kcal__numero">+${kc(-quedan)}</span><span class="kcal__texto">kcal de más</span>`}
+            : (metas.foco === 'masa_muscular' || metas.magro)
+              ? `<span class="kcal__texto kcal__texto--arriba">Meta superada ✓</span><span class="kcal__numero kcal__numero--ok">+${kc(-quedan)}</span><span class="kcal__texto">kcal · suma para ganar músculo</span>`
+              : `<span class="kcal__texto kcal__texto--arriba">Te pasaste</span><span class="kcal__numero">+${kc(-quedan)}</span><span class="kcal__texto">kcal de más</span>`}
         </div>
         <span class="quieto kcal__meta">${kc(comido.kcal)} de ${kc(metas.kcal)}</span>
       </div>

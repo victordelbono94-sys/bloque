@@ -2,9 +2,8 @@
 // omega-3 (EPA+DHA) y fibra. Recibe ids de alimentos, lee con la sesión del usuario (así solo ve los suyos o el catálogo base),
 // estima los que faltan con Gemini y los guarda con la service role (el catálogo base no lo puede editar el usuario).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { pedirIA, errorIA, usuarioDe } from "../_shared/ia.ts";
 
-const MODELOS = (Deno.env.get("GEMINI_MODELO") ?? "gemini-3.1-flash-lite,gemini-3-flash-preview,gemini-flash-latest")
-  .split(",").map((m) => m.trim()).filter(Boolean);
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -39,32 +38,6 @@ const ESQUEMA = {
   required: ["alimentos"],
 };
 
-async function leerClave(): Promise<string | null> {
-  const env = Deno.env.get("GEMINI_API_KEY");
-  if (env) return env;
-  const url = Deno.env.get("SUPABASE_URL"), servicio = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !servicio) return null;
-  const r = await fetch(`${url}/rest/v1/rpc/secreto_servidor`, {
-    method: "POST",
-    signal: AbortSignal.timeout(8000),
-    headers: { "Content-Type": "application/json", apikey: servicio, Authorization: `Bearer ${servicio}` },
-    body: JSON.stringify({ p_nombre: "GEMINI_API_KEY" }),
-  });
-  if (!r.ok) return null;
-  const v = await r.json();
-  return typeof v === "string" && v ? v : null;
-}
-
-function esUsuario(req: Request): boolean {
-  try {
-    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-    const datos = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return datos.role === "authenticated" && typeof datos.sub === "string";
-  } catch {
-    return false;
-  }
-}
-
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (req) => {
@@ -72,7 +45,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "metodo" }, 405);
   let cuerpo: { ids?: unknown };
   try { cuerpo = await req.json(); } catch { return json({ error: "formato" }, 400); }
-  if (!esUsuario(req)) return json({ error: "sesion" }, 401);
+  if (!usuarioDe(req)) return json({ error: "sesion" }, 401);
   const ids = (Array.isArray(cuerpo.ids) ? cuerpo.ids : []).map(String).filter((x) => UUID.test(x)).slice(0, 30);
   if (!ids.length) return json({ micros: {} });
 
@@ -90,47 +63,25 @@ Deno.serve(async (req) => {
   const faltan = filas.filter((f) => !f.micros);
   if (!faltan.length) return json({ micros: listos });
 
-  const clave = await leerClave().catch(() => null);
-  if (!clave) return json({ error: "sin_clave" }, 503);
   const lista = faltan.map((f, i) => ({ i, nombre: f.nombre, marca: f.marca ?? undefined, kcal: f.kcal, prot: f.proteina_g, carb: f.carbohidratos_g, grasa: f.grasas_g }));
-  const pedido = {
-    contents: [{ role: "user", parts: [{ text: INSTRUCCIONES }, { text: `Alimentos: ${JSON.stringify(lista)}` }] }],
-    generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA, temperature: 0.1 },
-  };
-  let ultimoError = "";
-  const limite = Date.now() + 50000;
-  for (const modelo of MODELOS) {
-    if (Date.now() > limite - 3000) break;
-    const llamar = (c: unknown) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": clave },
-      body: JSON.stringify(c),
-      signal: AbortSignal.timeout(Math.max(3000, Math.min(35000, limite - Date.now()))),
-    }).catch((e) => new Response(String(e), { status: 599 }));
-    let g = await llamar({ ...pedido, generationConfig: { ...pedido.generationConfig, thinkingConfig: { thinkingLevel: "low" } } });
-    if (g.status === 400 && (await g.clone().text()).toLowerCase().includes("thinking")) g = await llamar(pedido);
-    if (g.status === 429) return json({ error: "limite", micros: listos }, 429);
-    if (!g.ok) { ultimoError = `${modelo}: ${g.status}`; continue; }
-    const j = await g.json();
-    const salida = j?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
-    let datos: { alimentos?: Record<string, unknown>[] };
-    try { datos = JSON.parse(salida); } catch { ultimoError = "respuesta"; continue; }
-    for (const a of datos.alimentos ?? []) {
-      const f = faltan[Number(a.i)];
-      if (!f) continue;
-      const m: Record<string, number> = {};
-      for (const [k, [min, max]] of Object.entries(CAMPOS)) {
-        const n = Number(a[k]);
-        m[k] = Number.isFinite(n) ? Math.round(Math.min(max, Math.max(min, n)) * 10) / 10 : 0;
-      }
-      const w = await fetch(`${url}/rest/v1/alimentos?id=eq.${f.id}`, {
-        method: "PATCH",
-        headers: { apikey: servicio, Authorization: `Bearer ${servicio}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-        body: JSON.stringify({ micros: m }),
-      });
-      if (w.ok) listos[f.id as string] = m;
+  const ia = await pedirIA({ req, funcion: "micros", contents: [{ role: "user", parts: [{ text: INSTRUCCIONES }, { text: `Alimentos: ${JSON.stringify(lista)}` }] }],
+    esquema: ESQUEMA, temperatura: 0.1, limiteMs: 50000 });
+  if (!ia.ok) { const e = errorIA(ia); return json({ ...e.cuerpo, micros: listos }, e.estado); }
+  const datos = ia.datos as { alimentos?: Record<string, unknown>[] };
+  for (const a of datos.alimentos ?? []) {
+    const f = faltan[Number(a.i)];
+    if (!f) continue;
+    const m: Record<string, number> = {};
+    for (const [k, [min, max]] of Object.entries(CAMPOS)) {
+      const n = Number(a[k]);
+      m[k] = Number.isFinite(n) ? Math.round(Math.min(max, Math.max(min, n)) * 10) / 10 : 0;
     }
-    return json({ modelo, micros: listos });
+    const w = await fetch(`${url}/rest/v1/alimentos?id=eq.${f.id}`, {
+      method: "PATCH",
+      headers: { apikey: servicio, Authorization: `Bearer ${servicio}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ micros: m }),
+    });
+    if (w.ok) listos[f.id as string] = m;
   }
-  return json({ error: "gemini", detalle: ultimoError, micros: listos }, 502);
+  return json({ modelo: ia.modelo, proveedor: ia.proveedor, micros: listos });
 });

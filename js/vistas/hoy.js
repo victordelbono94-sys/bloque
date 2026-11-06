@@ -16,6 +16,7 @@ import { litros } from '../hidratacion.js';
 import { abrirDialogo } from '../ui.js';
 import { asistentes, htmlAsistentes, esIndividual } from '../asistentes.js';
 import { recuperar } from './semana.js';
+import { noVoy } from '../reacomodo.js';
 import { cargarPorConfirmar, htmlPorConfirmar, conectarPorConfirmar } from '../confirmar.js';
 
 export async function vistaHoy(app) {
@@ -214,6 +215,9 @@ export async function vistaHoy(app) {
   if (falta.length) avisarPerfil(falta);
   app.querySelectorAll('[data-recuperar]').forEach((b) => b.addEventListener('click', () =>
     recuperar(pendientes.find((e) => e.id === b.dataset.recuperar), rutinas, () => vistaHoy(app))));
+  app.querySelectorAll('[data-novoy]').forEach((b) => b.addEventListener('click', () => {
+    noVoy(deHoy.find((e) => e.id === b.dataset.novoy), rutinas, () => vistaHoy(app)).catch(avisoError);
+  }));
   app.querySelectorAll('[data-empezar]').forEach((b) => b.addEventListener('click', async () => {
     b.disabled = true;
     try {
@@ -309,8 +313,16 @@ function htmlPlan(ev, rutinas, sesiones, resumen, reloj, quienesDe) {
         ${detalle ? `<span class="plan__detalle">${esc(detalle)}</span>` : ''}
         ${individual ? htmlAsistentes(quienesDe(ev)) : reloj ? `<span class="plan__reloj">${ICONO_RELOJ}<span>Registrado · ${esc(datosSesion(reloj))}</span></span>` : ''}
         ${extra}
+        ${puedeNoVoy(ev, sesiones, reloj) ? `<button type="button" class="enlace-chico enlace-boton plan__novoy" data-novoy="${esc(ev.id)}">No voy</button>` : ''}
       </div>
     </li>`;
+}
+
+// «No voy» solo para lo que todavía no se hizo y en lo que participo (sin IA: ver reacomodo.js).
+function puedeNoVoy(ev, sesiones, reloj) {
+  if (ev.tipo === 'descanso' || reloj) return false;
+  if (!(ev.asistencia === 'juntos' || ev.persona_id === estado.yo.id)) return false;
+  return !sesiones.some((s) => s.calendario_id === ev.id);
 }
 
 // Botones para marcar el día sin ir a Semana. Va para los dos, sin hora.

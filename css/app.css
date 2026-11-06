@@ -2323,3 +2323,11 @@ dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }
 .reg__barra-total strong { color: var(--tiza); font-size: 16px; }
 .reg__guardar { flex: none; min-height: 48px; padding: 0 18px; font-size: 16px; }
 .reg__guardar:disabled { opacity: .45; }
+
+/* «No voy» y opciones de reacomodo (reacomodo.js) */
+.plan__novoy { align-self: flex-start; margin-top: 6px; color: var(--gris); }
+.opcion-fila { display: flex; flex-direction: column; gap: 2px; text-align: left; width: 100%; padding: 10px 12px; border-radius: var(--radio-chico);
+  border: 1.5px solid var(--linea); background: var(--grafito); color: var(--tiza); font: inherit; cursor: pointer; }
+.opcion-fila span { font-size: .85rem; color: var(--gris); }
+.opcion-fila[aria-pressed="true"] { border-color: var(--volt); }
+.opcion-fila[hidden] { display: none; }
