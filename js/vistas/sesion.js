@@ -429,7 +429,9 @@ function conectarFila(app, cont) {
 // Ficha del ejercicio que estoy haciendo, con las alternativas listas para usar.
 function verFicha(app, it) {
   const mio = ejercicioDe(it, estado.yo.id);
-  const opciones = [it.ejercicio, ...it.alternativas].filter((o) => o.id !== mio.id);
+  // Nada de lo que ya hice hoy en otro ejercicio de la sesión (ni sus variantes de la misma máquina/movimiento exacto).
+  const hechosHoy = new Set(actual.series.filter((s) => s.persona_id === estado.yo.id && s.ejercicio_id !== mio.id).map((s) => s.ejercicio_id));
+  const opciones = [it.ejercicio, ...it.alternativas].filter((o) => o.id !== mio.id && !hechosHoy.has(o.id));
   const participo = actual.participantes.some((p) => p.id === estado.yo.id);
   abrirFicha(mio, {
     alternativas: opciones,

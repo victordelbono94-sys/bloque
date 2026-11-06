@@ -2352,3 +2352,6 @@ dialog details { scroll-margin-top: 16px; scroll-margin-bottom: 96px; }
 .mp .campo { margin-top: 10px; }
 .mp__item { display: grid; grid-template-columns: 1fr 80px auto; gap: 8px; align-items: center; margin-top: 6px; font-size: 14px; }
 .mp__item input { padding: 6px 8px; }
+.alternativa__nivel { font-weight: 600; }
+.alternativa__nivel--facil { color: var(--volt); }
+.alternativa__nivel--dificil { color: var(--ambar); }

@@ -57,7 +57,7 @@ export function abrirFicha(ej, { alternativas = [], alElegir = null, actualId = 
       </button>
       ${alternativas.length ? `
         <div>
-          <p class="seccion__titulo" style="margin:4px 0 8px">${alElegir ? '¿Ocupada? Cámbiala por' : 'Si la máquina está ocupada'}</p>
+          <p class="seccion__titulo" style="margin:4px 0 8px">${alElegir ? '¿Ocupada o quieres variar? Cámbiala por' : 'Otras opciones para variar'}</p>
           <div class="pila" style="gap:8px">
             ${alternativas.map((a) => `
               <div class="alternativa ${a.id === actualId ? 'alternativa--actual' : ''}">
@@ -65,7 +65,7 @@ export function abrirFicha(ej, { alternativas = [], alElegir = null, actualId = 
                   ${miniatura(a, 48)}
                   <span class="alternativa__texto">
                     <strong>${esc(a.nombre)}</strong>
-                    <span class="quieto">${esc(a.maquina?.nombre ?? 'Peso libre')}</span>
+                    <span class="quieto">${a.comparacion ? `<span class="alternativa__nivel alternativa__nivel--${a.comparacion === 'Más fácil' ? 'facil' : a.comparacion === 'Más difícil' ? 'dificil' : 'igual'}">${esc(a.comparacion)}</span> · ` : ''}${a.mismoMovimiento === false ? 'otro movimiento · ' : ''}${esc(a.maquina?.nombre ?? 'Peso libre')}</span>
                   </span>
                 </button>
                 ${alElegir ? (a.id === actualId

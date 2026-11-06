@@ -10,30 +10,46 @@
 const ANCLA = Date.UTC(2026, 9, 26); // lunes 26 oct 2026
 export const SEMANAS_POR_BLOQUE = 4;
 
-/** Familias de ejercicios intercambiables: mismo músculo principal y mismo movimiento. */
+/**
+ * Familias de ejercicios intercambiables: mismo músculo principal y mismo movimiento.
+ * Cada ejercicio va como «nombre|nivel» (1 más fácil o guiado por máquina, 2 medio, 3 más difícil o más estable de controlar).
+ * grupo: para ofrecer, si hace falta, otros movimientos del mismo músculo.
+ */
+const F = (clave, grupo, musculo, lista, basico = false) => ({
+  clave, grupo, musculo, basico,
+  ejercicios: lista.map((x) => x.split('|')[0]),
+  nivel: Object.fromEntries(lista.map((x) => [x.split('|')[0], Number(x.split('|')[1] ?? 2)])),
+});
 export const FAMILIAS = [
-  { clave: 'empuje_horizontal', musculo: 'pecho', basico: true, ejercicios: ['Press de pecho en máquina', 'Press de banca con mancuernas', 'Press de banca en Multipower'] },
-  { clave: 'empuje_inclinado', musculo: 'pecho superior', ejercicios: ['Press inclinado con mancuernas', 'Press inclinado en Multipower'] },
-  { clave: 'aperturas', musculo: 'pecho', ejercicios: ['Cruce de poleas', 'Aperturas en pec deck'] },
-  { clave: 'empuje_vertical', musculo: 'hombros', basico: true, ejercicios: ['Press de hombros en máquina', 'Press militar con mancuernas'] },
-  { clave: 'laterales', musculo: 'hombro lateral', ejercicios: ['Elevaciones laterales en máquina', 'Elevaciones laterales con mancuernas'] },
-  { clave: 'hombro_posterior', musculo: 'hombro posterior', ejercicios: ['Pájaros con mancuernas', 'Face pull en polea'] },
-  { clave: 'triceps', musculo: 'tríceps', ejercicios: ['Extensión de tríceps en polea', 'Extensión de tríceps en máquina', 'Fondos asistidos'] },
-  { clave: 'tiron_vertical', musculo: 'espalda (dorsal)', basico: true, ejercicios: ['Jalón al pecho', 'Dominadas asistidas'] },
-  { clave: 'tiron_horizontal', musculo: 'espalda (media)', basico: true, ejercicios: ['Remo sentado en máquina', 'Remo bajo en máquina', 'Remo con mancuerna'] },
-  { clave: 'espalda_alta', musculo: 'espalda alta', ejercicios: ['Remo alto en máquina', 'Face pull en polea'] },
-  { clave: 'curl', musculo: 'bíceps', ejercicios: ['Curl de bíceps en máquina', 'Curl con mancuernas', 'Bayesian cable curl'] },
-  { clave: 'curl_martillo', musculo: 'bíceps y antebrazo', ejercicios: ['Curl martillo', 'Curl invertido en polea'] },
-  { clave: 'muneca', musculo: 'antebrazo', ejercicios: ['Curl de muñeca en polea', 'Curl de muñeca con mancuerna', 'Curl de muñeca con barra'] },
-  { clave: 'agarre', musculo: 'agarre', ejercicios: ['Agarre isométrico con discos', 'Caminata de granjero'] },
-  { clave: 'trapecios', musculo: 'trapecios', ejercicios: ['Encogimientos con mancuernas', 'Encogimientos en Multipower', 'Remo al mentón en polea'] },
-  { clave: 'cuadriceps_compuesto', musculo: 'cuádriceps', basico: true, ejercicios: ['Prensa de piernas', 'Sentadilla en Multipower'] },
-  { clave: 'gluteo_compuesto', musculo: 'glúteos', basico: true, ejercicios: ['Hip thrust con barra', 'Empuje de cadera en máquina'] },
-  { clave: 'core_antirrotacion', musculo: 'core', ejercicios: ['Pallof press en polea', 'Plancha lateral'] },
-  { clave: 'core_flexion', musculo: 'abdomen', ejercicios: ['Abdominal en máquina', 'Crunch en colchoneta'] },
-  { clave: 'core_rotacion', musculo: 'oblicuos', ejercicios: ['Rotación de tronco en máquina', 'Lanzamiento lateral de balón medicinal'] },
-  { clave: 'lumbar', musculo: 'zona lumbar', ejercicios: ['Lumbar en máquina', 'Superman en colchoneta'] },
-  { clave: 'estabilidad', musculo: 'estabilidad', ejercicios: ['Equilibrio a una pierna', 'Bird dog'] },
+  F('empuje_horizontal', 'pecho', 'pecho', ['Press de pecho en máquina|1', 'Press de banca con mancuernas|2', 'Press de banca en Multipower|2', 'Press de pecho en polea de pie|2', 'Flexiones de brazos|2'], true),
+  F('empuje_inclinado', 'pecho', 'pecho superior', ['Press inclinado con mancuernas|2', 'Press inclinado en Multipower|2', 'Press inclinado en polea|2', 'Flexiones con pies elevados|3']),
+  F('aperturas', 'pecho', 'pecho', ['Aperturas en pec deck|1', 'Cruce de poleas|1', 'Cruce de poleas desde abajo|2', 'Aperturas con mancuernas en banco|2']),
+  F('empuje_vertical', 'hombro', 'hombros', ['Press de hombros en máquina|1', 'Press militar con mancuernas|2', 'Press militar en Multipower|2', 'Press Arnold con mancuernas|3'], true),
+  F('laterales', 'hombro', 'hombro lateral', ['Elevaciones laterales en máquina|1', 'Elevación lateral sentado con mancuernas|1', 'Elevaciones laterales con mancuernas|2', 'Elevación lateral en polea a una mano|2']),
+  F('hombro_posterior', 'hombro', 'hombro posterior', ['Pec deck inverso|1', 'Face pull en polea|1', 'Pájaros con mancuernas|2', 'Pájaros en polea cruzada|2']),
+  F('triceps', 'triceps', 'tríceps', ['Extensión de tríceps en máquina|1', 'Extensión de tríceps en polea|1', 'Patada de tríceps en polea|1', 'Extensión de tríceps sobre la cabeza en polea|2', 'Press francés con mancuernas|2', 'Fondos asistidos|2', 'Fondos en banco|3']),
+  F('tiron_vertical', 'espalda', 'espalda (dorsal)', ['Jalón al pecho|1', 'Jalón con agarre neutro|1', 'Jalón unilateral en polea|2', 'Dominadas asistidas|2'], true),
+  F('tiron_horizontal', 'espalda', 'espalda (media)', ['Remo sentado en máquina|1', 'Remo bajo en máquina|1', 'Remo con pecho apoyado con mancuernas|2', 'Remo en polea baja a una mano|2', 'Remo con mancuerna|2'], true),
+  F('dorsal_aislado', 'espalda', 'dorsal', ['Pullover en polea|1', 'Pullover con mancuerna|2']),
+  F('espalda_alta', 'espalda', 'espalda alta', ['Remo alto en máquina|1', 'Remo abierto en polea baja|1', 'Remo alto con mancuernas en banco inclinado|2']),
+  F('curl', 'biceps', 'bíceps', ['Curl de bíceps en máquina|1', 'Curl en polea baja con barra|1', 'Curl con mancuernas|2', 'Bayesian cable curl|2', 'Curl concentrado|2', 'Curl en banco Scott con mancuerna|2', 'Curl inclinado con mancuernas|3']),
+  F('curl_martillo', 'biceps', 'bíceps y antebrazo', ['Curl martillo en polea con cuerda|1', 'Curl martillo|1', 'Curl martillo cruzado|2', 'Curl invertido en polea|2']),
+  F('muneca', 'antebrazo', 'antebrazo', ['Curl de muñeca en polea|1', 'Curl de muñeca con mancuerna|1', 'Curl de muñeca con barra|2']),
+  F('agarre', 'antebrazo', 'agarre', ['Agarre isométrico con discos|1', 'Caminata de granjero|2', 'Colgarse de la barra|2']),
+  F('trapecios', 'trapecio', 'trapecios', ['Encogimientos en polea|1', 'Encogimientos con mancuernas|1', 'Encogimientos en Multipower|2', 'Remo al mentón en polea|2']),
+  F('cuadriceps_compuesto', 'cuadriceps', 'cuádriceps', ['Prensa de piernas|1', 'Prensa horizontal|1', 'Sentadilla goblet con mancuerna|2', 'Sentadilla en Multipower|2', 'Sentadilla búlgara con mancuernas|3'], true),
+  F('gluteo_compuesto', 'gluteo', 'glúteos', ['Empuje de cadera en máquina|1', 'Puente de glúteo con mancuerna|1', 'Hip thrust con barra|2', 'Hip thrust a una pierna|3'], true),
+  F('gluteo_aislado', 'gluteo', 'glúteo medio y mayor', ['Abductores en máquina|1', 'Patada de glúteo en máquina|1', 'Patada de glúteo en polea|2', 'Abducción de cadera en polea|2', 'Caminata lateral con banda|2']),
+  F('femoral_bisagra', 'femoral', 'isquiotibiales', ['Peso muerto rumano con mancuernas|2', 'Peso muerto rumano en Multipower|2', 'Peso muerto rumano a una pierna|3', 'Buenos días en Multipower|3'], true),
+  F('femoral_curl', 'femoral', 'isquiotibiales', ['Curl femoral en máquina|1', 'Curl femoral sentado en máquina|1', 'Curl femoral con fitball|2', 'Curl nórdico asistido|3']),
+  F('aductores', 'aductor', 'aductores', ['Aductores en máquina|1', 'Sentadilla sumo con mancuerna|2', 'Plancha Copenhague|3']),
+  F('pantorrillas', 'pantorrilla', 'pantorrillas', ['Pantorrillas en prensa|1', 'Elevación de talones en Multipower|2', 'Elevación de talones a una pierna|2']),
+  F('core_antirrotacion', 'core', 'core', ['Plancha|1', 'Dead bug|1', 'Pallof press en polea|1', 'Plancha lateral|2', 'Plancha con toque de hombros|2']),
+  F('core_flexion', 'core', 'abdomen', ['Abdominal en máquina|1', 'Crunch en colchoneta|1', 'Crunch en polea de rodillas|2', 'Elevación de piernas en colchoneta|2', 'Elevación de piernas colgado|3']),
+  F('core_rotacion', 'core', 'oblicuos', ['Rotación de tronco en máquina|1', 'Woodchop en polea|2', 'Woodchop con mancuerna|2', 'Giro ruso con disco|2', 'Lanzamiento lateral de balón medicinal|2']),
+  F('lumbar', 'lumbar', 'zona lumbar', ['Lumbar en máquina|1', 'Superman en colchoneta|1', 'Hiperextensión en banco romano|2']),
+  F('estabilidad', 'estabilidad', 'estabilidad', ['Bird dog|1', 'Equilibrio a una pierna|1', 'Alcance en estrella a una pierna|2']),
+  F('pliometria', 'pliometria', 'potencia de piernas', ['Saltos laterales sobre línea|1', 'Sentadilla con salto|2', 'Saltos de patinador|2', 'Salto al cajón|2', 'Saltos laterales al cajón|3']),
 ];
 
 export const normal = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
@@ -93,19 +109,41 @@ export function variarRutina(items, catalogo, fechaISO) {
   });
 }
 
+/** Nivel (1 a 3) de un ejercicio dentro de su familia, o null. */
+export function nivelDe(nombre) {
+  const f = familiaDe(nombre);
+  return f ? f.nivel[f.ejercicios.find((n) => normal(n) === normal(nombre))] ?? 2 : null;
+}
+/** «Más fácil», «Parecido» o «Más difícil» de b respecto de a. */
+export function comparacion(a, b) {
+  const na = nivelDe(a), nb = nivelDe(b);
+  if (na == null || nb == null || na === nb) return 'Parecido';
+  return nb < na ? 'Más fácil' : 'Más difícil';
+}
+
 /**
- * Alternativas para «¿Ocupada? Cámbiala por»: otras de la misma familia (mismo músculo y movimiento)
- * que no estén ya en la rutina. Si el ejercicio no tiene familia, se usan las que estaban guardadas.
+ * Alternativas para «Cambiar ejercicio»: primero otras de la misma familia (mismo músculo y movimiento),
+ * después otros movimientos del mismo grupo muscular. Nunca lo que ya está en la rutina ni lo hecho hoy
+ * (evitar = nombres o ids hechos en la sesión). Se ordenan para que haya de todo: parecido, más fácil y más difícil.
+ * Cada una trae `.comparacion` y `.mismoMovimiento`. Si el ejercicio no tiene familia, se usan las guardadas.
  */
-export function alternativasDe(it, items, catalogo, guardadas = []) {
+export function alternativasDe(it, items, catalogo, guardadas = [], evitar = []) {
   if (!it.familia) return guardadas;
-  const enRutina = new Set(items.map((x) => normal(x.ejercicio?.nombre)));
-  const propias = it.familia.ejercicios
-    .map((n) => catalogo.find((e) => normal(e.nombre) === normal(n)))
-    .filter((e) => e && !enRutina.has(normal(e.nombre)));
+  const fuera = new Set([...items.map((x) => normal(x.ejercicio?.nombre)), ...evitar.map(normal)]);
+  const buscar = (n) => catalogo.find((e) => normal(e.nombre) === normal(n));
+  const base = it.ejercicio?.nombre;
+  const marcar = (e, mismo) => e && Object.assign(Object.create(Object.getPrototypeOf(e)), e, { comparacion: comparacion(base, e.nombre), mismoMovimiento: mismo });
+  const propias = it.familia.ejercicios.map(buscar).filter((e) => e && !fuera.has(normal(e.nombre))).map((e) => marcar(e, true));
   // El de siempre también vale como alternativa cuando esta semana toca otro.
-  if (it.rotado && it.original && !propias.some((e) => e.id === it.original.id)) propias.unshift(it.original);
-  return propias;
+  if (it.rotado && it.original && !propias.some((e) => e.id === it.original.id) && !fuera.has(normal(it.original.nombre))) propias.unshift(marcar(it.original, true));
+  const otras = FAMILIAS.filter((f) => f.grupo === it.familia.grupo && f.clave !== it.familia.clave)
+    .flatMap((f) => f.ejercicios).map(buscar).filter((e) => e && !fuera.has(normal(e.nombre))).map((e) => marcar(e, false));
+  // Variedad: uno de cada tipo primero (parecido, más fácil, más difícil), después el resto.
+  const orden = { Parecido: 0, 'Más fácil': 1, 'Más difícil': 2 };
+  const visto = new Set();
+  const primero = [...propias].sort((a, b) => orden[a.comparacion] - orden[b.comparacion]).filter((e) => !visto.has(e.comparacion) && visto.add(e.comparacion));
+  const resto = propias.filter((e) => !primero.includes(e));
+  return [...primero, ...resto, ...otras].slice(0, 8);
 }
 
 /**
